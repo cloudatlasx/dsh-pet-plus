@@ -79,11 +79,13 @@
            内容可用宽度被悄悄缩掉一圈（表现为「明明还有空位却折行」）。与浏览器 bubble.ts 同一口径 */
         box-sizing: content-box;
         min-width: calc(var(--f) * 5.7143);
-        max-width: min(calc(var(--f) * 16), 100%);
-        padding: calc(var(--f) * 0.4835) calc(var(--f) * 0.6593);
+        max-width: min(calc(var(--f) * 19), 100%);
+        padding: calc(var(--f) * 0.75) calc(var(--f) * 0.8);
         border-radius: calc(var(--f) * 0.7692);
-        background: rgba(255, 255, 255, 0.92);
-        color: #2b2b2b;
+        /* 不透明实色 + 1px 描边：气泡属于内容层，毛玻璃在这层只会糊住自己的字（与浏览器端同一口径） */
+        background: rgba(255, 255, 255, 0.97);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        color: #18181b;
         /* 字体族走全局配置变量（renderer.js 注入到 documentElement）：对话窗/得分弹窗挂在 body 下、
            继承不到宠物根容器，气泡也统一从这里取；回退参数是变量未注入时的默认字体栈 */
         font-family: var(
@@ -106,10 +108,10 @@
         z-index: 3;
         pointer-events: none;
         box-shadow:
-          0 calc(var(--f) * 0.1978) calc(var(--f) * 0.7692) rgba(0, 0, 0, 0.14),
-          0 1px 3px rgba(0, 0, 0, 0.08);
+          0 1px 2px rgba(0, 0, 0, 0.06),
+          0 10px 24px -8px rgba(0, 0, 0, 0.24);
         opacity: 0;
-        transition: opacity 0.25s ease;
+        transition: opacity 0.14s ease;
         /* 不锁 nowrap：折行只在内容真超过宽度上限时才发生；break-word 只在整词放不下时断，
            不会把 85% / ¥12.34 这类数字拆到两行 */
         white-space: normal;
@@ -122,11 +124,28 @@
         bottom: calc(var(--f) * -0.3736);
         transform: translateX(-50%);
         border: calc(var(--f) * 0.3736) solid transparent;
-        border-top-color: rgba(255, 255, 255, 0.92);
+        border-top-color: rgba(255, 255, 255, 0.97);
         border-bottom: none;
       }
       .pet-bubble.is-on {
         opacity: 1;
+        /* 入场 180ms：位移 8px + 缩到 0.96，缓动用 M3 的 emphasized decelerate */
+        animation: pet-bub-in 0.18s cubic-bezier(0.05, 0.7, 0.1, 1) both;
+      }
+      @keyframes pet-bub-in {
+        from {
+          opacity: 0;
+          transform: translate(-50%, calc(var(--f) * 0.5)) scale(0.96);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .pet-bubble.is-on {
+          animation: none;
+        }
       }
       /* 碎碎念变体：与浏览器 overlay 一致 —— 字号缩到余额气泡的 0.75、宽度下限更窄（0.10 → 2.1978），
          上限与余额气泡相同；宽度取宽/折行规则继承 .pet-bubble，高度随行数自然增长 */

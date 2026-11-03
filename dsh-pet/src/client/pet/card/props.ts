@@ -9,7 +9,7 @@ import type { BalanceState } from '../../../shared/balance/index.ts';
 import type { PetCollisionSlot } from '../../../shared/physics.ts';
 import type { LockState, PositionMode, SayCue, PetFacing, SleepState } from '../../../shared/state.ts';
 import type { MenuMoreItem } from '../../../shared/menu.ts';
-import type { ReminderEnvelope, RequestEnvelope } from '../../../shared/request.ts';
+import type { HistorySnapshot, ReminderEnvelope, RequestEnvelope } from '../../../shared/request.ts';
 import type { WorkStatusSnapshot } from '../../../shared/work-status.ts';
 import type { RuntimePet } from '../types.ts';
 
@@ -37,6 +37,10 @@ export interface PetCardProps {
   reminder?: ReminderEnvelope | null;
   /** 提醒叶子变化次数。 */
   reminderTick?: number;
+  /** 折叠台账快照：最近推过的通知摘要；null 表示宿主还没写过。 */
+  history?: HistorySnapshot | null;
+  /** 台账叶子变化次数。 */
+  historyTick?: number;
   /** 点工作气泡时跳到它所属会话；缺省即气泡不可点（桌面端由容器转发）。 */
   onFocusSession?: (sessionId: string) => void;
   /** 本宠物的说话指令；kind 为 clear 时收起气泡，其余弹气泡。 */

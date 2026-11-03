@@ -22,7 +22,15 @@ export interface StateLeaf {
  *  页面不是发起方，只能靠这个信号知道配置被别处改过；保存 / 同步配置的调用方自己拿到了成品聚合，
  *  所以不写。 */
 export type SectionName =
-  'balance' | 'workStatus' | 'notify' | 'config' | 'menu' | 'focusSession' | 'request' | 'reminder';
+  | 'balance'
+  | 'workStatus'
+  | 'notify'
+  | 'config'
+  | 'menu'
+  | 'focusSession'
+  | 'request'
+  | 'reminder'
+  | 'history';
 
 /** 每宠物段（say = 要说的话；anim = 要播的动画名；position = 要挪到的位置；throw = 要给的初速度；
  *  lock = 占用锁状态；sleep = 睡觉状态）。
@@ -120,6 +128,9 @@ export class PollStateStore {
       // 定时任务到点提醒（data 形状见 shared/request 的 readReminder）：到点写它、20s 后
       // 写同 id 的 closed 信封收起，页面只负责展示。
       reminder: emptyLeaf(),
+      // 折叠台账（data 形状见 shared/request 的 readHistory）：最近弹过的通知摘要，
+      // 气泡关掉之后用户还能点开回看；写它不影响 reminder 槽。
+      history: emptyLeaf(),
     };
     this.pets = new Map();
     this.waiters = new Set();

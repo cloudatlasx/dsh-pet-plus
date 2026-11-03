@@ -10,9 +10,11 @@ import { postAction } from '../../../shared/state.ts';
 import { ROUTE_PATH } from '../../../shared/constants.ts';
 import { resolveFontPx } from '../../../shared/fonts.ts';
 import { resolvePetSizePx } from '../../../shared/pet-size.ts';
+import type { Corner } from '../../../shared/types.ts';
 import { makeBalanceBubble, makeWhisperBubble } from '../../bubble.ts';
 import { makeTodoBubble } from '../../todo-bubble.ts';
 import { makeApprovalBubble, makeQuestionBubble, makeReminderBubble } from '../../request-bubble.ts';
+import { makeHistoryBubble } from '../../history-bubble.ts';
 import type { RequestEnvelope } from '../../../shared/request.ts';
 import { petBridge } from '../../settings.ts';
 import { playClickSound } from '../click-sound.ts';
@@ -53,6 +55,8 @@ export function createCardRuntime(rt: PetRuntime) {
   const QuestionBubble = makeQuestionBubble({ h, useState, useEffect });
   /** 定时提醒气泡。 */
   const ReminderBubble = makeReminderBubble({ h, useState, useEffect });
+  /** 折叠台账气泡：只读快照，清空与跳会话都走宿主。 */
+  const HistoryBubble = makeHistoryBubble({ h, useState });
   /** 选择器：审批与提问的 props 只差 kind，这里把两组工厂收成一个组件。 */
   const RequestBubble = (props: { request: RequestEnvelope; on: boolean }) =>
     props.request.kind === 'approval'
@@ -67,6 +71,7 @@ export function createCardRuntime(rt: PetRuntime) {
       whisperBubble: WhisperBubble,
       requestBubble: RequestBubble,
       reminderBubble: ReminderBubble,
+      historyBubble: HistoryBubble,
     },
   );
   const useCardState = createCardState({ useState, useRef });
@@ -147,6 +152,7 @@ export function createCardRuntime(rt: PetRuntime) {
       balanceManual,
       request: props.request ?? null,
       reminder: props.reminder ?? null,
+      history: props.history ?? null,
       workStatusEnabled: cfg.workStatusEnabled,
       workTerminal: workStatus?.state === 'success' || workStatus?.state === 'error',
       workSessionId: workStatus?.sessionId ?? null,
@@ -207,6 +213,7 @@ export function createCardRuntime(rt: PetRuntime) {
       showTodo: bubbles.showTodo,
       stage: () => stageRef.current,
       tipRef,
+      toggleHistory: bubbles.toggleHistory,
       toggleTodo: bubbles.toggleTodo,
     });
     entryRef.current = entry;
@@ -218,6 +225,7 @@ export function createCardRuntime(rt: PetRuntime) {
       faceLeft: () => actions.setFacing('left'),
       isFacingRight: () => card.facingRef.current === 'right',
       openChat: () => entryRef.current?.openChat(),
+      openHistory: () => entryRef.current?.toggleHistory(),
       openTodo: () => entryRef.current?.openTodo(),
       petId: cfg.id,
       playOnce: (anim, playbackId) => {
@@ -335,6 +343,14 @@ export function createCardRuntime(rt: PetRuntime) {
         drag.onClick();
       },
       onContextMenu: entry.handleContextMenu,
+      // 双击换个角落：只改这一个字段并落盘，比拖拽快，也不会把宠物丢到屏幕外。
+      onDoubleClick: () => {
+        const order: Corner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+        const next = order[(order.indexOf(corner) + 1) % order.length] ?? 'bottom-right';
+        actions.setCustomPos(null);
+        actions.setCorner(next);
+        void postAction(ROUTE_PATH + '/corner', { pet: cfg.id, corner: next }).catch(() => undefined);
+      },
       onPointerDown: drag.onPointerDown,
       onPointerEnter: entry.onPointerEnter,
       onPointerLeave: entry.onPointerLeave,

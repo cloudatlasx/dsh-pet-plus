@@ -115,7 +115,15 @@ export function takeChanged(s: PollState, baseline: Record<string, number>): Sta
 
 /** `sections.<名>` 里会被消费端分发的那几个叶子。 */
 export type SectionLeafName =
-  'config' | 'balance' | 'workStatus' | 'notify' | 'menu' | 'focusSession' | 'request' | 'reminder';
+  | 'config'
+  | 'balance'
+  | 'workStatus'
+  | 'notify'
+  | 'menu'
+  | 'focusSession'
+  | 'request'
+  | 'reminder'
+  | 'history';
 
 /** `pets.<id>.<名>` 里会被消费端分发的那几个叶子。 */
 export type PetLeafName = 'say' | 'anim' | 'position' | 'throw' | 'lock' | 'sleep';
@@ -134,6 +142,7 @@ const SECTION_LEAF_NAMES = [
   'focusSession',
   'request',
   'reminder',
+  'history',
 ] as const;
 
 /** 宠物叶子名的全集；新增宠物叶子时与 {@link PetLeafName} 一起改。 */

@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.8.0
+  version: 0.9.0
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -2117,6 +2117,63 @@ paths:
                     additionalProperties:
                       $ref: "#/components/schemas/PetConfigEntry"
                   - $ref: "#/components/schemas/FailureResponse"
+  /dsh-pet-7340/corner:
+    post:
+      tags: [Config]
+      operationId: savePetCorner
+      summary: 只改一只宠物的位置角落
+      description: |
+        把某只宠物挪到另一个角落，并写回它所在的配置层（`main` 或 `pet/<名>-config.json`）。
+
+        补的是「只想挪一下」的场景：`PUT /config` 要带齐全局字段与全部实例，
+        `POST /pet-config` 要整段替换一个种类的 `pets[]`——为了改一个 `corner` 回传整棵配置，
+        任何一处漏写都会冲掉别的设置。
+
+        行为要点：
+
+        - 只改那只宠物的 `position.corner`，`marginX`/`marginY` 与其余字段原样保留。
+        - 目标层按「宠物 id 属于哪个条目」自动定位，调用方不传路径、不传条目名。
+        - 定位读磁盘原文（不是合并成品），所以默认值不会被钉进用户文件。
+        - 写回会丢该文件里的 `//` 注释（与其它写端点一致）。
+        - 写盘成功后写一次配置变更信号（`sections.config`），浏览器据此重拉 `/config`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pet, corner]
+              properties:
+                pet:
+                  type: string
+                  description: 宠物 id（`pets[].id`，跨条目全局唯一）。
+                corner:
+                  type: string
+                  enum: [top-left, top-right, bottom-right, bottom-left]
+                  description: 目标角落；枚举顺序也是双击循环的顺序。
+            examples:
+              cycle:
+                summary: 双击宠物后轮到右下角
+                value:
+                  pet: main1
+                  corner: bottom-right
+      responses:
+        "200":
+          description: |
+            **成功** → 写后的成品聚合（与 `GET /config` 同一份）；
+            **业务失败** → `{ ok: false, reason, message }`。
+
+            `reason` 取值：`bad-request`（缺 `pet` / `corner` 非法 / 没有这只宠物 /
+            配置层读不出来 / 落盘记录里没有这只）、`unknown-entry`（条目配置文件缺失）、
+            `generate-error`（写盘失败）。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    additionalProperties:
+                      $ref: "#/components/schemas/PetConfigEntry"
+                  - $ref: "#/components/schemas/FailureResponse"
         "400":
           description: "请求体不是合法 JSON（`reason: invalid-json`）。"
           content:
@@ -3483,6 +3540,78 @@ paths:
                   - $ref: "#/components/schemas/FailureResponse"
         "400":
           description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/history:
+    get:
+      tags: [Request]
+      operationId: getHistory
+      summary: 读折叠台账（最近弹过的通知摘要）
+      description: |
+        每次 `/announce`、定时任务到点、以及「等会儿」到期重发都会记一条台账；**静音期间被吞掉的
+        也会记**——用户说的是「现在别弹」，不是「别让我知道」。
+
+        台账只留最近 20 条，内存级（宿主重启清空）。返回的条目不含快捷动作：按钮点一次就失效，
+        回看时再点只会往会话里投一句莫名其妙的话。
+      responses:
+        "200":
+          description: |
+            `{ ok: true, count, entries }`——`count` 是累计条数（含已滚出列表的），
+            `entries` 是最近若干条、新的在前，每条形如
+            `{ id, kind: "schedule"|"announce", ts, title, lines?, prompt?, sessionId? }`。
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                properties:
+                  ok:
+                    type: boolean
+                  count:
+                    type: integer
+                    minimum: 0
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    post:
+      tags: [Request]
+      operationId: clearHistory
+      summary: 清空折叠台账
+      description: |
+        只清台账，不动当前气泡、不动「等会儿」队列。请求体固定为 `{"clear":true}`——
+        声明意图免得一条空 POST 误清历史。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [clear]
+              properties:
+                clear:
+                  type: boolean
+                  const: true
+      responses:
+        "200":
+          description: '`{ ok: true }`'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON 或没带 `clear:true`：`400` + 失败实体'
           content:
             application/json:
               schema:

@@ -9,7 +9,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { PetRouteDeps, RouteInput } from './types.ts';
 import type { ReminderAction, ReminderEnvelope } from '../../shared/request.ts';
 import type { RouteResult } from '../http.ts';
-import { MUTE_DEFAULT_MS, MUTE_MAX_MS, muteFor, publishReminder } from '../request-hub.ts';
+import { MUTE_DEFAULT_MS, MUTE_MAX_MS, clearHistory, muteFor, publishReminder } from '../request-hub.ts';
 import { failResult, invalidJson, methodNotAllowed, okResult } from './result.ts';
 
 /** 主动推送的默认停留时长（ms）。 */
@@ -281,6 +281,27 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
     const ms = minutes === 0 ? 0 : minutesOf(minutes, MUTE_DEFAULT_MS);
     const until = muteFor(ms);
     return okResult({ ok: true, mutedUntil: until, minutes: Math.round(ms / 60000) });
+  }
+
+  // 折叠台账：GET 拿最近弹过的通知，POST `{clear:true}` 清空。
+  // 台账本体在 request-hub 里维护（每次推送都记，含被静音吞掉的），这里只做协议。
+  if (rest === 'history') {
+    if (method === 'GET') {
+      const snap = deps.state.read().sections.history.data as { count?: unknown; entries?: unknown } | null;
+      return okResult({ ok: true, count: typeof snap?.count === 'number' ? snap.count : 0, entries: snap?.entries ?? [] });
+    }
+    if (method !== 'POST') return methodNotAllowed();
+    let parsed: Record<string, unknown> | null = null;
+    if (body !== undefined && body !== '') {
+      try {
+        parsed = JSON.parse(body) as Record<string, unknown> | null;
+      } catch {
+        return invalidJson();
+      }
+    }
+    if (parsed?.clear !== true) return failResult('bad-request', '只支持 {clear:true}');
+    clearHistory(deps.state);
+    return okResult({ ok: true });
   }
 
   return undefined;

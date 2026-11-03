@@ -45,8 +45,8 @@ import type { WorkStatusSnapshot } from '../../shared/work-status.ts';
 import type { PetCardProps } from './card/props.ts';
 import type { PetRuntime, RuntimePet } from './types.ts';
 import { setClickSoundEnabled, playClickSound } from './click-sound.ts';
-import { readReminder, readRequest } from '../../shared/request.ts';
-import type { ReminderEnvelope, RequestEnvelope } from '../../shared/request.ts';
+import { readHistory, readReminder, readRequest } from '../../shared/request.ts';
+import type { HistorySnapshot, ReminderEnvelope, RequestEnvelope } from '../../shared/request.ts';
 import { setSurface, setVoiceConfig } from '../../shared/voice.ts';
 import { runStatePoll } from './state-poll.ts';
 import { setMenuItems } from '../menu-service.ts';
@@ -107,6 +107,9 @@ export function createPetMulti(
     // 定时提醒：20 秒后宿主写 closed，客户端读到 null 即收起。
     const [reminder, setReminder] = useState<ReminderEnvelope | null>(null);
     const [reminderTick, setReminderTick] = useState(0);
+    // 折叠台账：最近推过的通知摘要，只在用户点开面板时才读它；宿主最多留 20 条。
+    const [history, setHistory] = useState<HistorySnapshot | null>(null);
+    const [historyTick, setHistoryTick] = useState(0);
     // 说话：容器把 pets.<id>.say 按宠物分发给对应 PetCard。
 
     // 字体族写到 documentElement：对话窗与得分弹窗挂在 body 下，继承不到宠物根容器。
@@ -257,6 +260,12 @@ export function createPetMulti(
             }
             return;
           }
+          case 'history': {
+            // 台账是状态而不是事件：宿主每记一条都会重写整个快照，这里整份替换即可。
+            setHistory(readHistory(leaf));
+            setHistoryTick((t) => t + 1);
+            return;
+          }
           case 'menu':
             // 第三方菜单快照只更新 ref，不触发渲染；同一份交给页面内菜单镜像，供 petApi7340.menuEvents 读取。
             menuItemsRef.current = readMenuItems(leaf.data, 'web');
@@ -340,6 +349,7 @@ export function createPetMulti(
           // 请求与提醒同样是状态：刷新页面时若还挂着，首拉就得把它们显示出来。
           setRequest(readRequest(s.sections.request));
           setReminder(readReminder(s.sections.reminder));
+          setHistory(readHistory(s.sections.history));
           // 睡觉同样是状态而不是事件：刷新页面时宿主仍记着它在睡，首拉必须补一次；
           // 否则页面显示醒着，而宿主对「已在睡」不回写叶子，只能等宿主重启才恢复。
           for (const [petId, entry] of Object.entries(s.pets)) {
@@ -390,6 +400,8 @@ export function createPetMulti(
             requestTick,
             reminder,
             reminderTick,
+            history,
+            historyTick,
             onFocusSession: jumpToSession,
             say: sayRef.current[p.id],
             sayTick,

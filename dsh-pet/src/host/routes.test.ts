@@ -210,6 +210,7 @@ describe('/state + /balance —— 轮询统一状态与余额动作端点', () 
       'balance',
       'config',
       'focusSession',
+      'history',
       'menu',
       'notify',
       'reminder',

@@ -62,6 +62,8 @@ export interface CardViewProps {
   onPointerLeave(): void;
   /** 右键菜单。 */
   onContextMenu(e: ReactNS.MouseEvent<HTMLDivElement>): void;
+  /** 双击：换个角落（由装配根决定往哪个角走并落盘）。 */
+  onDoubleClick?(): void;
 }
 
 /** 两路视频的共同属性：静音、内联播放并自动播放。 */
@@ -114,6 +116,7 @@ export function makeCardView(rt: { h: typeof jsx }) {
               onPointerEnter: props.onPointerEnter,
               onPointerLeave: props.onPointerLeave,
               onContextMenu: props.onContextMenu,
+              onDoubleClick: props.onDoubleClick,
               // 原生 title 换成自绘浮层后，无障碍名称仍要保留。
               'aria-label': props.name,
             }),

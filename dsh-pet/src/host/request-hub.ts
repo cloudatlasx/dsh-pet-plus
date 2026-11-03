@@ -12,6 +12,7 @@
 import type { PollStateStore } from './state.ts';
 import type {
   ApprovalOutcome,
+  HistoryEntry,
   QuestionAnswer,
   QuestionPrompt,
   RequestEnvelope,
@@ -454,6 +455,57 @@ export function muteFor(ms: number, now: number = Date.now()): number {
   return mutedUntil;
 }
 
+/** 台账里最多留几条：留太多，宠物脚边那个数字就没意义了，滚动列表也压得住。 */
+const HISTORY_KEEP = 20;
+
+/** 最近弹过的通知摘要（新的在前）。只在内存：台账是「今天看到过什么」，不值得落盘。 */
+const historyEntries: HistoryEntry[] = [];
+
+/** 累计弹过多少条（含已滚出列表的）。 */
+let historyTotal = 0;
+
+/**
+ * 把一条通知记进折叠台账，并广播给页面。
+ *
+ * 静音期间的推送**也记**：用户说的是「现在别弹」，不是「别让我知道」——事后翻台账发现
+ * 早上那条清单被吞了，比根本不记更让人恼火。「等会儿」到期重发同一条 id 时只更新时间，
+ * 不重复计数：用户看到的是同一条提醒回来了一次，不是又多了一条。
+ *
+ * @param state - 轮询状态。
+ * @param reminder - 刚推送（或刚被静音吞掉）的提醒。
+ */
+function rememberHistory(state: Pick<PollStateStore, 'writeSection'>, reminder: ReminderEnvelope): void {
+  const entry: HistoryEntry = {
+    id: reminder.id,
+    kind: reminder.kind,
+    ts: reminder.ts,
+    title: reminder.title,
+    ...(reminder.lines !== undefined && reminder.lines.length > 0 ? { lines: [...reminder.lines] } : {}),
+    ...(reminder.prompt !== undefined ? { prompt: reminder.prompt } : {}),
+    ...(reminder.sessionId !== undefined ? { sessionId: reminder.sessionId } : {}),
+  };
+  const first = historyEntries[0];
+  if (first !== undefined && first.id === entry.id) {
+    historyEntries[0] = entry;
+  } else {
+    historyEntries.unshift(entry);
+    historyTotal += 1;
+    if (historyEntries.length > HISTORY_KEEP) historyEntries.length = HISTORY_KEEP;
+  }
+  state.writeSection('history', { count: historyTotal, entries: historyEntries.map((e) => ({ ...e })) });
+}
+
+/**
+ * 清空台账：用户点「清空」时把列表与计数一起归零。
+ *
+ * @param state - 轮询状态。
+ */
+export function clearHistory(state: Pick<PollStateStore, 'writeSection'>): void {
+  historyEntries.length = 0;
+  historyTotal = 0;
+  state.writeSection('history', { count: 0, entries: [] });
+}
+
 /**
  * 写一条定时任务提醒到 `sections.reminder`。
  *
@@ -475,6 +527,8 @@ export function publishReminder(
   now: () => number = Date.now,
   force = false,
 ): boolean {
+  // 先记账再判静音：被吞掉的那条也应该能在台账里翻到。
+  rememberHistory(state, reminder);
   if (!force && isMuted(now())) return false;
   state.writeSection('reminder', reminder);
   const fallback = reminder.kind === 'announce' ? ANNOUNCE_BUBBLE_TTL_MS : REMINDER_BUBBLE_TTL_MS;

@@ -67,6 +67,8 @@ export interface CardEntryInput {
   showTodo: () => void;
   /** 开关待办面板：D 键用，已开则收起。 */
   toggleTodo: () => void;
+  /** 开关折叠台账面板：菜单「最近记录」用，打开时顺手收起待办。 */
+  toggleHistory: () => void;
   /** 悬浮提示节点：位置由本模块直接写 style。 */
   tipRef: ReactNS.MutableRefObject<HTMLDivElement | null>;
   /** 舞台节点：对话弹窗贴命中区右上角。 */
@@ -83,6 +85,8 @@ export interface CardEntry {
   openChat: (image?: File) => void;
   /** 打开待办面板（右键菜单入口）。 */
   openTodo: () => void;
+  /** 开关最近记录面板（右键菜单入口）。 */
+  toggleHistory: () => void;
   /** 指针进入：先摆位再显示。 */
   onPointerEnter: (e: ReactNS.PointerEvent<HTMLDivElement>) => void;
   /** 指针离开：收起提示。 */
@@ -99,8 +103,20 @@ export function createCardEntry(rt: CardEntryRuntime) {
   const { useEffect, useRef } = rt;
 
   return function useCardEntry(input: CardEntryInput): CardEntry {
-    const { card, cfgRef, drag, live, menuItemsRef, motion, runMenuAction, showTodo, stage, tipRef, toggleTodo } =
-      input;
+    const {
+      card,
+      cfgRef,
+      drag,
+      live,
+      menuItemsRef,
+      motion,
+      runMenuAction,
+      showTodo,
+      stage,
+      tipRef,
+      toggleHistory,
+      toggleTodo,
+    } = input;
     // 右键菜单与对话弹窗当前的句柄，卸载或重开前清理。对话弹窗还要按住说话遥控开录/收尾。
     const menuRef = useRef<{ close: () => void } | null>(null);
     const chatRef = useRef<ChatDialogMount | null>(null);
@@ -176,6 +192,9 @@ export function createCardEntry(rt: CardEntryRuntime) {
 
     /** 打开待办面板：面板占气泡槽，重复点击是幂等的。 */
     const openTodo = (): void => showTodo();
+
+    /** 开关最近记录面板：它是用户主动开的窗口，再点一次就收起。 */
+    const openHistory = (): void => toggleHistory();
 
     /** 「按住说话」按下：弹窗没开就先开一个，再让它开录；已开着就直接在它上面开录。 */
     const startChatHear = (): void => {
@@ -356,6 +375,7 @@ export function createCardEntry(rt: CardEntryRuntime) {
       const tools: MenuNode[] = [
         { label: '查看余额', action: 'show-balance' },
         { label: '待办事项', action: 'todo', hint: TODO_HOTKEY_HINT },
+        { label: '最近记录', action: 'history' },
         { label: '碎碎念', action: 'whisper' },
         { label: '对话', action: 'chat', hint: CHAT_HOTKEY_HINT },
         ...(memes ? [memes] : []),
@@ -405,6 +425,7 @@ export function createCardEntry(rt: CardEntryRuntime) {
       openChat,
       openTodo,
       placeTip,
+      toggleHistory: openHistory,
     };
   };
 }

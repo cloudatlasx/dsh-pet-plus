@@ -130,6 +130,64 @@ export interface ReminderAction {
   text: string;
 }
 
+/**
+ * 一条进过台账的通知。
+ *
+ * 台账是「折叠的历史」：气泡关掉之后用户还想回看，就不必去翻聊天记录。只留摘要字段，
+ * 不留 actions（按钮点一次就过期，回看时再点只会投到会话里一句莫名其妙的话）。
+ */
+export interface HistoryEntry {
+  /** 原始提醒 id。 */
+  id: string;
+  /** 来源。 */
+  kind: 'schedule' | 'announce';
+  /** 弹出时刻（ms）。 */
+  ts: number;
+  /** 标题。 */
+  title: string;
+  /** 分条明细。 */
+  lines?: string[];
+  /** 正文摘要。 */
+  prompt?: string;
+  /** 相关会话：点条目可以跳过去。 */
+  sessionId?: string;
+}
+
+/** 台账叶子：总条数 + 最近的条目（新的在前）。 */
+export interface HistorySnapshot {
+  /** 累计条数（含已滚出列表的）。 */
+  count: number;
+  /** 最近若干条，新的在前。 */
+  entries: HistoryEntry[];
+}
+
+/** 类型收窄：台账叶子 → 快照；坏形状 → null（空台账返回 entries 为空的对象）。 */
+export function readHistory(leaf: StateLeaf): HistorySnapshot | null {
+  if (!leaf.data || typeof leaf.data !== 'object') return null;
+  const d = leaf.data as Record<string, unknown>;
+  const raw = Array.isArray(d.entries) ? d.entries : [];
+  const entries: HistoryEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const e = item as Record<string, unknown>;
+    if (typeof e.id !== 'string' || e.id === '') continue;
+    if (e.kind !== 'schedule' && e.kind !== 'announce') continue;
+    if (typeof e.title !== 'string' || e.title.trim() === '') continue;
+    const lines = labelsOf(e.lines);
+    entries.push({
+      id: e.id,
+      kind: e.kind,
+      ts: typeof e.ts === 'number' && Number.isFinite(e.ts) ? e.ts : Date.now(),
+      title: e.title,
+      lines: lines.length > 0 ? lines : undefined,
+      prompt: typeof e.prompt === 'string' && e.prompt.trim() !== '' ? e.prompt : undefined,
+      sessionId: typeof e.sessionId === 'string' && e.sessionId.trim() !== '' ? e.sessionId : undefined,
+    });
+  }
+  const count = typeof d.count === 'number' && Number.isFinite(d.count) && d.count >= 0 ? Math.floor(d.count) : entries.length;
+  return { count, entries };
+}
+
 /** 从字符串数组里挑出非空字符串。 */
 function labelsOf(value: unknown): string[] {
   if (!Array.isArray(value)) return [];

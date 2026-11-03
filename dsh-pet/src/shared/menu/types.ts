@@ -22,6 +22,7 @@ export interface MenuLeaf {
     | 'whisper'
     | 'chat'
     | 'todo'
+    | 'history'
     | 'home'
     | 'reload'
     | 'set-display'

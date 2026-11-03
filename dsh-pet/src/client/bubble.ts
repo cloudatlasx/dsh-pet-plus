@@ -35,24 +35,36 @@ const bubbleCss = [
   `@font-face{font-family:"ShangshouSoftCandy";src:url("${ROUTE_PATH}/font/上首软糖体.ttf") format("truetype");font-display:swap;font-weight:400}`,
   '.dsh-pet-bubble{position:absolute;left:50%;transform:translateX(-50%);' +
     'bottom:calc(100% - var(--dsh-pet-size)*0.108);' +
-    'width:max-content;min-width:calc(var(--f)*5.7143);max-width:min(calc(var(--f)*16),100%);' +
+    'width:max-content;min-width:calc(var(--f)*5.7143);max-width:min(calc(var(--f)*19),100%);' +
     // 钉死 content-box：宿主可能全局设了 border-box，让 min/max-width 把内边距算进去，
     // 表现为「明明还有空位却折行」；桌面端同样钉死，两端一致。
     'box-sizing:content-box;' +
-    'padding:calc(var(--f)*0.4835) calc(var(--f)*0.6593);' +
-    'border-radius:calc(var(--f)*0.7692);' +
-    'background:rgba(255,255,255,.92);' +
+    'padding:calc(var(--f)*0.75) calc(var(--f)*0.8);' +
+    'border-radius:calc(var(--f)*0.75);' +
+    // 不透明的实色底 + 1px 描边：气泡属于内容层，毛玻璃在这层只会糊住自己的字。
+    'background:rgba(255,255,255,.97);border:1px solid rgba(0,0,0,.08);' +
     '--f0:var(--dsh-pet-font-bubble,calc(var(--dsh-pet-size)*0.0455));--f:var(--f0);' +
-    'color:#2b2b2b;font-family:var(--dsh-pet-font-family,"ShangshouSoftCandy","Yuanti SC","YouYuan","幼圆","Comic Sans MS","PingFang SC","Microsoft YaHei",sans-serif);' +
-    'font-size:var(--f);line-height:1.6;z-index:3;pointer-events:none;' +
-    'box-shadow:0 calc(var(--f)*0.1978) calc(var(--f)*0.7692) rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.08);' +
-    'backdrop-filter:blur(6px);opacity:0;transition:opacity .25s ease;' +
+    'color:#18181b;font-family:var(--dsh-pet-font-family,"ShangshouSoftCandy","Yuanti SC","YouYuan","幼圆","Comic Sans MS","PingFang SC","Microsoft YaHei",sans-serif);' +
+    'font-size:var(--f);line-height:1.55;font-variant-numeric:tabular-nums;z-index:3;pointer-events:none;' +
+    // 双层阴影：贴边那层给轮廓清晰度，远投影给层级；单层大模糊会显得脏。
+    'box-shadow:0 1px 2px rgba(0,0,0,.06),0 10px 24px -8px rgba(0,0,0,.24);' +
+    'opacity:0;transition:opacity .14s ease;' +
     'white-space:normal;overflow-wrap:break-word}',
   // 底部尾巴：小三角指向下方宠物，尺寸锚字号。
   '.dsh-pet-bubble::after{content:"";position:absolute;left:50%;bottom:calc(var(--f)*-0.3736);' +
     'transform:translateX(-50%);border:calc(var(--f)*0.3736) solid transparent;' +
-    'border-top-color:rgba(255,255,255,.92);border-bottom:none}',
-  '.dsh-pet-bubble.is-on{opacity:1}',
+    'border-top-color:rgba(255,255,255,.97);border-bottom:none}',
+  // 入场 180ms：位移 8px + 缩到 .96，缓动用 M3 的 emphasized decelerate。
+  '@keyframes dsh-pet-bubble-in{from{opacity:0;transform:translateY(calc(var(--f)*0.5)) scale(.96)}' +
+    'to{opacity:1;transform:none}}',
+  '.dsh-pet-bubble.is-on{opacity:1;animation:dsh-pet-bubble-in .18s cubic-bezier(.05,.7,.1,1) both}',
+  // 深色：底色 96% 的近黑，文字不用纯白（减眩光），描边换成白色低透明度。
+  '@media (prefers-color-scheme:dark){' +
+    '.dsh-pet-bubble{background:rgba(28,28,30,.96);border-color:rgba(255,255,255,.10);color:#f4f4f5;' +
+    'box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 24px -8px rgba(0,0,0,.6)}' +
+    '.dsh-pet-bubble::after{border-top-color:rgba(28,28,30,.96)}}',
+  // 用户要求减少动效时只留淡入，不做位移与缩放。
+  '@media (prefers-reduced-motion:reduce){.dsh-pet-bubble.is-on{animation:dsh-pet-bubble-in .12s linear both}}',
   // 碎碎念变体：字号缩到余额气泡的 0.75，宽度下限更窄，上限与折行规则相同。
   '.dsh-pet-bubble.dsh-pet-whisper{font-size:calc(var(--f)*0.7473);' +
     'min-width:calc(var(--f)*2.1978);max-width:min(calc(var(--f)*10.989),100%)}',
@@ -138,8 +150,9 @@ const bubbleCss = [
   '.dsh-pet-reminder__reply>.dsh-pet-request__input{flex:1 1 auto;min-width:0}',
   '.dsh-pet-request__actions{display:flex;gap:calc(var(--f)*0.3);flex-wrap:wrap;align-items:center}',
   '.dsh-pet-request__btn{appearance:none;font-family:inherit;font-size:calc(var(--f)*0.68);line-height:1.2;' +
-    'padding:calc(var(--f)*0.22) calc(var(--f)*0.5);border-radius:calc(var(--f)*0.36);cursor:pointer;' +
-    'border:1px solid rgba(43,43,43,.2);background:#fff;color:#2b2b2b}',
+    'min-height:calc(var(--f)*2);padding:0 calc(var(--f)*0.8);border-radius:calc(var(--f)*0.4);cursor:pointer;' +
+    'border:1px solid rgba(0,0,0,.12);background:rgba(0,0,0,.03);color:#18181b;font-weight:500}',
+  '.dsh-pet-request__btn:hover{background:rgba(0,0,0,.06)}',
   '.dsh-pet-request__btn:hover{background:rgba(43,43,43,.05)}',
   '.dsh-pet-request__btn.is-primary{background:#2e9e4f;border-color:#2e9e4f;color:#fff;font-weight:650}',
   '.dsh-pet-request__btn.is-primary:hover{background:#278a44}',
@@ -163,6 +176,37 @@ const bubbleCss = [
     'font-size:calc(var(--f)*0.66);padding:calc(var(--f)*0.16) calc(var(--f)*0.3);' +
     'border-radius:calc(var(--f)*0.3);border:1px solid rgba(43,43,43,.18);background:#fff;color:#2b2b2b}',
   '.dsh-pet-request__input:focus{outline:none;border-color:#2e9e4f}',
+  // ── 折叠台账 ────────────────────────────────────────────────────────────────
+  // 面板比普通气泡宽一点（放得下「时间 · 标题 · 摘要」三件事），高度封顶后内部滚动。
+  '.dsh-pet-bubble.dsh-pet-history{display:flex;flex-direction:column;gap:calc(var(--f)*0.4);' +
+    'max-width:min(calc(var(--f)*21),100%);pointer-events:auto}',
+  '.dsh-pet-history__head{justify-content:space-between;align-items:center;flex-wrap:nowrap}',
+  '.dsh-pet-request__badge.is-history{background:#5b6472}',
+  // 列表：条目多时在这里滚，头部与底栏固定不动，滚到底也不会把「清空」滚丢。
+  '.dsh-pet-history__list{display:flex;flex-direction:column;gap:1px;' +
+    'max-height:min(calc(var(--f)*13),46vh);overflow-y:auto;overscroll-behavior:contain;' +
+    'border-top:1px solid rgba(0,0,0,.06);border-bottom:1px solid rgba(0,0,0,.06)}',
+  '.dsh-pet-history__row{display:flex;gap:calc(var(--f)*0.5);align-items:baseline;' +
+    'min-height:calc(var(--f)*1.9);padding:calc(var(--f)*0.24) calc(var(--f)*0.1);text-align:left}',
+  '.dsh-pet-history__row.is-clickable{cursor:pointer;border-radius:calc(var(--f)*0.3)}',
+  '.dsh-pet-history__row.is-clickable:hover{background:rgba(37,99,235,.07)}',
+  '.dsh-pet-history__time{flex:none;font-size:calc(var(--f)*0.58);color:rgba(0,0,0,.45);' +
+    'font-variant-numeric:tabular-nums}',
+  '.dsh-pet-history__body{display:flex;flex-direction:column;gap:calc(var(--f)*0.06);min-width:0}',
+  '.dsh-pet-history__title{font-size:calc(var(--f)*0.72);line-height:1.35;font-weight:550;color:#18181b;' +
+    'overflow-wrap:break-word}',
+  '.dsh-pet-history__sum{font-size:calc(var(--f)*0.6);line-height:1.35;color:rgba(0,0,0,.5);' +
+    'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.dsh-pet-history__empty{font-size:calc(var(--f)*0.66);line-height:1.5;color:rgba(0,0,0,.5);' +
+    'padding:calc(var(--f)*0.3) 0}',
+  '.dsh-pet-history__foot{align-items:center;flex-wrap:nowrap}',
+  '.dsh-pet-history__note{font-size:calc(var(--f)*0.56);color:rgba(0,0,0,.4);line-height:1.3}',
+  '@media (prefers-color-scheme:dark){' +
+    '.dsh-pet-history__list{border-color:rgba(255,255,255,.08)}' +
+    '.dsh-pet-history__title{color:#f4f4f5}' +
+    '.dsh-pet-history__sum,.dsh-pet-history__empty{color:rgba(255,255,255,.55)}' +
+    '.dsh-pet-history__time,.dsh-pet-history__note{color:rgba(255,255,255,.42)}' +
+    '.dsh-pet-history__row.is-clickable:hover{background:rgba(124,176,255,.14)}}',
 ].join('\n');
 
 /** 注入气泡样式，每页只注入一次。 */

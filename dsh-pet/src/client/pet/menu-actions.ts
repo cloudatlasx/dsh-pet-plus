@@ -35,6 +35,8 @@ export interface MenuActionDeps {
   openChat: () => void;
   /** 打开待办面板。 */
   openTodo: () => void;
+  /** 开关折叠台账面板（最近推过的通知摘要）。 */
+  openHistory: () => void;
   /** 上报点播回执。 */
   report: (playbackId: string, status: 'failed', reason: string) => void;
   /** 显示位置切换后，把宿主回的成品聚合交给容器重渲染。 */
@@ -160,6 +162,10 @@ export function createMenuActions(deps: MenuActionDeps): MenuActions {
     }
     if (leaf.action === 'todo') {
       deps.openTodo();
+      return;
+    }
+    if (leaf.action === 'history') {
+      deps.openHistory();
       return;
     }
     if (leaf.action === 'set-display') {

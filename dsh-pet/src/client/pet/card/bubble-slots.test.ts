@@ -25,6 +25,7 @@ function input(overrides: Partial<BubbleSlotInput> = {}): BubbleSlotInput {
     balanceEnabled: true,
     balanceManual: false,
     todoOn: false,
+    historyOn: false,
     ...overrides,
   };
 }

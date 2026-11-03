@@ -14,13 +14,15 @@ import {
 } from '../../../shared/bubble-hold.ts';
 import { subscribeVoiceState, subscribeVoiceUtterance, type VoiceState } from '../../../shared/voice.ts';
 import type { ReminderEnvelope, RequestEnvelope } from '../../../shared/request.ts';
+import type { HistorySnapshot } from '../../../shared/request.ts';
 import { BUBBLE_DURATION_MS } from '../timings.ts';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type * as ReactNS from 'react';
 import type { jsx } from 'react/jsx-runtime';
 
 /** 当前该挂哪个气泡；`none` 表示哪个条件都不成立。 */
-export type BubbleSlot = 'request' | 'reminder' | 'todo' | 'work-terminal' | 'whisper' | 'balance' | 'work' | 'none';
+export type BubbleSlot =
+  'request' | 'reminder' | 'todo' | 'history' | 'work-terminal' | 'whisper' | 'balance' | 'work' | 'none';
 
 /** 优先级判定的输入：全部是渲染期的既成事实，判定本身不产生副作用。 */
 export interface BubbleSlotInput {
@@ -30,6 +32,8 @@ export interface BubbleSlotInput {
   reminderOn: boolean;
   /** 待办面板是否打开；打开时独占槽位，其余气泡一律让位。 */
   todoOn: boolean;
+  /** 折叠台账面板是否打开（用户自己点开的，与待办同级）。 */
+  historyOn: boolean;
   /** 工作状态是否为终态（success / error）。 */
   workTerminal: boolean;
   /** 工作气泡是否点亮。 */
@@ -67,6 +71,8 @@ export function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot {
   if (input.reminderOn) return 'reminder';
   // 面板是用户主动打开的窗口：它占槽时其余气泡一律让位，关掉后按原规则恢复。
   if (input.todoOn) return 'todo';
+  // 台账也是用户点开的，与待办同级；两个面板同时开时后开的那个赢（各自 toggle 会关掉对方）。
+  if (input.historyOn) return 'history';
   if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return 'work-terminal';
   if (input.whisperOn && input.whisperText) return 'whisper';
   if (input.balanceOn && input.balanceAvailable && (input.balanceEnabled || input.balanceManual)) return 'balance';
@@ -126,6 +132,13 @@ export type RequestBubbleComponent = (props: { request: RequestEnvelope; on: boo
 /** 定时提醒气泡组件。 */
 export type ReminderBubbleComponent = (props: { reminder: ReminderEnvelope; on: boolean }) => ReactNode;
 
+/** 折叠台账气泡组件；props 与 `client/history-bubble.ts` 的 HistoryBubble 一致。 */
+export type HistoryBubbleComponent = (props: {
+  snapshot: HistorySnapshot | null;
+  on: boolean;
+  onClose: () => void;
+}) => ReactNode;
+
 /** 三种气泡组件。 */
 export interface BubbleComponents {
   /** 余额气泡。 */
@@ -138,6 +151,8 @@ export interface BubbleComponents {
   requestBubble: RequestBubbleComponent;
   /** 定时提醒气泡。 */
   reminderBubble: ReminderBubbleComponent;
+  /** 折叠台账气泡。 */
+  historyBubble: HistoryBubbleComponent;
 }
 
 /** 每次渲染由 PetCard 提供的视图输入。 */
@@ -146,6 +161,8 @@ export interface BubbleSlotsInput {
   request?: RequestEnvelope | null;
   /** 到点的定时任务提醒；null 表示没有。 */
   reminder?: ReminderEnvelope | null;
+  /** 折叠台账快照；null 表示还没读到（面板打开时显示空态）。 */
+  history?: HistorySnapshot | null;
   /** 最近一次余额结果。 */
   balance: BalanceState | null;
   /** 配置是否启用余额。 */
@@ -188,6 +205,10 @@ export interface BubbleSlots {
   hideTodo(): void;
   /** 开关待办面板：已开则收起，供快捷键使用。 */
   toggleTodo(): void;
+  /** 开关折叠台账面板；打开时顺手关掉待办面板（两个面板不该同时占着槽）。 */
+  toggleHistory(): void;
+  /** 收起台账面板。 */
+  hideHistory(): void;
   /** 按优先级渲染当前该挂的气泡；无气泡时为 null。 */
   node(): ReactNode;
 }
@@ -206,6 +227,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
   const WhisperBubble = components.whisperBubble;
   const RequestBubble = components.requestBubble;
   const ReminderBubble = components.reminderBubble;
+  const HistoryBubble = components.historyBubble;
 
   return function useBubbleSlots(input: BubbleSlotsInput): BubbleSlots {
     // 余额气泡：显隐与展开页。
@@ -223,6 +245,8 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
     const whisperTimerRef = useRef<number | null>(null);
     // 待办面板：独占槽位，没有停留计时，显隐只由用户开关。
     const [todoOn, setTodoOn] = useState(false);
+    // 折叠台账：同样是用户开关的面板，不留停留计时。
+    const [historyOn, setHistoryOn] = useState(false);
     // 工作状态气泡：显隐、文本与第二行进度（「第 3 步 · 已用 2 分钟」）。
     const [workOn, setWorkOn] = useState(false);
     const [workText, setWorkText] = useState<string | null>(null);
@@ -328,12 +352,19 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
     const showTodo = (): void => setTodoOn(true);
     const hideTodo = (): void => setTodoOn(false);
     const toggleTodo = (): void => setTodoOn((on) => !on);
+    const toggleHistory = (): void =>
+      setHistoryOn((on) => {
+        if (!on) setTodoOn(false); // 两个面板都想占槽：开一个就关掉另一个，免得叠在一起
+        return !on;
+      });
+    const hideHistory = (): void => setHistoryOn(false);
 
     const node = (): ReactNode => {
       const slot = decideBubbleSlot({
         requestOn: input.request !== undefined && input.request !== null,
         reminderOn: input.reminder !== undefined && input.reminder !== null,
         todoOn,
+        historyOn,
         workTerminal: input.workTerminal,
         workOn,
         workText,
@@ -352,6 +383,9 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
         return input.reminder ? h(ReminderBubble, { reminder: input.reminder, on: true }) : null;
       }
       if (slot === 'todo') return h(TodoBubble, { on: todoOn, onClose: hideTodo });
+      if (slot === 'history') {
+        return h(HistoryBubble, { snapshot: input.history ?? null, on: historyOn, onClose: hideHistory });
+      }
       if (slot === 'balance') {
         return input.balance === null
           ? null
@@ -389,6 +423,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
     return {
       clearWhisper,
       cycleBalance,
+      hideHistory,
       hideTodo,
       hideWork,
       lightWork,
@@ -397,6 +432,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
       showBalance,
       showTodo,
       showWhisper,
+      toggleHistory,
       toggleTodo,
       updateWorkText: (text: string | null, meta?: string | null) => {
         setWorkText(text);
