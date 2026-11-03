@@ -424,21 +424,58 @@ export const REMINDER_BUBBLE_TTL_MS = 20 * 1000;
 /** 主动推送（announce）的停留时长（ms）：结论类内容给用户多看一会儿。 */
 export const ANNOUNCE_BUBBLE_TTL_MS = 120 * 1000;
 
+/** 静音默认时长与上限（ms）：一小时是「先去开个会」的量级，八小时是「今天别烦我」。 */
+export const MUTE_DEFAULT_MS = 60 * 60 * 1000;
+export const MUTE_MAX_MS = 8 * 60 * 60 * 1000;
+
+/** 静音到期的毫秒时间戳；0 = 没静音。放模块级是因为它属于「这台机器上的宠物」，与某个会话无关。 */
+let mutedUntil = 0;
+
+/** 现在是否静音中。 */
+export function isMuted(now: number = Date.now()): boolean {
+  return mutedUntil > now;
+}
+
+/** 静音到什么时候（毫秒时间戳）；没静音时返回 0。 */
+export function muteUntil(now: number = Date.now()): number {
+  return mutedUntil > now ? mutedUntil : 0;
+}
+
+/**
+ * 静音一段时间（覆盖这段窗口里所有到点提醒与主动推送）。
+ *
+ * @param ms - 时长，会被夹到 `0..MUTE_MAX_MS`；0 表示解除静音。
+ * @param now - 时间源。
+ * @returns 静音到期时刻（解除时 0）。
+ */
+export function muteFor(ms: number, now: number = Date.now()): number {
+  const span = Number.isFinite(ms) ? Math.min(Math.max(0, ms), MUTE_MAX_MS) : MUTE_DEFAULT_MS;
+  mutedUntil = span === 0 ? 0 : now + span;
+  return mutedUntil;
+}
+
 /**
  * 写一条定时任务提醒到 `sections.reminder`。
  *
  * 到点自动收起，但用户可以先点「知道了」提前关掉（走 `POST /reminder/close`）：
  * 收起写的是同一 id 的 `closed` 信封，晚到的定时器再写一次也无害。
  *
+ * 静音窗口内直接丢弃（返回 false）——「等会儿」与「今天别烦我」都是用户的明确意思，
+ * 沉默比攒着一起弹更尊重人。`force` 给「延后到期」这类用户自己排过期的情况用。
+ *
  * @param state - 轮询状态。
  * @param reminder - 提醒信封。
  * @param now - 时间源。
+ * @param force - 无视静音，照常推送。
+ * @returns 是否真的推送了。
  */
 export function publishReminder(
   state: Pick<PollStateStore, 'writeSection'>,
   reminder: ReminderEnvelope,
   now: () => number = Date.now,
-): void {
+  force = false,
+): boolean {
+  if (!force && isMuted(now())) return false;
   state.writeSection('reminder', reminder);
   const fallback = reminder.kind === 'announce' ? ANNOUNCE_BUBBLE_TTL_MS : REMINDER_BUBBLE_TTL_MS;
   const ttl = reminder.ttlMs ?? fallback;
@@ -451,6 +488,7 @@ export function publishReminder(
       closed: true,
     });
   }, ttl).unref?.();
+  return true;
 }
 
 /** 从异常里取一句人读文案（供调用方日志复用）。 */

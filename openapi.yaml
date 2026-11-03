@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.6.0
+  version: 0.8.0
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -3384,6 +3384,97 @@ paths:
         "200":
           description: |
             `{ ok: true }`；缺 `id` 时是 `{ ok: false, reason: "bad-request", message }`。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/reminder/snooze:
+    post:
+      tags: [Request]
+      operationId: snoozeReminder
+      summary: 延后提醒（「等会儿」）
+      description: |
+        先收起气泡，过 `minutes` 分钟（默认 15）把**同一条**提醒原样重发一次。
+
+        与 `/reminder/close` 的区别在语义：关掉是「不用了」，延后是「我现在正忙」。重复调用
+        同一个 id 不会叠出多条——重发用的是同一条信封。延后只在内存里排队，宿主重启即失效。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  description: 气泡 id（来自 `/state` 的 `sections.reminder.data.id`）。
+                minutes:
+                  type: number
+                  minimum: 1
+                  maximum: 480
+                  description: 延后多少分钟；缺省 15。
+      responses:
+        "200":
+          description: |
+            `{ ok: true, id, snoozeMs }`；`id` 不属于最近推送过的提醒时是
+            `{ ok: false, reason: "bad-request", message: "unknown reminder" }`。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/mute:
+    post:
+      tags: [Request]
+      operationId: muteReminders
+      summary: 静音一段时间（不再弹提醒）
+      description: |
+        静音窗口内所有到点提醒与主动推送（`/announce`）都安静：`/announce` 照常返回 id，
+        但多一个 `muted: true`，气泡不出现。
+
+        `minutes` 传 0 表示立刻解除静音。上限 8 小时；静音状态是机器级的，与具体会话无关，
+        宿主重启后清空。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                minutes:
+                  type: number
+                  minimum: 0
+                  maximum: 480
+                  description: 静音多少分钟；缺省 60，0 = 解除静音。
+      responses:
+        "200":
+          description: |
+            `{ ok: true, mutedUntil, minutes }`——`mutedUntil` 是静音到期时刻（毫秒时间戳），
+            解除时为 `0`。
           content:
             application/json:
               schema:

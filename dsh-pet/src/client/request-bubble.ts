@@ -274,6 +274,15 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
     const close = (): void => {
       void postAction(ROUTE_PATH + '/reminder/close', { id: reminder.id }).catch(() => undefined);
     };
+    // 「等会儿」：收起来，15 分钟后再弹一次。用户此刻正忙，不是不关心。
+    const snooze = (): void => {
+      void postAction(ROUTE_PATH + '/reminder/snooze', { id: reminder.id, minutes: 15 }).catch(() => undefined);
+    };
+    // 「静音一小时」：一小时里所有到点提醒都不弹——开会、演示、专心写东西时用。
+    const muteHour = (): void => {
+      void postAction(ROUTE_PATH + '/mute', { minutes: 60 }).catch(() => undefined);
+      close();
+    };
     // 快捷动作 / 自由输入都是同一件事：把用户的一句话投回那个会话，agent 接着往下做。
     const sendAction = (label: string, body: string, keepDraft = false): void => {
       if (sessionId === undefined || sending !== '') return;
@@ -392,6 +401,22 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
                   onClick: goSession,
                   children: '去会话回复',
                 }),
+            h('button', {
+              key: 'snooze',
+              type: 'button',
+              className: 'dsh-pet-request__btn is-ghost',
+              onClick: snooze,
+              title: '15 分钟后再提醒我',
+              children: '等会儿',
+            }),
+            h('button', {
+              key: 'mute',
+              type: 'button',
+              className: 'dsh-pet-request__btn is-ghost',
+              onClick: muteHour,
+              title: '一小时内不再弹提醒',
+              children: '静音 1 小时',
+            }),
           ],
         }),
       ],

@@ -7,9 +7,9 @@
  */
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { PetRouteDeps, RouteInput } from './types.ts';
-import type { ReminderAction } from '../../shared/request.ts';
+import type { ReminderAction, ReminderEnvelope } from '../../shared/request.ts';
 import type { RouteResult } from '../http.ts';
-import { publishReminder } from '../request-hub.ts';
+import { MUTE_DEFAULT_MS, MUTE_MAX_MS, muteFor, publishReminder } from '../request-hub.ts';
 import { failResult, invalidJson, methodNotAllowed, okResult } from './result.ts';
 
 /** 主动推送的默认停留时长（ms）。 */
@@ -39,6 +39,15 @@ interface AgentsService {
   get?: (id: string) => unknown;
 }
 
+/**
+ * 最近推送过的提醒（id → 信封），供「等会儿」原样重发。
+ *
+ * 只在内存里、只留最近 8 条：重启后延后项就没了，这与「延后」本身的短生命周期一致，
+ * 也不值得为它落盘。
+ */
+const SNOOZE_KEEP = 8;
+const recentReminders = new Map<string, ReminderEnvelope>();
+
 /** 活着的 agent 上我们会用到的能力。 */
 interface LiveAgent {
   followup?: (message: unknown) => void;
@@ -66,6 +75,23 @@ function actionsOf(value: unknown): ReminderAction[] {
 /** 取一个修剪过的字符串；非字符串给空串。 */
 function textOf(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+/** 记住一条推送过的提醒（超量丢最旧的），供「等会儿」原样重发。 */
+function rememberReminder(reminder: ReminderEnvelope): void {
+  recentReminders.delete(reminder.id);
+  recentReminders.set(reminder.id, reminder);
+  while (recentReminders.size > SNOOZE_KEEP) {
+    const oldest = recentReminders.keys().next();
+    if (oldest.done === true) break;
+    recentReminders.delete(oldest.value);
+  }
+}
+
+/** 取一个时长（分钟），缺省/非法时用 fallback，并夹到上限。 */
+function minutesOf(value: unknown, fallbackMs: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallbackMs;
+  return Math.min(value * 60 * 1000, MUTE_MAX_MS);
 }
 
 /** 收窄明细数组：去空、截断、限条数。 */
@@ -137,7 +163,7 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
       typeof parsed.ttlMs === 'number' && Number.isFinite(parsed.ttlMs) && parsed.ttlMs > 0
         ? parsed.ttlMs
         : ANNOUNCE_TTL_MS;
-    publishReminder(deps.state, {
+    const reminder: ReminderEnvelope = {
       id,
       kind: 'announce',
       ts: Date.now(),
@@ -148,8 +174,11 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
       ...(sessionId === '' ? {} : { sessionId }),
       ...(actions.length > 0 ? { actions } : {}),
       ttlMs: ttl,
-    });
-    return okResult({ ok: true, id });
+    };
+    rememberReminder(reminder);
+    const shown = publishReminder(deps.state, reminder);
+    // 静音中：消息没弹出来，但调用方该知道「被静音吞了」，而不是以为送达。
+    return okResult({ ok: true, id, ...(shown ? {} : { muted: true }) });
   }
 
   // 把宠物上的一次点击变成对 agent 的真实发言：写进它的收件箱并唤醒下一轮。
@@ -210,6 +239,48 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
     if (id === '') return failResult('bad-request', 'id 必填');
     deps.state.writeSection('reminder', { id, kind: 'announce', ts: Date.now(), title: '', closed: true });
     return okResult({ ok: true });
+  }
+
+  // 「等会儿」：先收起，过 N 分钟原样再弹一次。不是关掉——用户的意思通常是「我现在正忙」。
+  if (rest === 'reminder/snooze') {
+    if (method !== 'POST') return methodNotAllowed();
+    let parsed: Record<string, unknown> | null;
+    try {
+      parsed = JSON.parse(body ?? 'null') as Record<string, unknown> | null;
+    } catch {
+      return invalidJson();
+    }
+    const id = textOf(parsed?.id);
+    if (id === '') return failResult('bad-request', 'id 必填');
+    const reminder = recentReminders.get(id);
+    if (!reminder) return failResult('bad-request', 'unknown reminder');
+    const delay = minutesOf(parsed?.minutes, 15 * 60 * 1000);
+    recentReminders.delete(id); // 同一个 id 只排一次延后，重复点不该叠出多条
+    deps.state.writeSection('reminder', { id, kind: reminder.kind, ts: Date.now(), title: '', closed: true });
+    setTimeout(() => {
+      const again: ReminderEnvelope = { ...reminder, ts: Date.now() };
+      rememberReminder(again);
+      // force：静音是「现在别弹」，延后是「稍后再弹」，用户自己排的过期要算数。
+      publishReminder(deps.state, again, Date.now, true);
+    }, delay).unref?.();
+    return okResult({ ok: true, id, snoozeMs: delay });
+  }
+
+  // 静音：一段时间内所有到点提醒与主动推送都安静（默认一小时）。
+  if (rest === 'mute') {
+    if (method !== 'POST') return methodNotAllowed();
+    let parsed: Record<string, unknown> | null = null;
+    if (body !== undefined && body !== '') {
+      try {
+        parsed = JSON.parse(body) as Record<string, unknown> | null;
+      } catch {
+        return invalidJson();
+      }
+    }
+    const minutes = parsed?.minutes;
+    const ms = minutes === 0 ? 0 : minutesOf(minutes, MUTE_DEFAULT_MS);
+    const until = muteFor(ms);
+    return okResult({ ok: true, mutedUntil: until, minutes: Math.round(ms / 60000) });
   }
 
   return undefined;

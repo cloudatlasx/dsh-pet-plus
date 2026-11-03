@@ -56,6 +56,9 @@ const bubbleCss = [
   // 碎碎念变体：字号缩到余额气泡的 0.75，宽度下限更窄，上限与折行规则相同。
   '.dsh-pet-bubble.dsh-pet-whisper{font-size:calc(var(--f)*0.7473);' +
     'min-width:calc(var(--f)*2.1978);max-width:min(calc(var(--f)*10.989),100%)}',
+  // 工作气泡的第二行（第 N 步 · 已用 X 分钟）：小一号、灰一点，不跟正文抢注意力。
+  '.dsh-pet-whisper__meta{display:block;margin-top:calc(var(--f)*0.14);font-size:calc(var(--f)*0.58);' +
+    'line-height:1.3;color:rgba(43,43,43,.55);font-variant-numeric:tabular-nums}',
   // 配图样式在 shared 的 MEME_BUBBLE_CSS，这里只保留标题与行样式。
   '.dsh-pet-bubble .pet-bub-title{font-size:calc(var(--f)*0.7692);color:rgba(43,43,43,.6);margin-bottom:calc(var(--f)*0.1978)}',
   '.dsh-pet-bubble .pet-bub-row{display:flex;justify-content:space-between;gap:calc(var(--f)*0.6593);flex-wrap:wrap}',
@@ -375,6 +378,8 @@ export function makeBalanceBubble(rt: {
  */
 export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
   text: string;
+  /** 第二行：进度（「第 3 步 · 已用 2 分钟」）。工作状态气泡用，其它气泡不传。 */
+  meta?: string | null;
   image?: string;
   url?: string;
   assetRoot?: string;
@@ -389,6 +394,7 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
 
   return function WhisperBubble({
     text,
+    meta,
     image,
     url,
     assetRoot,
@@ -397,6 +403,7 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
     onClick,
   }: {
     text: string;
+    meta?: string | null;
     image?: string;
     url?: string;
     assetRoot?: string;
@@ -421,6 +428,12 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
           rowsToNodes(h, rows),
         ]
       : rowsToNodes(h, rows);
+    // 第二行进度：只在有值时出现，字号比正文小一号，不抢正文的注意力。
+    const metaNode =
+      typeof meta === 'string' && meta !== ''
+        ? h('span', { key: 'meta', className: 'dsh-pet-whisper__meta', children: meta })
+        : null;
+    const textNodes = Array.isArray(body) ? body : [body];
     return h('div', {
       className:
         'dsh-pet-bubble dsh-pet-whisper' +
@@ -434,7 +447,10 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
             onClick(e);
           }
         : undefined,
-      children: voiceState === 'idle' ? body : [body, voiceBadgeNode(h, voiceState)],
+      children:
+        voiceState === 'idle'
+          ? [...textNodes, ...(metaNode === null ? [] : [metaNode])]
+          : [[...textNodes, ...(metaNode === null ? [] : [metaNode])], voiceBadgeNode(h, voiceState)],
     });
   };
 }

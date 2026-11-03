@@ -20,7 +20,7 @@ import { Writable } from 'node:stream';
 import { apply } from './index.ts';
 
 /** 工作状态快照（= S 里 sections.workStatus 的 data；ts 已由叶子 counter 取代，不再出现） */
-type Snapshot = { state: string | null; task: string | null };
+type Snapshot = { state: string | null; task: string | null; sessionId: string | null };
 type Listener = (session: unknown, event: unknown) => void;
 /** 一个插件的测试实例：发事件 + 读快照 + 收尾 */
 type Harness = {
@@ -99,7 +99,7 @@ function setup(): Harness {
           const body = JSON.parse(Buffer.concat(res.chunks).toString('utf8')) as {
             sections?: { workStatus?: { data?: Snapshot | null } };
           };
-          done(body.sections?.workStatus?.data ?? { state: null, task: null });
+          done(body.sections?.workStatus?.data ?? { state: null, task: null, sessionId: null });
         });
         void handler?.({ method: 'GET', url: '/dsh-pet-7340/state', on: noop }, res);
       }),
@@ -182,11 +182,10 @@ describe('并行工具的详情与调用对应', () => {
     assert.match((await h.snapshot()).task ?? '', /active\.ts/, 'todo 不该盖掉仍在跑的详情');
     now += 6000;
     h.emit('s', TOOL_RESULT(7, 'read-A'));
-    assert.deepEqual(
-      await h.snapshot(),
-      { state: 'result', task: '最新清单', sessionId: 's' },
-      '全部结束后应回落到最新 todo',
-    );
+    const snap = await h.snapshot();
+    assert.equal(snap.state, 'result', '全部结束后应回落到最新 todo');
+    assert.equal(snap.task, '最新清单', '全部结束后应回落到最新 todo');
+    assert.equal(snap.sessionId, 's');
   });
 
   test('最后开始的工具先完成时，立即显示另一项仍在执行的操作', async (t) => {
@@ -259,11 +258,10 @@ describe('并行工具的详情与调用对应', () => {
       h.emit('s', DETAILED_CALL(5, 'new', 'new.ts'));
       now += 6000;
       h.emit('s', TOOL_RESULT(6, 'new'));
-      assert.deepEqual(
-        await h.snapshot(),
-        { state: 'result', task: null, sessionId: 's' },
-        '上一轮未完成的条目不该被带到这一轮',
-      );
+      const snap = await h.snapshot();
+      assert.equal(snap.state, 'result');
+      assert.equal(snap.task, null, '上一轮未完成的条目不该被带到这一轮');
+      assert.equal(snap.sessionId, 's');
     });
   }
 

@@ -133,6 +133,10 @@ export interface WorkStatusSnapshot {
   task: string | null; // 当前任务详情（todo/write 提供，可 null）
   /** 当前展示条目所属会话；空闲或外部槽（`api`）时为 null，客户端据此决定气泡能不能点。 */
   sessionId: string | null;
+  /** 本轮已跑的工具步数（turn/start 清零，tool/call +1）；空闲恒 0。 */
+  steps: number;
+  /** 本轮开始时间（毫秒）；空闲恒 null。用来算「已经干了多久」。 */
+  startedAt: number | null;
   ts: number; // 最近一次变化的时间戳（轮询侧据此检测变化）
 }
 
@@ -144,6 +148,10 @@ export interface SessionWorkEntry {
   seq: number;
   /** 任务详情文案；null = 该会话没有清单。 */
   task: string | null;
+  /** 本轮已跑的工具步数；turn/start 清零，tool/call +1。 */
+  steps: number;
+  /** 本轮开始时间（毫秒）；null = 还没见到 turn/start。 */
+  startedAt: number | null;
   /** 该条目所属会话；`pickDisplayed` 只遍历 values，所以带着它才能知道展示的是哪一条。 */
   sessionId: string;
 }
@@ -191,7 +199,7 @@ export class WorkStatusStore {
 
   constructor() {
     this.sessions = new Map();
-    this.snap = { state: null, task: null, sessionId: null, ts: 0 };
+    this.snap = { state: null, task: null, sessionId: null, steps: 0, startedAt: null, ts: 0 };
   }
 
   /** 该会话当前是否有活动条目（决定 todo/write 是否还值得更新它的文案）。 */
@@ -209,11 +217,34 @@ export class WorkStatusStore {
     return this.sessions.get(sessionId)?.task ?? null;
   }
 
-  /** 写会话状态（保留该会话已有的 task）；同状态且 seq 不更新则不写并返回 false（防刷屏）。 */
+  /** 新一轮开始：步数清零并记下起点（同一会话的上一轮不该把步数带进这一轮）。 */
+  beginTurn(sessionId: string, at: number): void {
+    const prev = this.sessions.get(sessionId);
+    if (!prev) return; // 还没有条目：等 turn/start 的 setState 建出来，beginTurn 由调用方随后重放
+    this.sessions.set(sessionId, { ...prev, steps: 0, startedAt: at });
+    this.refresh();
+  }
+
+  /** 又跑了一个工具：步数 +1（调用方在 tool/call 时调）。 */
+  bumpStep(sessionId: string): void {
+    const prev = this.sessions.get(sessionId);
+    if (!prev) return;
+    this.sessions.set(sessionId, { ...prev, steps: prev.steps + 1 });
+    this.refresh();
+  }
+
+  /** 写会话状态（保留该会话已有的 task / steps / startedAt）；同状态且 seq 不更新则不写并返回 false（防刷屏）。 */
   setState(sessionId: string, state: HostWorkStatusState, seq = 0): boolean {
     const prev = this.sessions.get(sessionId);
     if (prev?.state === state && prev.seq >= seq) return false;
-    this.sessions.set(sessionId, { state, seq, task: prev?.task ?? null, sessionId });
+    this.sessions.set(sessionId, {
+      state,
+      seq,
+      task: prev?.task ?? null,
+      steps: prev?.steps ?? 0,
+      startedAt: prev?.startedAt ?? null,
+      sessionId,
+    });
     this.refresh();
     return true;
   }
@@ -239,16 +270,28 @@ export class WorkStatusStore {
     return this.snap;
   }
 
-  /** 重算展示：state / task / sessionId 任一变化才更新 ts（轮询侧据此触发，两端都靠它刷新）。 */
+  /** 重算展示：state / task / sessionId / 步数 / 起点任一变化才更新 ts（轮询侧据此触发，两端都靠它刷新）。 */
   private refresh(): void {
     const best = pickDisplayed(this.sessions.values());
     const nextState = best?.state ?? null;
     const nextTask = best?.task ?? null;
     const nextSession = best?.sessionId ?? null;
-    if (nextState === this.snap.state && nextTask === this.snap.task && nextSession === this.snap.sessionId) return;
+    const nextSteps = best?.steps ?? 0;
+    const nextStarted = best?.startedAt ?? null;
+    if (
+      nextState === this.snap.state &&
+      nextTask === this.snap.task &&
+      nextSession === this.snap.sessionId &&
+      nextSteps === this.snap.steps &&
+      nextStarted === this.snap.startedAt
+    ) {
+      return;
+    }
     this.snap.state = nextState;
     this.snap.task = nextTask;
     this.snap.sessionId = nextSession;
+    this.snap.steps = nextSteps;
+    this.snap.startedAt = nextStarted;
     this.snap.ts = Date.now();
   }
 }

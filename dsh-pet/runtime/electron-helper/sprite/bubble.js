@@ -116,6 +116,13 @@ Object.assign(PetSprite.prototype, {
       line.className = 'pet-bub-row';
       line.textContent = this.workText;
       this.bubble.appendChild(line);
+      // 第二行：第 N 步 · 已用 X 分钟。没有数就没有这一行，不留空占位。
+      if (this.workMeta) {
+        const meta = document.createElement('div');
+        meta.className = 'pet-bub-whisper-meta';
+        meta.textContent = this.workMeta;
+        this.bubble.appendChild(meta);
+      }
     } else if (slot === 'whisper') {
       // 配图（shared 生成的 <img> + 共用样式）：先看图再读话
       if (whisperImg) this.bubble.appendChild(whisperImg);
@@ -371,6 +378,9 @@ Object.assign(PetSprite.prototype, {
     const actions = this.bubbleEl('div', 'pet-bub-req__actions');
     actions.appendChild(this.bubbleButton('知道了', 'is-primary', 'rem-close'));
     if (rem.sessionId) actions.appendChild(this.bubbleButton('去会话回复', '', 'rem-focus'));
+    // 等会儿 / 静音：都属「现在别烦我」这一档，压成 ghost 按钮不抢「知道了」的主位。
+    actions.appendChild(this.bubbleButton('等会儿', 'is-ghost', 'rem-snooze'));
+    actions.appendChild(this.bubbleButton('静音 1 小时', 'is-ghost', 'rem-mute'));
     wrap.appendChild(actions);
     const when = rem.scheduledAt ? new Date(rem.scheduledAt) : new Date(rem.ts);
     if (!Number.isNaN(when.getTime())) {
@@ -405,6 +415,37 @@ Object.assign(PetSprite.prototype, {
         .catch(() => undefined);
       return;
     }
+    if (action === 'rem-snooze') {
+      // 收起 + 15 分钟后再弹：宿主排的定时器，关掉窗口也还在（它不依赖本进程）。
+      fetch(BASE + '/reminder/snooze', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: rem.id, minutes: 15 }),
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          if (!json || !json.ok) return;
+          this.reminderEnvelope = null;
+          this.renderBubble();
+        })
+        .catch(() => undefined);
+      return;
+    }
+    if (action === 'rem-mute') {
+      fetch(BASE + '/mute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ minutes: 60 }),
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          if (!json || !json.ok) return;
+          this.reminderEnvelope = null;
+          this.renderBubble();
+        })
+        .catch(() => undefined);
+      return;
+    }
     if (action === 'rem-focus' && rem.sessionId) {
       fetch(BASE + '/focus-session', {
         method: 'POST',
@@ -428,7 +469,13 @@ Object.assign(PetSprite.prototype, {
 
   /** 请求气泡的按钮分流：选选项、发送、允许/拒绝、交给 DSH。 */
   onRequestAction(action, qid, value) {
-    if (action === 'rem-close' || action === 'rem-focus' || action === 'rem-quick') {
+    if (
+      action === 'rem-close' ||
+      action === 'rem-focus' ||
+      action === 'rem-quick' ||
+      action === 'rem-snooze' ||
+      action === 'rem-mute'
+    ) {
       this.onReminderAction(action, qid);
       return;
     }

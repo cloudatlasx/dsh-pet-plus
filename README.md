@@ -19,6 +19,8 @@
 | **定时提醒**            | 读取 DSH 的 `schedule` 服务，任务到点后由宠物弹出提醒气泡（20 秒自动收起），点一下可以直接处理；不再依赖插件自己维护的待办计时器。                                                                                                                                                                             |
 | **定时播报 + 快捷动作** | 任何 agent / 脚本都能用 `POST /dsh-pet-7340/announce` 往桌宠推一条「标题 + 清单 + 结论」的气泡（默认 2 分钟收起，超长在气泡里滚动），还可以带 **最多 3 个快捷动作**：气泡上渲染成一排胶囊按钮，点一下就把对应的那句话投回那个 DSH 会话，agent 接着往下做。所以定时任务的结论不只是一段通知，是能直接点的入口。 |
 | **在宠物上直接说话**    | 气泡里也能自己打一句（回车即发），走 `POST /dsh-pet-7340/reply` 投回会话——等价于你在 DSH 输入框里亲手发了一条消息，会真的触发工具调用与写盘。只对正在运行的会话生效，不会替你恢复已结束的会话。                                                                                                                |
+| **进度看得见**          | 工作气泡第二行是 `第 3 步 · 已用 2 分钟`：步数按本轮工具调用计数，起点是回合开始。不给百分比——总步数只有模型自己知道，凑出来的进度不如没有。                                                                                                                                                                   |
+| **等会儿 / 静音**       | 提醒气泡除了「知道了」，还有「等会儿」（15 分钟后原样再弹，`POST /dsh-pet-7340/reminder/snooze`）和「静音 1 小时」（`POST /dsh-pet-7340/mute`，可传 1–480 分钟、`0` 解除）。静音期间到点提醒不弹，`/announce` 返回 `muted: true`，调用方因此知道是「被吞了」而不是「送达了」。                            |
 | **改定时任务提示词**    | `POST /dsh-pet-7340/schedule/patch` 能改 DSH 定时任务的标题与提示词（DSH 的调度表只在启动时读一次文件，手改 `schedule.json` 会被覆盖，只能走服务）。                                                                                                                                                           |
 | **审批 / 提问气泡**     | DSH 请求审批或向你提问时，宠物身上直接出现可交互气泡：审批可选「允许一次 / 本会话都允许 / 拒绝」（会话内授权 8 小时有效，只影响本会话），提问可选选项或填自定义答案，结果原路回传给 DSH；原有的内置面板会被临时接管，不操作则自动超时放行。                                                                    |
 | **拍一拍音效**          | 点击宠物播放 `click-duck.wav`；定时提醒到达时连响两声，提醒感更强。                                                                                                                                                                                                                                            |
@@ -56,7 +58,7 @@ dsh plugin --profile desktop add E:\path\to\dsh-pet-plus\dsh-pet
 每个 Release 都附一个打包好的 `.tgz`（含 `lib/`、`runtime/`、`assets/`、`cordis.patch.yml`），直接让 DSH 装它：
 
 ```bash
-dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.7.0/dsh-pet-plus-0.7.0.tgz
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.8.0/dsh-pet-plus-0.8.0.tgz
 ```
 
 也可以装 git 子目录（`dsh-pet/` 是包所在目录）：`dsh plugin --profile desktop add github:cloudatlasx/dsh-pet-plus#path:/dsh-pet`。

@@ -31,7 +31,15 @@ export function createWorkStatusBridge(deps: WorkStatusBridgeInput) {
   const publishWorkStatus = (): void => {
     const snap = workStatus.snapshot();
     // 会话也算内容：同档同文案换了会话，页面必须知道，否则点气泡会跳到上一条会话。
-    const key = String(snap.state) + '\u0000' + String(snap.task) + '\u0000' + String(snap.sessionId ?? '');
+    // 步数也要进 key：档位与文案都没变、只是又跑完一个工具时，气泡里的「第 N 步」得跟着走。
+    const key =
+      String(snap.state) +
+      '\u0000' +
+      String(snap.task) +
+      '\u0000' +
+      String(snap.sessionId ?? '') +
+      '\u0000' +
+      String(snap.steps);
     if (key === publishedWork) return;
     // 抖动判定：只压 working → result 这一个方向（同档只换文案不算抖动，照常立即写；
     // 反向 result → working 立即写）
@@ -55,7 +63,13 @@ export function createWorkStatusBridge(deps: WorkStatusBridgeInput) {
     publishedWorkAt = Date.now();
     // 外部槽（`api`）不是真实 DSH 会话：这里写成 null，客户端才不会把气泡做成一个点了没反应的入口。
     const sessionId = snap.sessionId === null || snap.sessionId === EXTERNAL_WORK_SESSION ? null : snap.sessionId;
-    state.writeSection('workStatus', { state: snap.state, task: snap.task, sessionId });
+    state.writeSection('workStatus', {
+      state: snap.state,
+      task: snap.task,
+      sessionId,
+      steps: snap.steps,
+      startedAt: snap.startedAt,
+    });
   };
 
   /** 停掉挂起的补写定时器（插件卸载时调用）。 */

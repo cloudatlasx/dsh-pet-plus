@@ -174,8 +174,8 @@ export interface BubbleSlots {
   showWhisper(text: string, parts: { image?: string; url?: string }, duration?: number): void;
   /** 收起说话气泡；不碰动画与另两种气泡。 */
   clearWhisper(): void;
-  /** 更新工作气泡文本，显隐不动。 */
-  updateWorkText(text: string | null): void;
+  /** 更新工作气泡文本与进度行（第二行），显隐不动。 */
+  updateWorkText(text: string | null, meta?: string | null): void;
   /** 点亮工作气泡；terminal 决定 10s 后自动收起，非终态常驻。 */
   lightWork(terminal: boolean): void;
   /** 收起工作气泡但保留文本。 */
@@ -223,9 +223,10 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
     const whisperTimerRef = useRef<number | null>(null);
     // 待办面板：独占槽位，没有停留计时，显隐只由用户开关。
     const [todoOn, setTodoOn] = useState(false);
-    // 工作状态气泡：显隐与文本。
+    // 工作状态气泡：显隐、文本与第二行进度（「第 3 步 · 已用 2 分钟」）。
     const [workOn, setWorkOn] = useState(false);
     const [workText, setWorkText] = useState<string | null>(null);
+    const [workMeta, setWorkMeta] = useState<string | null>(null);
     const workTimerRef = useRef<number | null>(null);
     // 语音播报状态：只在手动触发的那一句上有值，气泡据此显示转圈 / 喇叭
     const [voiceState, setVoiceState] = useState<VoiceState>('idle');
@@ -321,6 +322,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
     const resetWork = () => {
       hideWork();
       setWorkText(null);
+      setWorkMeta(null);
     };
 
     const showTodo = (): void => setTodoOn(true);
@@ -376,6 +378,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
         const onClick = sessionId !== '' && onFocus !== undefined ? () => onFocus(sessionId) : undefined;
         return h(WhisperBubble, {
           text: workText,
+          meta: workMeta,
           on: workOn,
           ...(onClick === undefined ? {} : { onClick }),
         });
@@ -395,7 +398,10 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
       showTodo,
       showWhisper,
       toggleTodo,
-      updateWorkText: setWorkText,
+      updateWorkText: (text: string | null, meta?: string | null) => {
+        setWorkText(text);
+        setWorkMeta(meta ?? null);
+      },
     };
   };
 }

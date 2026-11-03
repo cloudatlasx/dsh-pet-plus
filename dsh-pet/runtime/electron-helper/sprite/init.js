@@ -94,6 +94,7 @@ Object.assign(PetSprite.prototype, {
     this.workOn = false;
     this.workTimer = null;
     this.workText = null;
+    this.workMeta = null; // 工作气泡第二行（第 N 步 · 已用 X 分钟），由 events.js 按快照算
     this.workState = null; // 最近一次工作状态（互动/事件动画播完恢复档位循环用）
     this.workSessionId = null; // 当前展示条目所属会话：有值才让工作气泡可点（点了跳过去）
     this.bubbleSlot = 'none'; // 当前显示的气泡槽位（renderBubble 写）：点击处理据此分清翻页与跳会话

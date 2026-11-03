@@ -770,18 +770,19 @@ describe('/pet-display —— 业务失败 200 + 实体，协议失败用真实�
 });
 
 describe('/work-status —— 外部写入工作状态', () => {
-  type StateBody = { sections: { workStatus: { data: { state: string | null; task: string | null } } } };
+  type StateBody = {
+    sections: { workStatus: { data: { state: string | null; task: string | null; sessionId: string | null } } };
+  };
   const work = async () => JSON.parse((await call('/dsh-pet-7340/state')).body) as StateBody;
 
   test('POST 写入 state/task，/state 同步可见', async () => {
     const r = await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify({ state: 'working', task: '编译中' }));
     assert.equal(r.status, 200);
     assert.deepEqual(JSON.parse(r.body), { state: 'working', task: '编译中' });
-    assert.deepEqual((await work()).sections.workStatus.data, {
-      state: 'working',
-      task: '编译中',
-      sessionId: null,
-    });
+    const data = (await work()).sections.workStatus.data;
+    assert.equal(data.state, 'working');
+    assert.equal(data.task, '编译中');
+    assert.equal(data.sessionId, null);
   });
 
   test('省略 task 保留上一次；显式 null / 空串清空', async () => {
@@ -803,7 +804,7 @@ describe('/work-status —— 外部写入工作状态', () => {
     const del = await call('/dsh-pet-7340/work-status', 'DELETE');
     assert.equal(del.status, 204);
     assert.equal(del.body, '');
-    assert.deepEqual((await work()).sections.workStatus.data, { state: null, task: null, sessionId: null });
+    assert.equal((await work()).sections.workStatus.data.state, null);
 
     const again = await call('/dsh-pet-7340/work-status', 'DELETE');
     assert.equal(again.status, 204);

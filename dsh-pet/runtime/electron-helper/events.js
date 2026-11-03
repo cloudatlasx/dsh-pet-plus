@@ -43,6 +43,7 @@ PetSprite.prototype.onWorkTick = function onWorkTick(snapshot, tick) {
     this.workTimer = null;
     this.workOn = false;
     this.workText = null;
+    this.workMeta = null;
     this.workSessionId = null;
     this.renderBubble();
     return;
@@ -78,7 +79,9 @@ PetSprite.prototype.onWorkTick = function onWorkTick(snapshot, tick) {
     Array.isArray(textGroup) && textGroup.length > 0
       ? textGroup[Math.floor(Math.random() * textGroup.length)]
       : undefined;
-  this.workText = (snapshot && snapshot.task) || configuredText || null;
+  this.workText = (snapshot || {}).task || configuredText || null;
+  // 第二行进度：与浏览器同一套文案（shared 的 progressLabel），sprite 只负责摆位置。
+  this.workMeta = S.progressLabel ? S.progressLabel(S.toWorkStatus(snapshot), Date.now()) : null;
   const terminal = state === 'success' || state === 'error';
   // 气泡点亮/收起只在状态变化时动作：同状态后续 tick 不重新点亮已自动收起的终态气泡，否则会被反复弹回。
   if (stateChanged) {

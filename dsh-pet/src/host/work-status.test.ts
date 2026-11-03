@@ -230,3 +230,47 @@ describe('WorkStatusStore —— 按会话聚合与展示（issue #59）', () =>
     }
   });
 });
+
+describe('WorkStatusStore —— 进度（步数 / 起点）', () => {
+  test('beginTurn 清零并记起点，bumpStep 累加，换档不丢进度', () => {
+    const s = new WorkStatusStore();
+    s.setState('a', 'thinking', 1);
+    s.beginTurn('a', 1_700_000_000_000);
+    assert.equal(s.snapshot().steps, 0);
+    assert.equal(s.snapshot().startedAt, 1_700_000_000_000);
+    s.bumpStep('a');
+    s.bumpStep('a');
+    assert.equal(s.snapshot().steps, 2);
+    s.setState('a', 'working', 2);
+    s.setState('a', 'result', 3);
+    assert.equal(s.snapshot().steps, 2, '换档不该把步数抹掉');
+    assert.equal(s.snapshot().startedAt, 1_700_000_000_000);
+  });
+
+  test('没有条目时 beginTurn / bumpStep 不制造条目（会话还没起来）', () => {
+    const s = new WorkStatusStore();
+    s.beginTurn('ghost', 123);
+    s.bumpStep('ghost');
+    assert.equal(s.has('ghost'), false);
+    assert.equal(s.snapshot().state, null);
+  });
+
+  test('新一轮 beginTurn 重新计数', () => {
+    const s = new WorkStatusStore();
+    s.setState('a', 'working', 1);
+    s.beginTurn('a', 100);
+    s.bumpStep('a');
+    assert.equal(s.snapshot().steps, 1);
+    s.beginTurn('a', 200);
+    assert.equal(s.snapshot().steps, 0);
+    assert.equal(s.snapshot().startedAt, 200);
+  });
+
+  test('空闲快照的进度字段是 0 / null（前端因此不画第二行）', () => {
+    const s = new WorkStatusStore();
+    const snap = s.snapshot();
+    assert.equal(snap.state, null);
+    assert.equal(snap.steps, 0);
+    assert.equal(snap.startedAt, null);
+  });
+});

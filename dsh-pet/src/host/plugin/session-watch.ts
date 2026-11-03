@@ -241,6 +241,10 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
       // 还有操作没完就把档位压回 working：结果档与「仍在执行」的文案同时出现会自相矛盾。
       if (outcome?.keepWorking) next = 'working';
       const changed = workStatus.setState(sessionId, next, seq);
+      // 进度口径：turn/start 记起点并清零，tool/call 记一步。必须在 setState 之后——条目是 setState
+      // 建出来的，先调会被 beginTurn/bumpStep 的「没有条目就返回」静默丢弃。
+      if (type === 'turn/start') workStatus.beginTurn(sessionId, Date.now());
+      else if (type === 'tool/call') workStatus.bumpStep(sessionId);
       if (outcome?.task !== undefined) workStatus.setTask(sessionId, outcome.task);
       publishWorkStatus(); // 档位或文案变了 → 写 S（内容没变时它自己会短路，不产生多余写入）
       // 同会话同状态不重复更新（防刷屏）：写已经落定，这里只负责跳过终态清理的重排
