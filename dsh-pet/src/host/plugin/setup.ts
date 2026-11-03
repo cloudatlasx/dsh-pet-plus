@@ -217,14 +217,15 @@ export function createHostSetup(ctx: HostSetupContext): HostSetup {
   // 塞进 1s 全局广播会让每个窗口为每个功能付流量。
   const playback = new PlaybackStore();
 
+  /** 外部写入槽：固定会话 id，最后写入者生效；不做多写者仲裁/租约/会话管理 */
+  const EXTERNAL_WORK_SESSION = 'api';
+
   // 工作状态联动快照（/work-status 端点响应，浏览器 1s 轮询）：state = 当前活动状态（null = 空闲），
   // task = 当前任务详情。state 与 task 都按会话存——全局单值会让一次任务详情跟着此后所有会话活动
   // 一直显示（issue #59）。气泡文案不在此：浏览器读配置 events.workStatusTexts。
   // 进程内内存态：重启回空闲；每次会话事件有实际状态变化才更新。
-  const workStatus = new WorkStatusStore();
-
-  /** 外部写入槽：固定会话 id，最后写入者生效；不做多写者仲裁/租约/会话管理 */
-  const EXTERNAL_WORK_SESSION = 'api';
+  // 外部槽要传进去，它才有可过期的对象：写一次没人续写，十分钟后自己下线。
+  const workStatus = new WorkStatusStore(EXTERNAL_WORK_SESSION);
 
   let externalWorkSeq = 0;
 

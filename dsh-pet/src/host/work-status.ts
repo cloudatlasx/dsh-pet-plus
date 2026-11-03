@@ -177,7 +177,18 @@ export interface SessionWorkEntry {
   todoTotal: number;
   /** 该条目所属会话；`pickDisplayed` 只遍历 values，所以带着它才能知道展示的是哪一条。 */
   sessionId: string;
+  /** 最近一次写入的时间（毫秒）：外部槽靠它判断这条状态是否已经放旧了。 */
+  touchedAt: number;
 }
+
+/**
+ * 外部槽的存活时间：`POST /work-status` 写进来的状态没人续写就自动收掉。
+ *
+ * 为什么要过期：外部槽没有「回合结束」这种天然终点，写一次会一直挂在展示优先级最高的位置
+ * （waiting 60 分高于任何会话），任务做完了条子还在——用户看到的就是「明明完事了还挂着 2/5」。
+ * 十分钟足够一次外部驱动跑完，真要更长就再 POST 一次续命。
+ */
+export const EXTERNAL_WORK_TTL_MS = 10 * 60 * 1000;
 
 /** 展示优先级：waiting > error > working > thinking > result > success。
  *  result 高于 success：任何会话的进行中过渡态都不被别处已完成态压过，防中途庆祝；同档按最近更新优先。 */
@@ -219,9 +230,15 @@ export class WorkStatusStore {
   // ERR_MODULE_NOT_FOUND，整个 profile 起不来（scripts/prepack-check.js 第 8 项守着这条）。
   declare private readonly sessions: Map<string, SessionWorkEntry>;
   declare private readonly snap: WorkStatusSnapshot;
+  /** 外部写入槽的会话 id（通常是 'api'）：只有它受 {@link EXTERNAL_WORK_TTL_MS} 管。 */
+  declare private readonly externalSessionId: string;
+  /** 取时间的函数：生产用 Date.now，测试注入假时钟（过期逻辑没法靠真 sleep 验）。 */
+  declare private readonly now: () => number;
 
-  constructor() {
+  constructor(externalSessionId = 'api', now: () => number = Date.now) {
     this.sessions = new Map();
+    this.externalSessionId = externalSessionId;
+    this.now = now;
     this.snap = {
       state: null,
       task: null,
@@ -260,7 +277,14 @@ export class WorkStatusStore {
     const prev = this.sessions.get(sessionId);
     if (!prev) return; // 还没有条目：等 turn/start 的 setState 建出来，beginTurn 由调用方随后重放
     // 清单也跟着清空：上一轮的清单条数不能当这一轮的进度条（否则一开新轮就显示「已完成」）。
-    this.sessions.set(sessionId, { ...prev, steps: 0, startedAt: at, todoDone: 0, todoTotal: 0 });
+    this.sessions.set(sessionId, {
+      ...prev,
+      steps: 0,
+      startedAt: at,
+      todoDone: 0,
+      todoTotal: 0,
+      touchedAt: this.now(),
+    });
     this.refresh();
   }
 
@@ -268,7 +292,7 @@ export class WorkStatusStore {
   bumpStep(sessionId: string): void {
     const prev = this.sessions.get(sessionId);
     if (!prev) return;
-    this.sessions.set(sessionId, { ...prev, steps: prev.steps + 1 });
+    this.sessions.set(sessionId, { ...prev, steps: prev.steps + 1, touchedAt: this.now() });
     this.refresh();
   }
 
@@ -280,7 +304,7 @@ export class WorkStatusStore {
     const safeTotal = Number.isFinite(total) && total > 0 ? Math.floor(total) : 0;
     const nextDone = Math.min(safeDone, safeTotal);
     if (prev.todoDone === nextDone && prev.todoTotal === safeTotal) return false;
-    this.sessions.set(sessionId, { ...prev, todoDone: nextDone, todoTotal: safeTotal });
+    this.sessions.set(sessionId, { ...prev, todoDone: nextDone, todoTotal: safeTotal, touchedAt: this.now() });
     this.refresh();
     return true;
   }
@@ -298,6 +322,7 @@ export class WorkStatusStore {
       todoDone: prev?.todoDone ?? 0,
       todoTotal: prev?.todoTotal ?? 0,
       sessionId,
+      touchedAt: this.now(),
     });
     this.refresh();
     return true;
@@ -307,7 +332,7 @@ export class WorkStatusStore {
   setTask(sessionId: string, task: string | null): boolean {
     const prev = this.sessions.get(sessionId);
     if (!prev || prev.task === task) return false;
-    this.sessions.set(sessionId, { ...prev, task });
+    this.sessions.set(sessionId, { ...prev, task, touchedAt: this.now() });
     this.refresh();
     return true;
   }
@@ -319,9 +344,19 @@ export class WorkStatusStore {
     return true;
   }
 
-  /** 展示快照（对象引用稳定，供 /work-status 直接序列化）。 */
-  snapshot(): WorkStatusSnapshot {
+  /** 展示快照（对象引用稳定，供 /work-status 直接序列化）；读的时候顺手收掉放旧的外部槽。 */
+  snapshot(now = this.now()): WorkStatusSnapshot {
+    // 外部槽没人续写就不会有任何写事件进来，只能靠读的时候检查一次——否则条子会一直挂在最上面。
+    if (this.expire(now)) this.refresh();
     return this.snap;
+  }
+
+  /** 收掉超时的外部槽；返回是否真的删了条目（调用方据此决定要不要重算展示）。 */
+  private expire(now: number): boolean {
+    const entry = this.sessions.get(this.externalSessionId);
+    if (!entry) return false;
+    if (now - entry.touchedAt <= EXTERNAL_WORK_TTL_MS) return false;
+    return this.sessions.delete(this.externalSessionId);
   }
 
   /** 重算展示：state / task / sessionId / 步数 / 起点 / 清单进度任一变化才更新 ts。 */
@@ -352,6 +387,6 @@ export class WorkStatusStore {
     this.snap.startedAt = nextStarted;
     this.snap.todoDone = nextDone;
     this.snap.todoTotal = nextTotal;
-    this.snap.ts = Date.now();
+    this.snap.ts = this.now();
   }
 }

@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import {
   completedState,
   currentTaskFromTodo,
+  EXTERNAL_WORK_TTL_MS,
   goalUpdateAction,
   reduceWorkStatus,
   TASK_TEXT_MAX,
@@ -329,5 +330,37 @@ describe('WorkStatusStore —— 清单进度', () => {
     const s = new WorkStatusStore();
     assert.equal(s.setTodoCounts('ghost', 1, 2), false);
     assert.equal(s.has('ghost'), false);
+  });
+});
+
+describe('WorkStatusStore —— 外部槽过期', () => {
+  test('外部槽十分钟没人续写就自己下线，普通会话不受影响', () => {
+    let clock = 1_000_000;
+    const s = new WorkStatusStore('api', () => clock);
+    s.setState('api', 'waiting');
+    s.setTodoCounts('api', 2, 5);
+    s.setState('sess-1', 'working');
+    assert.equal(s.snapshot().state, 'waiting');
+    // 刚好到点还留着，别提前抖掉。
+    clock += EXTERNAL_WORK_TTL_MS;
+    assert.equal(s.snapshot().state, 'waiting');
+    clock += 2;
+    const later = s.snapshot();
+    assert.equal(later.state, 'working');
+    assert.equal(later.sessionId, 'sess-1');
+    assert.equal(later.todoTotal, 0);
+    assert.equal(s.has('api'), false);
+  });
+
+  test('过期前再写一次会续命，之后不再续写照样下线', () => {
+    let clock = 5_000_000;
+    const s = new WorkStatusStore('api', () => clock);
+    s.setState('api', 'working');
+    clock += EXTERNAL_WORK_TTL_MS - 1;
+    s.setState('api', 'result', 2); // 续命：截止线从现在重新算
+    clock += 1;
+    assert.equal(s.snapshot().state, 'result');
+    clock += EXTERNAL_WORK_TTL_MS;
+    assert.equal(s.snapshot().state, null);
   });
 });
