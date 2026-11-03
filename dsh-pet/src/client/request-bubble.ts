@@ -267,8 +267,26 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
     const hint = reminder.hint ?? '';
     const text = reminder.prompt ?? '';
     const announce = reminder.kind === 'announce';
+    const actions = reminder.actions ?? [];
+    const sessionId = reminder.sessionId;
+    const [sending, setSending] = rt.useState('');
+    const [draft, setDraft] = rt.useState('');
     const close = (): void => {
       void postAction(ROUTE_PATH + '/reminder/close', { id: reminder.id }).catch(() => undefined);
+    };
+    // 快捷动作 / 自由输入都是同一件事：把用户的一句话投回那个会话，agent 接着往下做。
+    const sendAction = (label: string, body: string, keepDraft = false): void => {
+      if (sessionId === undefined || sending !== '') return;
+      setSending(label);
+      if (!keepDraft) setDraft('');
+      void postAction(ROUTE_PATH + '/reply', { sessionId, text: body, id: reminder.id })
+        .then(() => setSending(''))
+        .catch(() => setSending(''));
+    };
+    const sendDraft = (): void => {
+      const body = draft.trim();
+      if (body === '') return;
+      sendAction('draft', body);
     };
     const focusSession = reminder.sessionId;
     const goSession = (): void => {
@@ -308,6 +326,52 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
           ? h('div', { key: 'prompt', className: 'dsh-pet-request__body', children: text })
           : null,
         hint !== '' ? h('div', { key: 'hint', className: 'dsh-pet-reminder__hint', children: hint }) : null,
+        actions.length > 0
+          ? h('div', {
+              key: 'quick',
+              className: 'dsh-pet-reminder__quick',
+              children: actions.map((action, index) =>
+                h('button', {
+                  key: 'q' + index,
+                  type: 'button',
+                  className: 'dsh-pet-reminder__chip' + (sending === action.label ? ' is-busy' : ''),
+                  disabled: sending !== '',
+                  onClick: () => sendAction(action.label, action.text),
+                  children: sending === action.label ? '发送中…' : action.label,
+                }),
+              ),
+            })
+          : null,
+        sessionId === undefined
+          ? null
+          : h('div', {
+              key: 'draft',
+              className: 'dsh-pet-reminder__reply',
+              children: [
+                h('input', {
+                  key: 'in',
+                  className: 'dsh-pet-request__input',
+                  type: 'text',
+                  placeholder: '接着说一句，我去干…',
+                  value: draft,
+                  maxLength: 400,
+                  onInput: (e: ReactNS.FormEvent<HTMLInputElement>) => setDraft(e.currentTarget.value),
+                  onKeyDown: (e: ReactNS.KeyboardEvent<HTMLInputElement>) => {
+                    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+                    e.preventDefault();
+                    sendDraft();
+                  },
+                }),
+                h('button', {
+                  key: 'send',
+                  type: 'button',
+                  className: 'dsh-pet-request__btn',
+                  disabled: sending !== '' || draft.trim() === '',
+                  onClick: sendDraft,
+                  children: sending === 'draft' ? '发送中…' : '发送',
+                }),
+              ],
+            }),
         h('div', {
           key: 'actions',
           className: 'dsh-pet-request__actions',

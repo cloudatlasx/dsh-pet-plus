@@ -111,8 +111,23 @@ export interface ReminderEnvelope {
   ttlMs?: number;
   /** 计划时刻（RFC 3339 UTC）。 */
   scheduledAt?: string;
+  /** 快捷动作：气泡底部一排按钮，点一下就把 `text` 作为用户消息投回 `sessionId` 那个会话。 */
+  actions?: ReminderAction[];
   /** 结束标记。 */
   closed?: boolean;
+}
+
+/**
+ * 快捷动作：把「点一下」变成一次真实的用户发言。
+ *
+ * `label` 是按钮上的字（要短），`text` 是真正投给 agent 的话——两者故意分开：
+ * 按钮写给人看（「记 2h」），投喂给人背后的模型看（「47161 记 2 小时工时，work 写…」）。
+ */
+export interface ReminderAction {
+  /** 按钮文案（≤ 12 个汉字左右）。 */
+  label: string;
+  /** 点击后投回会话的用户消息正文。 */
+  text: string;
 }
 
 /** 从字符串数组里挑出非空字符串。 */
@@ -188,6 +203,7 @@ export function readReminder(leaf: StateLeaf): ReminderEnvelope | null {
   if (d.kind !== 'schedule' && d.kind !== 'announce') return null;
   if (typeof d.title !== 'string' || d.title.trim() === '') return null;
   const lines = labelsOf(d.lines);
+  const actions = actionsOf(d.actions);
   return {
     id: d.id,
     kind: d.kind,
@@ -199,7 +215,23 @@ export function readReminder(leaf: StateLeaf): ReminderEnvelope | null {
     sessionId: typeof d.sessionId === 'string' && d.sessionId.trim() !== '' ? d.sessionId : undefined,
     ttlMs: typeof d.ttlMs === 'number' && Number.isFinite(d.ttlMs) && d.ttlMs > 0 ? d.ttlMs : undefined,
     scheduledAt: typeof d.scheduledAt === 'string' ? d.scheduledAt : undefined,
+    actions: actions.length > 0 ? actions : undefined,
   };
+}
+
+/** 收窄快捷动作数组：跳过坏形状，`label` 与 `text` 都得非空。 */
+function actionsOf(value: unknown): ReminderAction[] {
+  if (!Array.isArray(value)) return [];
+  const out: ReminderAction[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const a = item as Record<string, unknown>;
+    const label = typeof a.label === 'string' ? a.label.trim() : '';
+    const text = typeof a.text === 'string' ? a.text.trim() : '';
+    if (label === '' || text === '') continue;
+    out.push({ label, text });
+  }
+  return out;
 }
 
 /** 收窄答案里的选项：非空字符串数组。 */

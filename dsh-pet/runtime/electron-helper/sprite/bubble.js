@@ -354,6 +354,19 @@ Object.assign(PetSprite.prototype, {
     const text = rem.prompt && rem.prompt !== rem.title ? rem.prompt : '';
     if (text) wrap.appendChild(this.bubbleEl('div', 'pet-bub-rem__text', text));
     if (rem.hint) wrap.appendChild(this.bubbleEl('div', 'pet-bub-rem__hint', rem.hint));
+    // 快捷动作：点一下就把这句话投回会话，agent 接着干活——宠物不只是播报，还是入口。
+    const quick = Array.isArray(rem.actions) ? rem.actions : [];
+    if (quick.length > 0 && rem.sessionId) {
+      const row = this.bubbleEl('div', 'pet-bub-rem__quick');
+      quick.forEach((action, index) => {
+        const chip = this.bubbleEl('button', 'pet-bub-rem__chip', action.label);
+        chip.type = 'button';
+        chip.dataset.reqAction = 'rem-quick';
+        chip.dataset.reqQid = String(index);
+        row.appendChild(chip);
+      });
+      wrap.appendChild(row);
+    }
     const actions = this.bubbleEl('div', 'pet-bub-req__actions');
     actions.appendChild(this.bubbleButton('知道了', 'is-primary', 'rem-close'));
     if (rem.sessionId) actions.appendChild(this.bubbleButton('去会话回复', '', 'rem-focus'));
@@ -369,10 +382,28 @@ Object.assign(PetSprite.prototype, {
     this.syncInputBusy();
   },
 
-  /** 提醒气泡的动作：收起（宿主写 closed 信封）或先切到相关会话再收起。 */
-  onReminderAction(action) {
+  /** 提醒气泡的动作：收起（宿主写 closed 信封）、切会话，或把一句话投回会话。 */
+  onReminderAction(action, qid) {
     const rem = this.reminderEnvelope;
     if (!rem) return;
+    if (action === 'rem-quick') {
+      const list = Array.isArray(rem.actions) ? rem.actions : [];
+      const picked = list[Number(qid)];
+      if (!picked || !rem.sessionId) return;
+      fetch(BASE + '/reply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: rem.sessionId, text: picked.text, id: rem.id }),
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          if (!json || !json.ok) return;
+          this.reminderEnvelope = null;
+          this.renderBubble();
+        })
+        .catch(() => undefined);
+      return;
+    }
     if (action === 'rem-focus' && rem.sessionId) {
       fetch(BASE + '/focus-session', {
         method: 'POST',
@@ -396,8 +427,8 @@ Object.assign(PetSprite.prototype, {
 
   /** 请求气泡的按钮分流：选选项、发送、允许/拒绝、交给 DSH。 */
   onRequestAction(action, qid, value) {
-    if (action === 'rem-close' || action === 'rem-focus') {
-      this.onReminderAction(action);
+    if (action === 'rem-close' || action === 'rem-focus' || action === 'rem-quick') {
+      this.onReminderAction(action, qid);
       return;
     }
     const req = this.requestEnvelope;

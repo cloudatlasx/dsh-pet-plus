@@ -121,6 +121,18 @@ const bubbleCss = [
     'padding-left:calc(var(--f)*0.7);text-indent:calc(var(--f)*-0.7)}',
   '.dsh-pet-reminder__line::before{content:"·";margin-right:calc(var(--f)*0.3);color:#3f6ea8;font-weight:700}',
   '.dsh-pet-reminder__hint{font-size:calc(var(--f)*0.62);line-height:1.4;color:rgba(43,43,43,.55);word-break:break-word}',
+  // 快捷动作：一排「能做的事」，点一下就把话投回会话——宠物不只是播报，是入口。
+  '.dsh-pet-reminder__quick{display:flex;gap:calc(var(--f)*0.26);flex-wrap:wrap;align-items:center}',
+  '.dsh-pet-reminder__chip{appearance:none;font-family:inherit;font-size:calc(var(--f)*0.66);line-height:1.2;' +
+    'padding:calc(var(--f)*0.24) calc(var(--f)*0.52);border-radius:calc(var(--f)*0.9);cursor:pointer;' +
+    'border:1px solid rgba(63,110,168,.42);background:rgba(63,110,168,.08);color:#2f5687;font-weight:600;' +
+    'transition:background .12s ease,border-color .12s ease}',
+  '.dsh-pet-reminder__chip:hover{background:rgba(63,110,168,.16);border-color:rgba(63,110,168,.62)}',
+  '.dsh-pet-reminder__chip:disabled{opacity:.55;cursor:default}',
+  '.dsh-pet-reminder__chip.is-busy{background:rgba(63,110,168,.2);border-color:rgba(63,110,168,.7)}',
+  // 自由输入：不想点芯片就直接说一句，回车即发。
+  '.dsh-pet-reminder__reply{display:flex;gap:calc(var(--f)*0.26);align-items:center}',
+  '.dsh-pet-reminder__reply>.dsh-pet-request__input{flex:1 1 auto;min-width:0}',
   '.dsh-pet-request__actions{display:flex;gap:calc(var(--f)*0.3);flex-wrap:wrap;align-items:center}',
   '.dsh-pet-request__btn{appearance:none;font-family:inherit;font-size:calc(var(--f)*0.68);line-height:1.2;' +
     'padding:calc(var(--f)*0.22) calc(var(--f)*0.5);border-radius:calc(var(--f)*0.36);cursor:pointer;' +

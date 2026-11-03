@@ -3265,7 +3265,25 @@ paths:
                   description: 尾注，如「在下面选一项，我就去填工时」。
                 sessionId:
                   type: string
-                  description: 相关会话 id；给了才会出现「去会话回复」按钮。
+                  description: 相关会话 id；给了才会出现「去会话回复」按钮和快捷动作。
+                actions:
+                  type: array
+                  maxItems: 3
+                  description: |
+                    快捷动作芯片：气泡上渲染成一排按钮，点一下就把对应的 `text` 当作
+                    用户发言投回 `sessionId` 那个会话（走 `/reply`），agent 接着干活。
+                    没给 `sessionId` 时整组丢弃——没有投递目标就不该出现点了没反应的按钮。
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [label, text]
+                    properties:
+                      label:
+                        type: string
+                        description: 按钮文案（≤24 字符，超出截断）。
+                      text:
+                        type: string
+                        description: 点击后投回会话的那句话（≤1000 字符），写清楚要做什么。
                 ttlMs:
                   type: integer
                   minimum: 1
@@ -3275,6 +3293,58 @@ paths:
           description: |
             已推送，返回 `{ ok: true, id }`；`title` / `lines` / `text` 全空时是
             `{ ok: false, reason: "bad-request", message }`。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/reply:
+    post:
+      tags: [Request]
+      operationId: replyToSession
+      summary: 把宠物上的一句话投回会话
+      description: |
+        宠物气泡的快捷动作芯片与「说一句」入口都走这里：宿主拿 `agents.get(sessionId)`
+        取到活着的 agent，再用 `agent.followup(createUserMessage(...))` 把这句话排进它的
+        下一轮并唤醒。等价于用户在 DSH 里亲手发了一条消息，因此会真的触发工具调用与写盘。
+
+        只对**正在运行**的会话生效：会话不在内存里时返回 `bad-request`，让用户先在 DSH
+        里打开它——替用户恢复一个已结束的会话不该由宠物上的一次点击决定。
+
+        给了 `id` 时，投递成功会顺带把那条提醒气泡收起。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sessionId, text]
+              properties:
+                sessionId:
+                  type: string
+                  description: 目标会话 id（与 `/focus-session` 同一个 id）。
+                text:
+                  type: string
+                  description: 要投回会话的正文，≤4000 字符。
+                id:
+                  type: string
+                  description: 可选，要顺带收起的提醒气泡 id。
+      responses:
+        "200":
+          description: |
+            投递成功 `{ ok: true }`；会话不在运行中、`agents` 服务不可用或投递抛错时是
+            `{ ok: false, reason, message }`。
           content:
             application/json:
               schema:

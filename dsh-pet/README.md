@@ -7,6 +7,7 @@
 | 能力            | 说明                                                                                                                                     |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | 定时提醒        | 跟随 DSH 的 `schedule` 服务，任务到点由宠物弹出提醒气泡（20 秒自动收起），并连响两声。                                                   |
+| 播报 + 快捷动作 | `POST /announce` 推一条带清单的气泡，最多 3 个快捷按钮，点一下就把那句话投回 DSH 会话接着干；气泡里也能自己打字（`POST /reply`）。       |
 | 审批 / 提问气泡 | DSH 请求审批或提问时，宠物身上直接出现可交互气泡：允许一次 / **本会话都允许** / 拒绝，或选择与填写答案，结果原路回传；不操作则自动超时。 |
 | 多屏跟随        | 默认落在 DSH 窗口所在那块屏幕的右下角，换屏自动跟随。                                                                                    |
 | 存储目录可配置  | 数据根可改到任意绝对路径（或用 `DSH_PET_HOME` 固定），切换时自动搬运现有数据。                                                           |
@@ -20,7 +21,7 @@
 ## 安装
 
 ```bash
-dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.6.0/dsh-pet-plus-0.6.0.tgz
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.7.0/dsh-pet-plus-0.7.0.tgz
 ```
 
 装完重开 DSH。宿主半侧改动需要重开 DSH，浏览器半侧刷新页面即可。

@@ -433,6 +433,30 @@
         opacity: 0.6;
         overflow-wrap: break-word;
       }
+      /* 快捷动作芯片：一排「能做的事」，点了就把话投回会话 */
+      .pet-bub-rem__quick {
+        display: flex;
+        flex-wrap: wrap;
+        gap: calc(var(--f) * 0.26);
+      }
+      .pet-bub-rem__chip {
+        appearance: none;
+        font-family: inherit;
+        font-size: calc(var(--f) * 0.78);
+        line-height: 1.2;
+        padding: calc(var(--f) * 0.24) calc(var(--f) * 0.56);
+        border-radius: calc(var(--f) * 0.95);
+        border: 1px solid rgba(63, 110, 168, 0.45);
+        background: rgba(63, 110, 168, 0.09);
+        color: #2f5687;
+        font-weight: 600;
+        cursor: pointer;
+        pointer-events: auto;
+      }
+      .pet-bub-rem__chip:hover {
+        background: rgba(63, 110, 168, 0.18);
+        border-color: rgba(63, 110, 168, 0.66);
+      }
       .pet-bub-req__badge.is-announce {
         background: #2e9e4f;
       }
