@@ -97,7 +97,10 @@ export function makeApprovalBubble(rt: RequestBubbleRuntime) {
         h('div', {
           key: 'reason',
           className: 'dsh-pet-request__body',
-          children: request.reason && request.reason.trim() !== '' ? clip(request.reason, 160) : '这一步要跑一个需要授权的操作。',
+          children:
+            request.reason && request.reason.trim() !== ''
+              ? clip(request.reason, 160)
+              : '这一步要跑一个需要授权的操作。',
         }),
         h('div', {
           key: 'actions',
@@ -202,7 +205,11 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
               h('div', {
                 key: 'title',
                 className: 'dsh-pet-request__title',
-                children: (q.header && q.header.trim() !== '' ? q.header + '：' : '') + (index + 1) + '. ' + clip(q.question, 90),
+                children:
+                  (q.header && q.header.trim() !== '' ? q.header + '：' : '') +
+                  (index + 1) +
+                  '. ' +
+                  clip(q.question, 90),
               }),
               q.detail && q.detail.trim() !== ''
                 ? h('div', { key: 'detail', className: 'dsh-pet-request__detail', children: clip(q.detail, 200) })

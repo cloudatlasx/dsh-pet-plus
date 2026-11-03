@@ -1,7 +1,36 @@
-# dsh-pet 🐾
+# dsh-pet-plus 🐾
 
-一只住在 DeepSeek Harness 里的桌面宠物，一百余个透明动画，可多开、能上桌面。
+一只住在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 里的桌面宠物：一百余段透明动画，可多开、能上桌面，还会替你盯着到点的任务和待审批的请求。
 
-安装与完整文档：**<https://github.com/PC2005-cloud/dsh-pet>**
+本包是 [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)（MIT）的**增强分支**，在原版基础上加了：
 
-许可：代码 MIT；素材禁止商用；二创在公开渠道须署名（同上链接）。
+| 能力            | 说明                                                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 定时提醒        | 跟随 DSH 的 `schedule` 服务，任务到点由宠物弹出提醒气泡（20 秒自动收起），并连响两声。                                                   |
+| 审批 / 提问气泡 | DSH 请求审批或提问时，宠物身上直接出现可交互气泡：允许一次 / **本会话都允许** / 拒绝，或选择与填写答案，结果原路回传；不操作则自动超时。 |
+| 多屏跟随        | 默认落在 DSH 窗口所在那块屏幕的右下角，换屏自动跟随。                                                                                    |
+| 存储目录可配置  | 数据根可改到任意绝对路径（或用 `DSH_PET_HOME` 固定），切换时自动搬运现有数据。                                                           |
+| 设置项可拖动    | 物理参数、音量、大小、对话记忆条数都改成滑条；字号仍是数字输入。                                                                         |
+| 语音试听        | 选音色时可试听，默认一句问候，也能自己输入文字（不超过 500 字）。                                                                        |
+| 操作按钮置顶    | 保存 / 同步 / 测试通知固定在设置页顶部。                                                                                                 |
+
+完整说明、安装方式、设置项与许可信息见仓库首页：
+**<https://github.com/cloudatlasx/dsh-pet-plus>**
+
+## 安装
+
+```bash
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.6.0/dsh-pet-plus-0.6.0.tgz
+```
+
+装完重开 DSH。宿主半侧改动需要重开 DSH，浏览器半侧刷新页面即可。
+
+## 与上游共存
+
+内部运行标识（HTTP 路由 `/dsh-pet-7340`、CSS `dsh-pet-*`、默认数据目录 `$DSH_HOME/dsh-pet`、bridge scheme `dsh-pet-bridge`）与上游一致，便于沿用已有配置与数据。因此 **`dsh-pet` 与 `dsh-pet-plus` 不要同时安装**。
+
+## 许可
+
+- 代码：MIT（本分支新增代码同样 MIT），署名见 [LICENSE](LICENSE)
+- 素材（动画 / 提示词 / 源视频）：允许开源使用、**禁止商用**；二创作品须在公开渠道附上原作者地址 <https://github.com/PC2005-cloud/dsh-pet>
+- 形象出处：社区二创的 DeepSeek「大肥鱼」（鲸鱼娘），非官方形象；形象授权 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans)

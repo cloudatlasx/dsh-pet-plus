@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.4.1
+  version: 0.6.0
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -96,6 +96,10 @@ tags:
     description: 字体、通知图标、表情包、动画素材
   - name: Voice
     description: 语音合成——参数校验、排队与缓存都在宿主，成功时直接返回 mp3 文件
+  - name: Request
+    description: 交互请求——接管 DSH 的审批与提问气泡，并把用户的选择原路回传
+  - name: Storage
+    description: 存储位置——数据根目录的解析与切换
 
 paths:
   /dsh-pet-7340/state:
@@ -1387,7 +1391,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: '`POST /anim` 响应里的 `playbackId`。'
+          description: "`POST /anim` 响应里的 `playbackId`。"
           schema:
             type: string
           example: pb-mfh2k1-1
@@ -1454,7 +1458,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: '`playbackId`。'
+          description: "`playbackId`。"
           schema:
             type: string
           example: pb-mfh2k1-1
@@ -1469,7 +1473,7 @@ paths:
                 status:
                   type: string
                   enum: [playing, ended, failed, cancelled]
-                  description: '只接受这四个——`accepted` 是宿主受理态，上报它回 400。'
+                  description: "只接受这四个——`accepted` 是宿主受理态，上报它回 400。"
                 reason:
                   type: string
                   description: |
@@ -3007,7 +3011,7 @@ paths:
                   example: 1793000000000
       responses:
         "200":
-          description: '新建结果；正文为空 / 超长或 `dueAt` 非法时回 `ok: false` + `bad-request`'
+          description: "新建结果；正文为空 / 超长或 `dueAt` 非法时回 `ok: false` + `bad-request`"
           content:
             application/json:
               schema:
@@ -3075,7 +3079,7 @@ paths:
       tags: [Action]
       operationId: deleteTodo
       summary: 删除一条待办
-      description: '幂等：id 不存在也回 `ok: true`，`removed: 0`。'
+      description: "幂等：id 不存在也回 `ok: true`，`removed: 0`。"
       parameters:
         - $ref: "#/components/parameters/TodoIdPath"
       responses:
@@ -3085,6 +3089,253 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TodoRemovedResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/request/answer:
+    post:
+      tags: [Request]
+      operationId: answerRequest
+      summary: 回传一次审批 / 提问的选择
+      description: |
+        宠物身上弹出的审批 / 提问气泡被点掉之后，前端把选择回传到这里；宿主再把它作为
+        `approval/request` 或 `user-questions/request` 瀑布的返回值交给 DSH。
+
+        - `kind: approval` 用 `outcome`：`allowed-once`（允许一次）、`rejected`（拒绝）、
+          `allow-session`（**本会话都允许**：宿主按会话记账 8 小时，此后同一会话里的审批
+          不再弹气泡、直接以 `allowed-once` 放行；`allow-session` 不出现在 DSH 的词表里）。
+        - `kind: question` 用 `answers`：每道题一条 `{ id, selected, custom }`；没出现的题
+          按空选择提交，`custom` 覆盖或补充选项。
+        - 气泡上点「去 DSH 处理」时，前端先发 `{ "cancel": true }` 撤回接管，请求回落到
+          DSH 内置面板，用户在原面板里决策。
+        - 只接受**当前待处理请求**的 id：过期、已作答、或根本没有待处理请求都回
+          `bad-request`，不会静默成功。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [id, kind, outcome]
+                  properties:
+                    id:
+                      type: string
+                      description: 待处理请求 id（来自 `/state` 的 `sections.request`），原样带回。
+                    kind:
+                      type: string
+                      const: approval
+                    outcome:
+                      type: string
+                      enum: [allowed-once, rejected, allow-session]
+                - type: object
+                  additionalProperties: false
+                  required: [id, kind, answers]
+                  properties:
+                    id:
+                      type: string
+                    kind:
+                      type: string
+                      const: question
+                    answers:
+                      type: array
+                      items:
+                        type: object
+                        required: [id, selected]
+                        properties:
+                          id:
+                            type: string
+                            description: 对应问题 id。
+                          selected:
+                            type: array
+                            items:
+                              type: string
+                            description: 选中的选项文案。
+                          custom:
+                            type: string
+                            description: 用户自己写的答案。
+                - type: object
+                  additionalProperties: false
+                  required: [id, kind, cancel]
+                  properties:
+                    id:
+                      type: string
+                    kind:
+                      type: string
+                      enum: [approval, question]
+                    cancel:
+                      type: boolean
+                      const: true
+      responses:
+        "200":
+          description: |
+            处理结果。id 对不上（过期 / 已作答 / 没有待处理请求）时返回
+            `{ ok: false, reason: "bad-request", message }`。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/request/preview:
+    post:
+      tags: [Request]
+      operationId: previewRequest
+      summary: 弹一条示例请求（设置页「试一下」）
+      description: |
+        给设置页的「试一下」按钮用：往 `sections.request` 写一条 `preview: true` 的请求，
+        让用户看到气泡长什么样。预览不等待真实回答，点任意按钮只收起气泡，不会影响
+        任何 DSH 审批或提问。同一时刻只能有一条请求，已有请求在途时回 `bad-request`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                kind:
+                  type: string
+                  enum: [approval, question]
+                  description: 预览哪种气泡；缺省 `approval`。
+      responses:
+        "200":
+          description: |
+            已写入预览。已有待处理请求时是 `{ ok: false, reason: "bad-request", message }`。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/home:
+    get:
+      tags: [Storage]
+      operationId: getHome
+      summary: 读当前数据根目录
+      description: |
+        数据根（配置、记忆、日志、语音缓存、素材的落盘位置）按优先级解析：
+
+        1. 环境变量 `DSH_PET_HOME`（绝对路径，存在即固定，不允许再改）；
+        2. 默认根下的指针文件 `home.json`（`{"dir":"<绝对路径>"}`）；
+        3. 默认根 `$DSH_HOME/dsh-pet`。
+
+        `source` 告诉调用方命中的是哪一级；`pointerFile` 是要写指针时该写的文件。
+      responses:
+        "200":
+          description: 当前数据根与解析来源。
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    dir,
+                    defaultDir,
+                    pointerFile,
+                    source,
+                    envVar,
+                    restartRequired,
+                  ]
+                properties:
+                  dir:
+                    type: string
+                    description: 实际使用的数据根（绝对路径）。
+                  defaultDir:
+                    type: string
+                    description: 默认根 `$DSH_HOME/dsh-pet`。
+                  pointerFile:
+                    type: string
+                    description: 指针文件（默认根下的 `home.json`）。
+                  source:
+                    type: string
+                    enum: [env, pointer, default]
+                  envVar:
+                    type: string
+                    const: DSH_PET_HOME
+                  restartRequired:
+                    type: boolean
+                    const: false
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    post:
+      tags: [Storage]
+      operationId: setHome
+      summary: 切换数据根目录
+      description: |
+        把数据根切到 `dir`，或传 `null` 恢复默认根。
+
+        - 目标目录不存在会创建；**为空时把现有数据整体复制过去**（跳 `logs.txt` 与
+          `home.json`），已有文件不覆盖。旧目录保持原样，不会删除。
+        - 环境变量 `DSH_PET_HOME` 生效时拒绝修改（回 `bad-request`），需要先去掉变量。
+        - 切换**不在本次进程内生效**：配置与各类 store 在插件加载时就按旧路径建好了，
+          所以响应固定带 `restartRequired: true`，由调用方提示用户重启 DSH。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [dir]
+              properties:
+                dir:
+                  type: [string, "null"]
+                  description: 新的数据根绝对路径；`null` 表示恢复默认根。
+      responses:
+        "200":
+          description: |
+            切换结果，形状同 `GET /home` 但 `restartRequired: true`。
+            路径非法、`DSH_PET_HOME` 生效中时返回 `{ ok: false, reason: "bad-request", message }`。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dir:
+                    type: string
+                  defaultDir:
+                    type: string
+                  pointerFile:
+                    type: string
+                  source:
+                    type: string
+                    enum: [env, pointer, default]
+                  envVar:
+                    type: string
+                  restartRequired:
+                    type: boolean
+                  reason:
+                    type: string
+                  message:
+                    type: string
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
 
@@ -4466,7 +4717,7 @@ components:
           $ref: "#/components/schemas/Todo"
         reason:
           type: string
-          description: '失败原因（如 `bad-request` / `todo-not-found`）'
+          description: "失败原因（如 `bad-request` / `todo-not-found`）"
         message:
           type: string
 
@@ -4479,5 +4730,3 @@ components:
         removed:
           type: integer
           description: 删掉的条数；0 = 本来就没有（幂等）
-
-

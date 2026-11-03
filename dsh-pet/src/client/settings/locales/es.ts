@@ -182,7 +182,8 @@ export const es: Record<Key, string> = {
     'Volumen de reproducción como decimal 0–1: 1 es el volumen máximo (100 %) y 0 silencia. Solo cambia la intensidad y no vuelve a sintetizar el audio, así que ajustarlo no tiene coste extra. Es independiente del interruptor general de arriba: con ese interruptor apagado no surte efecto.',
   voicePreview: 'Escuchar',
   voicePreviewSample: '¡Hola! Soy tu mascota de escritorio. ¡Que tengas un buen día!',
-  voicePreviewHint: 'Reproduce una frase con la voz elegida: es lo mismo que oirás tras guardar. Déjalo vacío para usar la frase por defecto o escribe la tuya (máx. 500 caracteres).',
+  voicePreviewHint:
+    'Reproduce una frase con la voz elegida: es lo mismo que oirás tras guardar. Déjalo vacío para usar la frase por defecto o escribe la tuya (máx. 500 caracteres).',
   voicePreviewBusy: 'Sintetizando…',
   voicePreviewFailed: 'Error al escuchar: {msg}',
   physicsTitle: 'Física (sensación al arrastrar y lanzar)',
@@ -275,7 +276,8 @@ export const es: Record<Key, string> = {
   notifyGuide:
     'Guía: haz clic en el icono 🔒/ⓘ junto a la barra de direcciones → Configuración del sitio → Notificaciones → cámbialo a «Permitir» y luego recarga la página y reintenta.',
   homeLabel: 'Directorio de datos',
-  homeHint: 'Dónde se guardan la configuración, las tareas, la memoria y los memes. Déjalo vacío para el valor predeterminado; reinicia DSH para aplicarlo.',
+  homeHint:
+    'Dónde se guardan la configuración, las tareas, la memoria y los memes. Déjalo vacío para el valor predeterminado; reinicia DSH para aplicarlo.',
   homeApply: 'Aplicar',
   homeReset: 'Usar predeterminado',
   homeSaved: 'Guardado. Reinicia DSH para aplicarlo.',

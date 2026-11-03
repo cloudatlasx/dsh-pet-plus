@@ -101,6 +101,9 @@ const scriptGlobals = {
   OPEN_SHORTCUT_HINT: 'readonly',
   isOpenShortcut: 'readonly',
   playClickSound: 'readonly',
+  // constants.js（锚定屏：DSH 窗口所在显示器，sprite/events 两侧都要读）
+  setAnchorArea: 'readonly',
+  anchorAreaLocal: 'readonly',
   // events.js
   startLoops: 'readonly',
 };

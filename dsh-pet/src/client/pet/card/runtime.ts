@@ -12,11 +12,7 @@ import { resolveFontPx } from '../../../shared/fonts.ts';
 import { resolvePetSizePx } from '../../../shared/pet-size.ts';
 import { makeBalanceBubble, makeWhisperBubble } from '../../bubble.ts';
 import { makeTodoBubble } from '../../todo-bubble.ts';
-import {
-  makeApprovalBubble,
-  makeQuestionBubble,
-  makeReminderBubble,
-} from '../../request-bubble.ts';
+import { makeApprovalBubble, makeQuestionBubble, makeReminderBubble } from '../../request-bubble.ts';
 import type { RequestEnvelope } from '../../../shared/request.ts';
 import { petBridge } from '../../settings.ts';
 import { playClickSound } from '../click-sound.ts';

@@ -62,7 +62,12 @@ export function makePhysicsCard(rt: SettingsRuntime): FunctionComponent<PhysicsC
         cardHead(t('physicsTitle'), t('physicsHint')),
         h('div', {
           className: 'dsh-pet-cfg__grid2',
-          children: [physField('gravity'), physField('restitution'), physField('groundFriction'), physField('throwPower')],
+          children: [
+            physField('gravity'),
+            physField('restitution'),
+            physField('groundFriction'),
+            physField('throwPower'),
+          ],
         }),
         h('div', {
           className: 'dsh-pet-cfg__grid2',

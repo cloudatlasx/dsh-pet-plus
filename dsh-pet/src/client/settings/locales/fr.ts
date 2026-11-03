@@ -180,7 +180,8 @@ export const fr: Record<Key, string> = {
     'Volume de lecture en décimal 0–1 : 1 correspond au volume maximal (100 %), 0 coupe le son. Seule l’intensité change et l’audio n’est pas resynthétisé, donc le régler ne coûte rien de plus. Indépendant de l’interrupteur général ci-dessus : il est sans effet quand celui-ci est désactivé.',
   voicePreview: 'Écouter',
   voicePreviewSample: 'Salut, je suis ta mascotte de bureau. Bonne journée !',
-  voicePreviewHint: 'Joue une phrase avec la voix choisie : c’est exactement ce que tu entendras après l’enregistrement. Laisse vide pour la phrase par défaut ou écris la tienne (500 caractères max).',
+  voicePreviewHint:
+    'Joue une phrase avec la voix choisie : c’est exactement ce que tu entendras après l’enregistrement. Laisse vide pour la phrase par défaut ou écris la tienne (500 caractères max).',
   voicePreviewBusy: 'Synthèse…',
   voicePreviewFailed: 'Échec de l’écoute : {msg}',
   physicsTitle: 'Physique (ressenti du glisser-lancer)',
@@ -275,7 +276,8 @@ export const fr: Record<Key, string> = {
   notifyGuide:
     "Marche à suivre : cliquez sur l'icône 🔒/ⓘ à gauche de la barre d'adresse → « Paramètres du site » → « Notifications » → choisissez « Autoriser », puis rafraîchissez la page et réessayez.",
   homeLabel: 'Répertoire de données',
-  homeHint: 'Où sont stockés la configuration, les tâches, la mémoire et les mèmes. Laissez vide pour la valeur par défaut ; redémarrez DSH pour appliquer.',
+  homeHint:
+    'Où sont stockés la configuration, les tâches, la mémoire et les mèmes. Laissez vide pour la valeur par défaut ; redémarrez DSH pour appliquer.',
   homeApply: 'Appliquer',
   homeReset: 'Valeur par défaut',
   homeSaved: 'Enregistré. Redémarrez DSH pour appliquer.',

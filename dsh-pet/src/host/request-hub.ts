@@ -206,7 +206,11 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         log.info('dsh-pet: request ' + envelope.id + ' timed out, falling back to DSH');
         settle({ type: 'delegate' });
       }, timeoutMs);
-      const abortable = signal as { aborted?: boolean; addEventListener?: unknown; removeEventListener?: unknown } | null;
+      const abortable = signal as {
+        aborted?: boolean;
+        addEventListener?: unknown;
+        removeEventListener?: unknown;
+      } | null;
       if (
         abortable &&
         typeof abortable.addEventListener === 'function' &&
@@ -286,7 +290,13 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         previewId = null;
         if (previewTimer !== null) clearTimeout(previewTimer);
         previewTimer = null;
-        write({ id, kind: body.kind === 'question' ? 'question' : 'approval', ts: now(), expiresAt: now(), closed: true });
+        write({
+          id,
+          kind: body.kind === 'question' ? 'question' : 'approval',
+          ts: now(),
+          expiresAt: now(),
+          closed: true,
+        });
         return { ok: true };
       }
       const entry = pending;
@@ -336,7 +346,8 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
           : [];
         const custom = typeof a.custom === 'string' && a.custom.trim() !== '' ? a.custom : undefined;
         if (selected.length === 0 && custom === undefined) return { ok: false, message: 'answer is empty' };
-        if (!question.multiSelect && selected.length > 1) return { ok: false, message: 'multiple labels on single select' };
+        if (!question.multiSelect && selected.length > 1)
+          return { ok: false, message: 'multiple labels on single select' };
         const allowed = new Set((question.options ?? []).map((o) => o.label));
         if (allowed.size > 0 && selected.some((label) => !allowed.has(label)) && custom === undefined) {
           return { ok: false, message: 'unknown option label' };
@@ -359,7 +370,15 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       const expiresAt = now() + PREVIEW_TTL_MS;
       const envelope: RequestEnvelope =
         kind === 'approval'
-          ? { id, kind, ts: now(), expiresAt, toolName: 'shell', reason: '示例：这条只是预览，点任意按钮都会收起。', preview: true }
+          ? {
+              id,
+              kind,
+              ts: now(),
+              expiresAt,
+              toolName: 'shell',
+              reason: '示例：这条只是预览，点任意按钮都会收起。',
+              preview: true,
+            }
           : {
               id,
               kind: 'question',

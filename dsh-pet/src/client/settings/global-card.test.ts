@@ -65,7 +65,14 @@ describe('GlobalCard —— 全局开关卡', () => {
     }
     assert.deepEqual(
       seen.map(([key]) => key),
-      ['notificationsEnabled', 'clickSoundEnabled', 'confineToScreen', 'trayEnabled', 'requestBubbleEnabled', 'scheduleRemindersEnabled'],
+      [
+        'notificationsEnabled',
+        'clickSoundEnabled',
+        'confineToScreen',
+        'trayEnabled',
+        'requestBubbleEnabled',
+        'scheduleRemindersEnabled',
+      ],
     );
     assert.ok(
       seen.every(([, value]) => value === true),

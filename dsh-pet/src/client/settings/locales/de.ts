@@ -179,7 +179,8 @@ export const de: Record<Key, string> = {
     'Wiedergabelautstärke als Dezimalzahl 0–1: 1 ist die maximale Lautstärke (100 %), 0 ist stumm. Ändert nur die Lautheit und synthetisiert kein Audio neu, kostet also nichts extra. Unabhängig vom Hauptschalter oben — bei ausgeschaltetem Schalter ohne Wirkung.',
   voicePreview: 'Anhören',
   voicePreviewSample: 'Hallo, ich bin dein Desktop-Pet. Einen schönen Tag noch!',
-  voicePreviewHint: 'Spielt einen Satz mit der gewählten Stimme ab - genau das hörst du nach dem Speichern. Leer lassen für den Standardsatz oder eigenen Text eingeben (max. 500 Zeichen).',
+  voicePreviewHint:
+    'Spielt einen Satz mit der gewählten Stimme ab - genau das hörst du nach dem Speichern. Leer lassen für den Standardsatz oder eigenen Text eingeben (max. 500 Zeichen).',
   voicePreviewBusy: 'Wird synthetisiert…',
   voicePreviewFailed: 'Anhören fehlgeschlagen: {msg}',
   physicsTitle: 'Physik (Zieh- und Wurfgefühl)',
@@ -271,7 +272,8 @@ export const de: Record<Key, string> = {
   notifyGuide:
     'Anleitung: links neben der Adressleiste auf 🔒/ⓘ klicken → „Website-Einstellungen" → „Benachrichtigungen" → auf „Zulassen" setzen, Seite neu laden und erneut versuchen.',
   homeLabel: 'Datenverzeichnis',
-  homeHint: 'Speicherort für Konfiguration, Todos, Erinnerungen und Memes. Leer lassen für den Standard; DSH zum Anwenden neu starten.',
+  homeHint:
+    'Speicherort für Konfiguration, Todos, Erinnerungen und Memes. Leer lassen für den Standard; DSH zum Anwenden neu starten.',
   homeApply: 'Übernehmen',
   homeReset: 'Standard',
   homeSaved: 'Gespeichert. DSH neu starten, um es anzuwenden.',

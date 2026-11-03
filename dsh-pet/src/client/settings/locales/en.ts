@@ -20,7 +20,8 @@ export const en: Record<Key, string> = {
   globalTitle: 'Global switches',
   globalHint:
     'Shared by every pet (a pet pack may override them in its own kind file). These switches only change local state and are written to the user config on "Save" (never written immediately); system notifications re-read right after saving, no page refresh needed.',
-  cornerHint: 'Which corner the pet sticks to; in desktop mode it follows the screen that holds the DSH window (multi-monitor aware), falling back to the primary display.',
+  cornerHint:
+    'Which corner the pet sticks to; in desktop mode it follows the screen that holds the DSH window (multi-monitor aware), falling back to the primary display.',
   marginXHint: 'Horizontal distance from the chosen corner (px); any number.',
   marginYHint: 'Vertical distance from the chosen corner (px); any number.',
   // 「/」命令菜单的行标题（图标由 app.ts 补上）。
@@ -178,7 +179,8 @@ export const en: Record<Key, string> = {
     'Playback volume as a 0–1 decimal: 1 is full volume (100%), 0 is muted. Changes loudness only and never re-synthesizes audio, so adjusting it costs nothing extra. Independent of the master switch above — it has no effect while that switch is off.',
   voicePreview: 'Preview',
   voicePreviewSample: 'Hi there, I am your desktop pet. Let us have a good day!',
-  voicePreviewHint: 'Plays a line with the selected voice - exactly what you will hear after saving. Leave it empty for the default sentence, or type your own (500 characters max).',
+  voicePreviewHint:
+    'Plays a line with the selected voice - exactly what you will hear after saving. Leave it empty for the default sentence, or type your own (500 characters max).',
   voicePreviewBusy: 'Synthesizing…',
   voicePreviewFailed: 'Preview failed: {msg}',
   physicsTitle: 'Physics (drag & throw feel)',

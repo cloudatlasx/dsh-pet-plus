@@ -179,7 +179,8 @@ export const pt: Record<Key, string> = {
     'Volume de reprodução em decimal 0–1: 1 é o volume máximo (100%) e 0 silencia. Altera apenas a intensidade e não sintetiza o áudio de novo, então ajustá-lo não custa nada extra. É independente do interruptor geral acima: com ele desligado, não tem efeito.',
   voicePreview: 'Ouvir',
   voicePreviewSample: 'Olá, eu sou seu pet de desktop. Tenha um bom dia!',
-  voicePreviewHint: 'Reproduz uma frase com a voz escolhida: é exatamente o que você ouvirá depois de salvar. Deixe vazio para a frase padrão ou escreva a sua (máx. 500 caracteres).',
+  voicePreviewHint:
+    'Reproduz uma frase com a voz escolhida: é exatamente o que você ouvirá depois de salvar. Deixe vazio para a frase padrão ou escreva a sua (máx. 500 caracteres).',
   voicePreviewBusy: 'Sintetizando…',
   voicePreviewFailed: 'Falha ao ouvir: {msg}',
   physicsTitle: 'Física (sensação de arrastar e arremessar)',
@@ -272,7 +273,8 @@ export const pt: Record<Key, string> = {
   notifyGuide:
     'Como liberar: clique no 🔒/ⓘ ao lado da barra de endereços → "Configurações do site" → "Notificações" → mude para "Permitir", atualize a página e tente de novo.',
   homeLabel: 'Diretório de dados',
-  homeHint: 'Onde ficam configuração, tarefas, memória e memes. Deixe vazio para o padrão; reinicie o DSH para aplicar.',
+  homeHint:
+    'Onde ficam configuração, tarefas, memória e memes. Deixe vazio para o padrão; reinicie o DSH para aplicar.',
   homeApply: 'Aplicar',
   homeReset: 'Usar padrão',
   homeSaved: 'Salvo. Reinicie o DSH para aplicar.',

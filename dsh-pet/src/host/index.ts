@@ -105,25 +105,22 @@ export function apply(ctx: any): void {
     enabled: () => readAllConfig(configPaths).main?.requestBubbleEnabled === true,
     hasClient: () => state.waiterCount(),
   });
-  ctx.effect(
-    () => {
-      const offApproval = ctx.on(
-        'approval/request',
-        (req: unknown, next: () => unknown) => requests.interceptApproval(req, next),
-        true,
-      );
-      const offQuestions = ctx.on(
-        'user-questions/request',
-        (req: unknown, next: () => unknown) => requests.interceptQuestions(req, next),
-        true,
-      );
-      return () => {
-        offApproval();
-        offQuestions();
-      };
-    },
-    'dsh-pet: user requests',
-  );
+  ctx.effect(() => {
+    const offApproval = ctx.on(
+      'approval/request',
+      (req: unknown, next: () => unknown) => requests.interceptApproval(req, next),
+      true,
+    );
+    const offQuestions = ctx.on(
+      'user-questions/request',
+      (req: unknown, next: () => unknown) => requests.interceptQuestions(req, next),
+      true,
+    );
+    return () => {
+      offApproval();
+      offQuestions();
+    };
+  }, 'dsh-pet: user requests');
 
   const deps: PetRouteDeps = {
     ...setup,
