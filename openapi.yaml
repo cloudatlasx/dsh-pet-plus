@@ -3227,6 +3227,160 @@ paths:
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
 
+  /dsh-pet-7340/announce:
+    post:
+      tags: [Request]
+      operationId: announceToPet
+      summary: 让会话把一段结论推给宠物
+      description: |
+        给会话里的 agent 用：把「今天要做的事」「今天做了什么」这类结论直接推到宠物气泡上，
+        用户不用回 DSH 面板就能看到。气泡带「知道了」按钮，给了 `sessionId` 还会多一个
+        「去会话回复」——点了把 `sections.focusSession` 写成该会话，页面据此切过去。
+
+        与 `/request/*` 的区别：这条不等待回答，只是单向推送；内容仍照常留在会话里。
+
+        长度上限：`title` 60 字符、每条 `lines` 180 字符且最多 12 条、`text` 600 字符
+        （超出的部分由宿主截断，不报错）。`ttlMs` 缺省 120 秒。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title:
+                  type: string
+                  description: 气泡标题（如「今天要做的事」）。
+                lines:
+                  type: array
+                  items:
+                    type: string
+                  description: 分条明细，一条一行，气泡内滚动显示。
+                text:
+                  type: string
+                  description: 正文（一段话）；适合放一两句总结，长清单请用 `lines`。
+                hint:
+                  type: string
+                  description: 尾注，如「在下面选一项，我就去填工时」。
+                sessionId:
+                  type: string
+                  description: 相关会话 id；给了才会出现「去会话回复」按钮。
+                ttlMs:
+                  type: integer
+                  minimum: 1
+                  description: 停留时长（毫秒），缺省 120000。
+      responses:
+        "200":
+          description: |
+            已推送，返回 `{ ok: true, id }`；`title` / `lines` / `text` 全空时是
+            `{ ok: false, reason: "bad-request", message }`。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/reminder/close:
+    post:
+      tags: [Request]
+      operationId: closeReminder
+      summary: 收起当前提醒气泡
+      description: |
+        宠物上的提醒 / 推送气泡点「知道了」时调用：宿主把同 id 的 `closed` 信封写回
+        `sections.reminder`，气泡随即收起。早于自动收起时到点也没关系，重复写是幂等的。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  description: 气泡 id（来自 `/state` 的 `sections.reminder.data.id`）。
+      responses:
+        "200":
+          description: |
+            `{ ok: true }`；缺 `id` 时是 `{ ok: false, reason: "bad-request", message }`。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/schedule/patch:
+    post:
+      tags: [Request]
+      operationId: patchSchedule
+      summary: 改一条 DSH 定时任务的标题或提示词
+      description: |
+        给会话里的 agent 用：把某条定时任务的提示词换成新的（例如让 08:50 的禅道清单改成
+        「查完直接推到宠物气泡」）。
+
+        为什么不直接改 `storages/schedule.json`：调度器启动时把整张表读进内存，之后只写不回读，
+        手改文件会被下一次投递回写覆盖。这条路由走 `ctx.schedule.update`，让调度器自己落盘并
+        广播 `schedule/changed`，改完立即生效。
+
+        任务必须属于某个会话（目录里带 `sessionId`），并且不能是已经结束（`schedule_ended`）的任务。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  description: 定时任务 id（`schedule-…`）。
+                title:
+                  type: string
+                  description: 新标题（≤120 字符，超出截断）。
+                prompt:
+                  type: string
+                  description: 新提示词（≤12000 字符，超出按坏请求拒绝）。
+      responses:
+        "200":
+          description: |
+            改好回 `{ ok: true, id }`。找不到任务、没有会话绑定、调度器拒绝（`schedule_ended` /
+            `invalid_rule` 等）都是 `{ ok: false, reason: "bad-request", message }`。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "400":
+          description: '请求体不是合法 JSON：`400` + `{"ok":false,"reason":"invalid-json"}`'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
   /dsh-pet-7340/home:
     get:
       tags: [Storage]

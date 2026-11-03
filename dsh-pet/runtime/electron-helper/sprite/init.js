@@ -184,6 +184,16 @@ Object.assign(PetSprite.prototype, {
         }
         return;
       }
+      // 提醒气泡同理：只有「知道了」「去会话回复」两个按钮参与，点正文不做事。
+      if (this.bubbleSlot === 'reminder') {
+        const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('[data-req-action]') : null;
+        if (btn) {
+          e.stopPropagation();
+          e.preventDefault();
+          this.onRequestAction(btn.dataset.reqAction, btn.dataset.reqQ, btn.dataset.reqValue);
+        }
+        return;
+      }
       if (this.workClickable()) {
         e.stopPropagation();
         e.preventDefault();

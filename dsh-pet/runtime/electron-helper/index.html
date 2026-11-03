@@ -403,6 +403,38 @@
         font-size: calc(var(--f) * 0.85);
         opacity: 0.82;
         overflow-wrap: break-word;
+        white-space: pre-wrap;
+      }
+      /* 分条明细：一条一行，整体限高滚动，长清单（今天要做的事）也能读完 */
+      .pet-bub-rem__lines {
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--f) * 0.14);
+        max-height: calc(var(--f) * 4.6);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .pet-bub-rem__line {
+        font-size: calc(var(--f) * 0.82);
+        line-height: 1.45;
+        overflow-wrap: break-word;
+        padding-left: calc(var(--f) * 0.72);
+        text-indent: calc(var(--f) * -0.72);
+      }
+      .pet-bub-rem__line::before {
+        content: '·';
+        margin-right: calc(var(--f) * 0.3);
+        font-weight: 700;
+        color: #4a6cf7;
+      }
+      .pet-bub-rem__hint {
+        font-size: calc(var(--f) * 0.76);
+        line-height: 1.4;
+        opacity: 0.6;
+        overflow-wrap: break-word;
+      }
+      .pet-bub-req__badge.is-announce {
+        background: #2e9e4f;
       }
       .pet-bub-rem__time {
         font-size: calc(var(--f) * 0.72);

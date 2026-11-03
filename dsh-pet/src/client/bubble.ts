@@ -107,10 +107,20 @@ const bubbleCss = [
   '.dsh-pet-request__badge{flex:none;font-size:calc(var(--f)*0.58);font-weight:700;color:#fff;background:#e8952f;' +
     'border-radius:calc(var(--f)*0.3);padding:calc(var(--f)*0.06) calc(var(--f)*0.34);letter-spacing:.02em}',
   '.dsh-pet-request__badge.is-reminder{background:#3f6ea8}',
+  '.dsh-pet-request__badge.is-announce{background:#2e9e4f}',
   '.dsh-pet-request__tool{font-size:calc(var(--f)*0.64);color:rgba(43,43,43,.62);overflow:hidden;' +
     'text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}',
-  '.dsh-pet-request__body{font-size:calc(var(--f)*0.7);line-height:1.45;color:#2b2b2b;word-break:break-word}',
+  // 正文限高滚动：方案全文、报错堆栈这类长内容不再被截成一句，而是整段可读、可滚。
+  '.dsh-pet-request__body{font-size:calc(var(--f)*0.7);line-height:1.45;color:#2b2b2b;word-break:break-word;' +
+    'max-height:min(calc(var(--f)*5.5),30vh);overflow-y:auto;overscroll-behavior:contain;white-space:pre-wrap}',
   '.dsh-pet-reminder__title{font-size:calc(var(--f)*0.82);line-height:1.35;font-weight:700;color:#1f1f1f;word-break:break-word}',
+  // 分条明细：一条一行，整体限高滚动。用 list 样式让「今天要做的事」一眼能数过来。
+  '.dsh-pet-reminder__lines{display:flex;flex-direction:column;gap:calc(var(--f)*0.2);' +
+    'max-height:min(calc(var(--f)*8),40vh);overflow-y:auto;overscroll-behavior:contain}',
+  '.dsh-pet-reminder__line{font-size:calc(var(--f)*0.68);line-height:1.45;color:#2b2b2b;word-break:break-word;' +
+    'padding-left:calc(var(--f)*0.7);text-indent:calc(var(--f)*-0.7)}',
+  '.dsh-pet-reminder__line::before{content:"·";margin-right:calc(var(--f)*0.3);color:#3f6ea8;font-weight:700}',
+  '.dsh-pet-reminder__hint{font-size:calc(var(--f)*0.62);line-height:1.4;color:rgba(43,43,43,.55);word-break:break-word}',
   '.dsh-pet-request__actions{display:flex;gap:calc(var(--f)*0.3);flex-wrap:wrap;align-items:center}',
   '.dsh-pet-request__btn{appearance:none;font-family:inherit;font-size:calc(var(--f)*0.68);line-height:1.2;' +
     'padding:calc(var(--f)*0.22) calc(var(--f)*0.5);border-radius:calc(var(--f)*0.36);cursor:pointer;' +

@@ -321,17 +321,43 @@ Object.assign(PetSprite.prototype, {
     this.syncInputBusy();
   },
 
-  /** 定时任务提醒气泡：标题 + 摘要 + 到点时刻，不参与点击。 */
+  /**
+   * 定时提醒 / 主动推送气泡：标题、分条明细、正文、尾注，外加「知道了」「去会话回复」。
+   *
+   * 内容再长也不截断：容器 .pet-bub-req 有高度上限且可滚，明细逐行排列方便数条数。
+   */
   renderReminderBubble() {
     const rem = this.reminderEnvelope;
-    this.bubble.classList.remove('is-whisper', 'is-clickable', 'is-expanded', S.MEME_BUBBLE_CLASS, 'is-request');
-    this.bubble.classList.add('is-on');
+    const announce = rem.kind === 'announce';
+    this.bubble.classList.remove('is-whisper', 'is-expanded', S.MEME_BUBBLE_CLASS);
+    // is-request 只借用它的宽度与 pointer-events（主进程按控件矩形翻转穿透）。
+    this.bubble.classList.add('is-on', 'is-clickable', 'is-request', 'is-reminder');
     this.bubbleSlot = 'reminder';
     this.bubble.innerHTML = '';
     const wrap = this.bubbleEl('div', 'pet-bub-req');
-    wrap.appendChild(this.bubbleEl('div', 'pet-bub-rem__title', '⏰ ' + (rem.title || '定时提醒')));
+    const head = this.bubbleEl('div', 'pet-bub-req__head');
+    head.appendChild(
+      this.bubbleEl(
+        'span',
+        'pet-bub-req__badge' + (announce ? ' is-announce' : ''),
+        announce ? '宠物消息' : '定时任务',
+      ),
+    );
+    wrap.appendChild(head);
+    wrap.appendChild(this.bubbleEl('div', 'pet-bub-rem__title', (announce ? '' : '⏰ ') + (rem.title || '定时提醒')));
+    const lines = Array.isArray(rem.lines) ? rem.lines : [];
+    if (lines.length > 0) {
+      const list = this.bubbleEl('div', 'pet-bub-rem__lines');
+      for (const line of lines) list.appendChild(this.bubbleEl('div', 'pet-bub-rem__line', line));
+      wrap.appendChild(list);
+    }
     const text = rem.prompt && rem.prompt !== rem.title ? rem.prompt : '';
     if (text) wrap.appendChild(this.bubbleEl('div', 'pet-bub-rem__text', text));
+    if (rem.hint) wrap.appendChild(this.bubbleEl('div', 'pet-bub-rem__hint', rem.hint));
+    const actions = this.bubbleEl('div', 'pet-bub-req__actions');
+    actions.appendChild(this.bubbleButton('知道了', 'is-primary', 'rem-close'));
+    if (rem.sessionId) actions.appendChild(this.bubbleButton('去会话回复', '', 'rem-focus'));
+    wrap.appendChild(actions);
     const when = rem.scheduledAt ? new Date(rem.scheduledAt) : new Date(rem.ts);
     if (!Number.isNaN(when.getTime())) {
       wrap.appendChild(
@@ -343,8 +369,37 @@ Object.assign(PetSprite.prototype, {
     this.syncInputBusy();
   },
 
+  /** 提醒气泡的动作：收起（宿主写 closed 信封）或先切到相关会话再收起。 */
+  onReminderAction(action) {
+    const rem = this.reminderEnvelope;
+    if (!rem) return;
+    if (action === 'rem-focus' && rem.sessionId) {
+      fetch(BASE + '/focus-session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: rem.sessionId }),
+      }).catch(() => undefined);
+    }
+    fetch(BASE + '/reminder/close', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: rem.id }),
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (!json || !json.ok) return;
+        this.reminderEnvelope = null;
+        this.renderBubble();
+      })
+      .catch(() => undefined);
+  },
+
   /** 请求气泡的按钮分流：选选项、发送、允许/拒绝、交给 DSH。 */
   onRequestAction(action, qid, value) {
+    if (action === 'rem-close' || action === 'rem-focus') {
+      this.onReminderAction(action);
+      return;
+    }
     const req = this.requestEnvelope;
     if (!req || this.requestPending) return;
     if (action === 'delegate') {

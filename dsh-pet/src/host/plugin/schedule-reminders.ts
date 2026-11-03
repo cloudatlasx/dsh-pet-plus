@@ -26,6 +26,7 @@ interface CatalogRow {
   prompt?: unknown;
   scheduledAt?: unknown;
   status?: unknown;
+  sessionId?: unknown;
 }
 
 /** 提醒登记表依赖。 */
@@ -87,7 +88,14 @@ export function registerScheduleReminders(deps: ScheduleReminderDeps): ScheduleR
   };
 
   /** 到点：确认任务还在，然后写一条提醒气泡。 */
-  const fire = async (id: string, key: string, title: string, prompt: string, scheduledAt: string): Promise<void> => {
+  const fire = async (
+    id: string,
+    key: string,
+    title: string,
+    prompt: string,
+    scheduledAt: string,
+    sessionId: string,
+  ): Promise<void> => {
     if (disposed) return;
     if (!deps.enabled() || deps.hasClient() <= 0) return; // 不记 seen：等端回来再补
     const svc = service();
@@ -109,8 +117,9 @@ export function registerScheduleReminders(deps: ScheduleReminderDeps): ScheduleR
         id: 'r-' + id + '-' + Date.parse(scheduledAt).toString(36),
         kind: 'schedule',
         ts: now(),
-        title: clip(title, 40),
-        ...(prompt === '' ? {} : { prompt: clip(prompt, 120) }),
+        title: clip(title, 60),
+        ...(prompt === '' ? {} : { prompt: clip(prompt, 300) }),
+        ...(sessionId === '' ? {} : { sessionId, hint: '点「去会话回复」可以接着跟它说，或直接在这儿让它继续。' }),
         scheduledAt,
       },
       now,
@@ -131,7 +140,10 @@ export function registerScheduleReminders(deps: ScheduleReminderDeps): ScheduleR
     }
     if (disposed || !Array.isArray(rows)) return;
     const at = now();
-    const wanted = new Map<string, { key: string; at: number; title: string; prompt: string; scheduledAt: string }>();
+    const wanted = new Map<
+      string,
+      { key: string; at: number; title: string; prompt: string; scheduledAt: string; sessionId: string }
+    >();
     for (const raw of rows) {
       const row = raw as CatalogRow;
       if (typeof row.id !== 'string' || row.id === '' || row.status !== 'active') continue;
@@ -146,6 +158,7 @@ export function registerScheduleReminders(deps: ScheduleReminderDeps): ScheduleR
         title: typeof row.title === 'string' && row.title !== '' ? row.title : '定时任务',
         prompt: typeof row.prompt === 'string' ? row.prompt : '',
         scheduledAt: row.scheduledAt,
+        sessionId: typeof row.sessionId === 'string' ? row.sessionId : '',
       });
     }
     // 任务消失了（删除 / 改期）：撤掉旧计时器。
@@ -159,7 +172,7 @@ export function registerScheduleReminders(deps: ScheduleReminderDeps): ScheduleR
         id,
         setTimeout(() => {
           timers.delete(id);
-          void fire(id, task.key, task.title, task.prompt, task.scheduledAt);
+          void fire(id, task.key, task.title, task.prompt, task.scheduledAt, task.sessionId);
         }, delay),
       );
     }

@@ -84,18 +84,31 @@ export type RequestAnswerPayload =
   | { id: string; kind: 'question'; answers: QuestionAnswer[] }
   | { id: string; kind: 'approval' | 'question'; cancel: true };
 
-/** 一条到点的定时任务提醒。 */
+/**
+ * 一条到点的定时任务提醒，或一段会话主动推给宠物的内容。
+ *
+ * `kind` 只影响徽标与默认停留时长：`schedule` 是调度器到点，`announce` 是会话里的 agent
+ * 用 `POST /announce` 推过来的结论（日报、待办清单之类）。
+ */
 export interface ReminderEnvelope {
   /** 提醒 id（由任务 id + 计划时刻拼成，同一条任务的不同次提醒不同）。 */
   id: string;
-  /** 固定为 schedule。 */
-  kind: 'schedule';
+  /** 来源：`schedule` = 调度器到点；`announce` = 会话主动推送。 */
+  kind: 'schedule' | 'announce';
   /** 写入时刻（ms）。 */
   ts: number;
   /** 任务标题。 */
   title: string;
   /** 任务提示词摘要。 */
   prompt?: string;
+  /** 分条明细：每项一行，气泡里滚动显示（长清单比一整段好读）。 */
+  lines?: string[];
+  /** 尾注：告诉用户接下来能做什么（如「在下面选一项，我就去填工时」）。 */
+  hint?: string;
+  /** 相关会话 id：给了就在气泡上多一个「去会话」按钮。 */
+  sessionId?: string;
+  /** 停留时长（ms）；缺省按 kind 取默认值。 */
+  ttlMs?: number;
   /** 计划时刻（RFC 3339 UTC）。 */
   scheduledAt?: string;
   /** 结束标记。 */
@@ -172,14 +185,19 @@ export function readReminder(leaf: StateLeaf): ReminderEnvelope | null {
   const d = leaf.data as Record<string, unknown>;
   if (d.closed === true) return null;
   if (typeof d.id !== 'string' || d.id === '') return null;
-  if (d.kind !== 'schedule') return null;
+  if (d.kind !== 'schedule' && d.kind !== 'announce') return null;
   if (typeof d.title !== 'string' || d.title.trim() === '') return null;
+  const lines = labelsOf(d.lines);
   return {
     id: d.id,
-    kind: 'schedule',
+    kind: d.kind,
     ts: typeof d.ts === 'number' && Number.isFinite(d.ts) ? d.ts : Date.now(),
     title: d.title,
     prompt: typeof d.prompt === 'string' && d.prompt.trim() !== '' ? d.prompt : undefined,
+    lines: lines.length > 0 ? lines : undefined,
+    hint: typeof d.hint === 'string' && d.hint.trim() !== '' ? d.hint : undefined,
+    sessionId: typeof d.sessionId === 'string' && d.sessionId.trim() !== '' ? d.sessionId : undefined,
+    ttlMs: typeof d.ttlMs === 'number' && Number.isFinite(d.ttlMs) && d.ttlMs > 0 ? d.ttlMs : undefined,
     scheduledAt: typeof d.scheduledAt === 'string' ? d.scheduledAt : undefined,
   };
 }

@@ -421,8 +421,14 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
 /** 提醒气泡的停留时长（ms）：留够读完标题与摘要的时间。 */
 export const REMINDER_BUBBLE_TTL_MS = 20 * 1000;
 
+/** 主动推送（announce）的停留时长（ms）：结论类内容给用户多看一会儿。 */
+export const ANNOUNCE_BUBBLE_TTL_MS = 120 * 1000;
+
 /**
  * 写一条定时任务提醒到 `sections.reminder`。
+ *
+ * 到点自动收起，但用户可以先点「知道了」提前关掉（走 `POST /reminder/close`）：
+ * 收起写的是同一 id 的 `closed` 信封，晚到的定时器再写一次也无害。
  *
  * @param state - 轮询状态。
  * @param reminder - 提醒信封。
@@ -434,15 +440,17 @@ export function publishReminder(
   now: () => number = Date.now,
 ): void {
   state.writeSection('reminder', reminder);
+  const fallback = reminder.kind === 'announce' ? ANNOUNCE_BUBBLE_TTL_MS : REMINDER_BUBBLE_TTL_MS;
+  const ttl = reminder.ttlMs ?? fallback;
   setTimeout(() => {
     state.writeSection('reminder', {
       id: reminder.id,
-      kind: 'schedule',
+      kind: reminder.kind,
       ts: now(),
       title: reminder.title,
       closed: true,
     });
-  }, REMINDER_BUBBLE_TTL_MS).unref?.();
+  }, ttl).unref?.();
 }
 
 /** 从异常里取一句人读文案（供调用方日志复用）。 */

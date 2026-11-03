@@ -44,12 +44,6 @@ function clockText(ms: number): string {
   return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 
-/** 截断长文本，避免方案正文把气泡撑满整屏。 */
-function clip(text: string, max: number): string {
-  const one = text.replace(/\s+/g, ' ').trim();
-  return one.length > max ? one.slice(0, max - 1) + '…' : one;
-}
-
 /** 发一条回答；网络失败静默——宿主超时后会自己回落到 DSH 面板。 */
 function postAnswer(body: unknown): void {
   void postAction(ROUTE_PATH + '/request/answer', body).catch(() => undefined);
@@ -97,10 +91,7 @@ export function makeApprovalBubble(rt: RequestBubbleRuntime) {
         h('div', {
           key: 'reason',
           className: 'dsh-pet-request__body',
-          children:
-            request.reason && request.reason.trim() !== ''
-              ? clip(request.reason, 160)
-              : '这一步要跑一个需要授权的操作。',
+          children: request.reason && request.reason.trim() !== '' ? request.reason : '这一步要跑一个需要授权的操作。',
         }),
         h('div', {
           key: 'actions',
@@ -205,14 +196,10 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
               h('div', {
                 key: 'title',
                 className: 'dsh-pet-request__title',
-                children:
-                  (q.header && q.header.trim() !== '' ? q.header + '：' : '') +
-                  (index + 1) +
-                  '. ' +
-                  clip(q.question, 90),
+                children: (q.header && q.header.trim() !== '' ? q.header + '：' : '') + (index + 1) + '. ' + q.question,
               }),
               q.detail && q.detail.trim() !== ''
-                ? h('div', { key: 'detail', className: 'dsh-pet-request__detail', children: clip(q.detail, 200) })
+                ? h('div', { key: 'detail', className: 'dsh-pet-request__detail', children: q.detail })
                 : null,
               h('div', {
                 key: 'opts',
@@ -262,7 +249,10 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
 }
 
 /**
- * 造定时提醒气泡：任务标题 + 提示词摘要 + 计划时刻。
+ * 造定时提醒 / 主动推送气泡：标题、分条明细、正文、尾注，外加「知道了」「去会话」两个动作。
+ *
+ * 长内容不再截成一句话塞在气泡里：明细逐行列出，正文与明细各自滚动（`.dsh-pet-request__body`
+ * 与 `.dsh-pet-reminder__lines` 都有高度上限），所以一次推 10 条待办也读得完。
  *
  * @param rt - 注入的 react 能力。
  * @returns 提醒气泡组件。
@@ -273,6 +263,19 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
 
   return function ReminderBubble({ reminder, on }: ReminderBubbleProps) {
     const planned = typeof reminder.scheduledAt === 'string' ? Date.parse(reminder.scheduledAt) : NaN;
+    const lines = reminder.lines ?? [];
+    const hint = reminder.hint ?? '';
+    const text = reminder.prompt ?? '';
+    const announce = reminder.kind === 'announce';
+    const close = (): void => {
+      void postAction(ROUTE_PATH + '/reminder/close', { id: reminder.id }).catch(() => undefined);
+    };
+    const focusSession = reminder.sessionId;
+    const goSession = (): void => {
+      if (focusSession === undefined) return;
+      void postAction(ROUTE_PATH + '/focus-session', { sessionId: focusSession }).catch(() => undefined);
+      close();
+    };
     return h('div', {
       className: 'dsh-pet-bubble dsh-pet-reminder' + (on ? ' is-on is-clickable' : ''),
       onClick: (e: ReactNS.MouseEvent<HTMLDivElement>) => e.stopPropagation(),
@@ -281,16 +284,52 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
           key: 'head',
           className: 'dsh-pet-request__head',
           children: [
-            h('span', { key: 'kind', className: 'dsh-pet-request__badge is-reminder', children: '定时任务' }),
+            h('span', {
+              key: 'kind',
+              className: 'dsh-pet-request__badge is-reminder' + (announce ? ' is-announce' : ''),
+              children: announce ? '宠物消息' : '定时任务',
+            }),
             Number.isFinite(planned)
               ? h('span', { key: 'time', className: 'dsh-pet-request__tool', children: clockText(planned) })
               : null,
           ],
         }),
-        h('div', { key: 'title', className: 'dsh-pet-reminder__title', children: clip(reminder.title, 80) }),
-        reminder.prompt && reminder.prompt.trim() !== ''
-          ? h('div', { key: 'prompt', className: 'dsh-pet-request__body', children: clip(reminder.prompt, 160) })
+        h('div', { key: 'title', className: 'dsh-pet-reminder__title', children: reminder.title }),
+        lines.length > 0
+          ? h('div', {
+              key: 'lines',
+              className: 'dsh-pet-reminder__lines',
+              children: lines.map((line, index) =>
+                h('div', { key: 'l' + index, className: 'dsh-pet-reminder__line', children: line }),
+              ),
+            })
           : null,
+        text !== '' && text !== reminder.title
+          ? h('div', { key: 'prompt', className: 'dsh-pet-request__body', children: text })
+          : null,
+        hint !== '' ? h('div', { key: 'hint', className: 'dsh-pet-reminder__hint', children: hint }) : null,
+        h('div', {
+          key: 'actions',
+          className: 'dsh-pet-request__actions',
+          children: [
+            h('button', {
+              key: 'ok',
+              type: 'button',
+              className: 'dsh-pet-request__btn is-primary',
+              onClick: close,
+              children: '知道了',
+            }),
+            focusSession === undefined
+              ? null
+              : h('button', {
+                  key: 'focus',
+                  type: 'button',
+                  className: 'dsh-pet-request__btn',
+                  onClick: goSession,
+                  children: '去会话回复',
+                }),
+          ],
+        }),
       ],
     });
   };
