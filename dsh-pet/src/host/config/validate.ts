@@ -198,6 +198,12 @@ export function topFieldValid(key: string, value: unknown): boolean {
     case 'scheduleRemindersEnabled':
       // 定时任务到点的宠物提醒开关（全局布尔）
       return typeof value === 'boolean';
+    case 'menuOrder':
+    case 'menuHidden':
+      // 右键菜单的顺序 / 隐藏项（全局字符串数组）：这里只验形状，认不认得那些动作名
+      // 由 shared/menu/layout 在渲染时判断——未知项丢弃、空数组 = 用默认顺序，
+      // 所以写错一个名字不该让整份配置被拒（那会把用户别的设置一起挡掉）。
+      return Array.isArray(value) && value.every((item) => typeof item === 'string');
     case 'animations':
       return animationsValid(value);
     case 'animationWeights':

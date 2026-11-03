@@ -164,6 +164,16 @@ export const es: Record<Key, string> = {
   scheduleReminderToggle: 'Recordatorios de tareas',
   scheduleReminderToggleHint:
     'Cuando vence una tarea creada con schedule_create, la mascota muestra un recordatorio (solo avisa; quien lanza la sesión sigue siendo el planificador de DSH). Los cambios de hora se reajustan solos; se omite si no hay mascota en línea y se recupera al volver. Se escribe en la configuración al «Guardar».',
+  menuTitle: 'Menú contextual',
+  menuHint:
+    'Qué aparece al hacer clic derecho en la mascota y en qué orden. Solo se ordenan las herramientas: la reproducción de animaciones, la posición y el "más" de terceros tienen sus propias condiciones. Se guarda en tu configuración al pulsar Guardar.',
+  menuMoveUp: 'Subir',
+  menuMoveDown: 'Bajar',
+  menuShow: 'Mostrar',
+  menuHide: 'Ocultar',
+  menuReset: 'Restablecer',
+  menuNote:
+    'Los elementos ocultos conservan su sitio, así que al mostrarlos vuelven a donde estaban. En el orden predeterminado, «Conversar» va primero.',
   voiceTitle: 'Voz',
   voiceHint:
     'Tres interruptores y una voz: el maestro controla la locución automática y los dos secundarios controlan un tipo de mensaje proactivo cada uno. Todo desactivado por defecto; se escribe en la configuración del usuario al "Guardar" (nunca al instante).',

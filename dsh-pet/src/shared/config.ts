@@ -46,6 +46,9 @@ export function flattenConfigPets(merged: Record<string, Record<string, unknown>
         chatImageEnabled: conf.chatImageEnabled as boolean | undefined,
         chatAnimationEnabled: conf.chatAnimationEnabled as boolean | undefined,
         chatImageLimit: conf.chatImageLimit as number | undefined,
+        // 右键菜单布局：菜单在客户端拼、客户端不读磁盘，所以顺序与隐藏项也要拍平带出
+        menuOrder: conf.menuOrder as string[] | undefined,
+        menuHidden: conf.menuHidden as string[] | undefined,
         assetRoot: entry,
         extra: entry !== 'main',
       });

@@ -65,6 +65,9 @@ export const GLOBAL_DEFAULT_KEYS = [
   'whisperModel',
   'chatModel',
   'eventsRefreshSec',
+  // 右键菜单布局（顺序 / 隐藏项）：用户级偏好，改一次对所有宠物（含 pet pack）生效
+  'menuOrder',
+  'menuHidden',
 ] as const;
 
 /** 已告警过的 文件:字段（进程内去重：同一问题只告警一次，避免每请求刷屏；重启重置） */

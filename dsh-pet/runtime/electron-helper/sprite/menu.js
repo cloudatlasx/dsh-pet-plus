@@ -22,33 +22,50 @@ Object.assign(PetSprite.prototype, {
     this.stopMove(); // 菜单悬停期间宠物不漫游
     // 桌面专属工具根项 + 共享菜单树（动作 → 分类 → 具体动画）。碎碎念/对话无条件显示：手动触发
     // 不受 whisperEnabled 限制（该字段只影响自动轮询）。首项文案与去向随宿主形态变，见 OPEN_LABEL。
-    // 顺序：打开软件 / 余额 / 待办 / 碎碎念 / 对话 / 配图 / 睡觉 → 动作树 → 显示位置 / 重载配置 / 回到初始位置。
-    const tools = [
-      {
-        label: OPEN_LABEL[OPEN_TARGET],
-        action: 'open-site',
-        hint: OPEN_SHORTCUT_HINT,
-      },
-      // 「查看余额」无条件显示：关了 balanceEnabled 的宠物也能点，手动请求不受开关限制，点了一定给答复。
-      { label: '查看余额', action: 'show-balance' },
-      // 「待办事项」是待办面板的唯一入口（单击宠物不再弹面板），排在余额之后。
-      { label: '待办事项', action: 'todo', hint: S.TODO_HOTKEY_HINT },
-      { label: '碎碎念', action: 'whisper' },
-      { label: '对话', action: 'chat', hint: S.CHAT_HOTKEY_HINT },
-    ];
+    // 工具项的顺序与显隐来自配置（设置页「右键菜单」可调）：layout 与网页端同一份实现，
+    // 只排这一段——「打开软件」固定在第一位，动画树/显示位置/重载/回到初始位置各有位置。
+    const layout = S.resolveMenuLayout(this.pet.menuOrder, this.pet.menuHidden);
+    const asleep = this.sleeping;
+    const canSleep = Array.isArray(this.animations.sleep) && this.animations.sleep.length > 0;
+    /** 动作名 → 菜单节点；不支持的动作返回 null（整项不出现，不留死按钮）。 */
+    const toolNode = (action) => {
+      switch (action) {
+        // 「查看余额」无条件显示：关了 balanceEnabled 的宠物也能点，手动请求不受开关限制，点了一定给答复。
+        case 'show-balance':
+          return { label: '查看余额', action: 'show-balance' };
+        // 「待办事项」是待办面板的唯一入口（单击宠物不再弹面板）。
+        case 'todo':
+          return { label: '待办事项', action: 'todo', hint: S.TODO_HOTKEY_HINT };
+        case 'whisper':
+          return { label: '碎碎念', action: 'whisper' };
+        case 'chat':
+          return { label: '对话', action: 'chat', hint: S.CHAT_HOTKEY_HINT };
+        // 睡觉/起来：睡着时这一项是「起来」（点它等于叫醒），醒着时是「睡觉」。
+        // 该条目没配 animations.sleep 就整项不出现——与配置注释「不写 = 没有睡觉功能」一致。
+        case 'sleep':
+          if (!canSleep) return null;
+          return asleep
+            ? { label: '起来', action: 'wake', hint: S.SLEEP_HOTKEY_HINT }
+            : { label: '睡觉', action: 'sleep', hint: S.SLEEP_HOTKEY_HINT };
+        // 最近记录：台账面板目前只有网页端有渲染，桌面这里先不给入口——点了没反应的空按钮
+        // 比没有这一项更糟。布局里留着它，等桌面面板补上就直接生效。
+        case 'history':
+        default:
+          return null;
+      }
+    };
+    const tools = [{ label: OPEN_LABEL[OPEN_TARGET], action: 'open-site', hint: OPEN_SHORTCUT_HINT }];
+    for (const action of layout.order) {
+      if (layout.hidden.includes(action)) continue;
+      const node = toolNode(action);
+      if (node) tools.push(node);
+    }
     // 「配图」：与浏览器端同一份分支（纳入对话的配图 / 其他），点一张就用它说一句；没有可用图时
     // 返回 null，整项不出现。数据来自拍平层吹入的条目级字段（this.pet.memes / chatImageEnabled /
     // chatImageLimit），与网页端同一个 flattenConfigPets；缩略图走 BASE 的 /pic/memes 绝对地址
     // （桌面窗口是 file://，相对路径取不到图）。
     const memeBranch = S.buildMemeBranch(this.pet, (name) => S.memeThumbUrl(BASE, this.pet.assetRoot, name));
     if (memeBranch) tools.push(memeBranch);
-    // 睡觉/起来：睡着时这一项是「起来」（点它等于叫醒），醒着时是「睡觉」。两种文案共用一个位置，
-    // 排在「配图」之后、动作树之前（与浏览器端的菜单同一排法）。
-    // 该条目没配 animations.sleep 就整项不出现——与配置注释「不写 = 没有睡觉功能」一致。
-    if (Array.isArray(this.animations.sleep) && this.animations.sleep.length > 0) {
-      if (this.sleeping) tools.push({ label: '起来', action: 'wake', hint: S.SLEEP_HOTKEY_HINT });
-      else tools.push({ label: '睡觉', action: 'sleep', hint: S.SLEEP_HOTKEY_HINT });
-    }
     // 动作树之后是维护类：显示位置 → 重载配置 → 回到初始位置。
     const tail = [
       // 显示位置（仅网页/仅桌面/两者/都不）：改这只宠物的 display 配置，由宿主重载生效。

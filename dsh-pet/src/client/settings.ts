@@ -19,6 +19,7 @@ import { type MergedConfig, readConfigEntries, readMainConfig } from './settings
 import { type DialogState, makeDialog } from './settings/dialog.ts';
 import { makeFontCard } from './settings/font-card.ts';
 import { makeGlobalCard, type GlobalFlagKey, type GlobalFlags } from './settings/global-card.ts';
+import { makeMenuCard } from './settings/menu-card.ts';
 import { makeLoadStatus } from './settings/load-status.ts';
 import { makeModelCard, type ChatFlagKey, type ChatFlagValues, type ModelFieldKey } from './settings/model-card.ts';
 import { makeMobileCard } from './settings/mobile-card.ts';
@@ -76,6 +77,7 @@ export function makePetConfigSection(
   const KindTabs = makeKindTabs({ h, t });
   const PetCard = makePetCard(rt);
   const GlobalCard = makeGlobalCard(rt);
+  const MenuCard = makeMenuCard(rt);
   const VoiceCard = makeVoiceCard(rt, VoicePicker, VoicePreview);
   const FontCard = makeFontCard(rt);
   const ModelCard = makeModelCard(rt, ModelPicker);
@@ -153,6 +155,9 @@ export function makePetConfigSection(
     const [requestBubble, setRequestBubble] = useState(true);
     // 定时任务到点提醒开关（全局）：同上，初值 true 是内置默认。
     const [scheduleReminders, setScheduleReminders] = useState(true);
+    // 右键菜单布局（全局）：空数组 = 用默认顺序（对话在最前）；隐藏项只影响显示，不删位置。
+    const [menuOrder, setMenuOrder] = useState<string[]>([]);
+    const [menuHidden, setMenuHidden] = useState<string[]>([]);
     // 语音播报开关与音色（全局默认）：随「保存」整包写入；初值即内置默认，加载后用成品值覆盖。
     const [voiceEnabled, setVoiceEnabled] = useState(false);
     const [voiceName, setVoiceName] = useState('zh-CN-XiaoyiNeural');
@@ -196,6 +201,8 @@ export function makePetConfigSection(
         if (patch.trayEnabled !== undefined) setTrayEnabled(patch.trayEnabled);
         if (patch.requestBubbleEnabled !== undefined) setRequestBubble(patch.requestBubbleEnabled);
         if (patch.scheduleRemindersEnabled !== undefined) setScheduleReminders(patch.scheduleRemindersEnabled);
+        if (patch.menuOrder !== undefined) setMenuOrder(patch.menuOrder);
+        if (patch.menuHidden !== undefined) setMenuHidden(patch.menuHidden);
         if (patch.voiceEnabled !== undefined) setVoiceEnabled(patch.voiceEnabled);
         if (patch.voiceName !== undefined) setVoiceName(patch.voiceName);
         if (patch.voiceVolume !== undefined) setVoiceVolume(patch.voiceVolume);
@@ -324,6 +331,8 @@ export function makePetConfigSection(
         chatMemoryRounds: chatMemory,
         chatImageLimit,
         font,
+        menuOrder,
+        menuHidden,
       }),
       busy: () => busy,
       setBusy,
@@ -403,6 +412,15 @@ export function makePetConfigSection(
           onRemove: requestRemove,
         }),
         h(GlobalCard, { busy, values: globalFlags, onChange: setGlobalFlag }),
+        h(MenuCard, {
+          busy,
+          order: menuOrder,
+          hidden: menuHidden,
+          onChange: (order: string[], hidden: string[]) => {
+            setMenuOrder(order);
+            setMenuHidden(hidden);
+          },
+        }),
         h(VoiceCard, {
           busy,
           enabled: voiceEnabled,

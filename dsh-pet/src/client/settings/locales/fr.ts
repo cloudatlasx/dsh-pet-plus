@@ -162,6 +162,16 @@ export const fr: Record<Key, string> = {
   scheduleReminderToggle: 'Rappels de tâches',
   scheduleReminderToggleHint:
     "Quand une tâche créée avec schedule_create arrive à échéance, le compagnon affiche un rappel (simple rappel : c'est toujours l'ordonnanceur DSH qui lance la session). Les changements d'heure sont repris automatiquement ; ignoré si aucun compagnon n'est en ligne, rattrapé à son retour. Écrit dans la configuration lors de l'enregistrement.",
+  menuTitle: 'Menu contextuel',
+  menuHint:
+    "Ce qui apparaît au clic droit sur la mascotte, et dans quel ordre. Seuls les outils sont réordonnés : lecture d'animation, position d'affichage et « plus » tiers ont leurs propres conditions. Enregistré dans votre configuration lors de l'enregistrement.",
+  menuMoveUp: 'Monter',
+  menuMoveDown: 'Descendre',
+  menuShow: 'Afficher',
+  menuHide: 'Masquer',
+  menuReset: 'Réinitialiser',
+  menuNote:
+    "Les éléments masqués gardent leur place : les réafficher les remet au même endroit. Dans l'ordre par défaut, « Discuter » vient en premier.",
   voiceTitle: 'Synthèse vocale',
   voiceHint:
     "Trois interrupteurs et une voix : l'interrupteur principal commande la lecture automatique, les deux sous-interrupteurs commandent chacun un type de message proactif. Tout est désactivé par défaut et écrit dans la configuration utilisateur lors de l'enregistrement (jamais immédiatement).",

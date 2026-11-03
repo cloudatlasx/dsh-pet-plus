@@ -125,6 +125,12 @@ export function saveUserConfig(
   if (rbe !== undefined && typeof rbe !== 'boolean') return null;
   const sre = o.scheduleRemindersEnabled;
   if (sre !== undefined && typeof sre !== 'boolean') return null;
+  // 右键菜单布局（全局）：顺序与隐藏项都是字符串数组；动作名认不认得由渲染侧判断，
+  // 这里只保证形状合法——写错一个名字不该导致整份配置被拒。
+  const mo = o.menuOrder;
+  if (mo !== undefined && !topFieldValid('menuOrder', mo)) return null;
+  const mh = o.menuHidden;
+  if (mh !== undefined && !topFieldValid('menuHidden', mh)) return null;
   // physics（拖拽抛掷手感，设置页「物理」区可图形化编辑）：整段校验——physicsValid 与读取侧
   // 是同一份规则（gravity/groundFriction ≥ 0、restitution ∈ [0,1]、throwPower > 0、两个布尔）。
   // 传了就按白名单写入；没传则走下面的透传保留（用户手改的值原样不动）。
@@ -172,6 +178,9 @@ export function saveUserConfig(
   if (te !== undefined) outConfig.trayEnabled = te;
   if (rbe !== undefined) outConfig.requestBubbleEnabled = rbe;
   if (sre !== undefined) outConfig.scheduleRemindersEnabled = sre;
+  // 菜单布局原样落盘（已按 topFieldValid 验过是字符串数组；空数组是合法状态 = 用默认顺序）
+  if (mo !== undefined) outConfig.menuOrder = [...(mo as string[])];
+  if (mh !== undefined) outConfig.menuHidden = [...(mh as string[])];
   if (ph !== undefined) outConfig.physics = ph;
   if (fo !== undefined) outConfig.font = fo;
   if (wm !== undefined) outConfig.whisperModel = cleanModel(wm as Record<string, unknown>);
@@ -198,6 +207,8 @@ export function saveUserConfig(
   if (te !== undefined) bodyOwned.add('trayEnabled');
   if (rbe !== undefined) bodyOwned.add('requestBubbleEnabled');
   if (sre !== undefined) bodyOwned.add('scheduleRemindersEnabled');
+  if (mo !== undefined) bodyOwned.add('menuOrder');
+  if (mh !== undefined) bodyOwned.add('menuHidden');
   if (ph !== undefined) bodyOwned.add('physics');
   if (fo !== undefined) bodyOwned.add('font');
   if (wm !== undefined) bodyOwned.add('whisperModel');

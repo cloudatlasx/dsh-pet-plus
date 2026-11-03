@@ -24,6 +24,7 @@
 | **改定时任务提示词**    | `POST /dsh-pet-7340/schedule/patch` 能改 DSH 定时任务的标题与提示词（DSH 的调度表只在启动时读一次文件，手改 `schedule.json` 会被覆盖，只能走服务）。                                                                                                                                                           |
 | **最近记录**            | 弹过的提醒与推送都会记一笔（静音期间也记，最多 20 条、重启即空），菜单里点「最近记录」随时翻，点某条能回到它对应的 DSH 会话，底部可一键清空。                                                                                                                                                                  |
 | **双击换角落**          | 双击宠物就在 `左上 → 右上 → 右下 → 左下` 之间循环，落点直接写回配置（`POST /dsh-pet-7340/corner`），不用进设置页翻「落点」。                                                                                                                                                                                   |
+| **右键菜单可调**        | 设置页「右键菜单」里可调工具项顺序与显隐（`↑ / ↓` + 显示/隐藏 + 恢复默认），写入配置顶层 `menuOrder` / `menuHidden`；默认把「对话」放在第一位，两端（网页 + 桌面）同一套排序。                                                                                                                                      |
 | **审批 / 提问气泡**     | DSH 请求审批或向你提问时，宠物身上直接出现可交互气泡：审批可选「允许一次 / 本会话都允许 / 拒绝」（会话内授权 8 小时有效，只影响本会话），提问可选选项或填自定义答案，结果原路回传给 DSH；原有的内置面板会被临时接管，不操作则自动超时放行。                                                                    |
 | **拍一拍音效**          | 点击宠物播放 `click-duck.wav`；定时提醒到达时连响两声，提醒感更强。                                                                                                                                                                                                                                            |
 | **多屏跟随定位**        | 宠物默认落在 **DSH 窗口所在那块屏幕的右下角**（多屏时以浏览器上报的屏幕为准，桌面模式用主进程 `displayNearestPoint` 换算），换屏后自动跟随；角落与边距仍可在设置页调整。                                                                                                                                       |
@@ -60,7 +61,7 @@ dsh plugin --profile desktop add E:\path\to\dsh-pet-plus\dsh-pet
 每个 Release 都附一个打包好的 `.tgz`（含 `lib/`、`runtime/`、`assets/`、`cordis.patch.yml`），直接让 DSH 装它：
 
 ```bash
-dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.9.0/dsh-pet-plus-0.9.0.tgz
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.10.0/dsh-pet-plus-0.10.0.tgz
 ```
 
 也可以装 git 子目录（`dsh-pet/` 是包所在目录）：`dsh plugin --profile desktop add github:cloudatlasx/dsh-pet-plus#path:/dsh-pet`。

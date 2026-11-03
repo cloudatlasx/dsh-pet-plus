@@ -29,6 +29,7 @@ import {
   type MenuNode,
 } from '../../../shared/menu.ts';
 import { ROUTE_PATH } from '../../../shared/constants.ts';
+import { resolveMenuLayout } from '../../../shared/menu/layout.ts';
 import { TOOLTIP_GAP_RATIO, tooltipPlacement } from '../../../shared/tooltip.ts';
 import type { MenuMoreItem } from '../../../shared/menu.ts';
 import type { CardLive } from './live.ts';
@@ -370,16 +371,36 @@ export function createCardEntry(rt: CardEntryRuntime) {
       const sleepItem: MenuNode = asleep
         ? { label: '起来', action: 'wake', hint: SLEEP_HOTKEY_HINT }
         : { label: '睡觉', action: 'sleep', hint: SLEEP_HOTKEY_HINT };
-      // 顺序与桌面端同一排法：余额 / 待办 / 碎碎念 / 对话 / 配图 / 睡觉 → 动作树 → 显示位置 / 回到初始位置。
+      // 工具项按配置布局排：顺序来自 menuOrder、显隐来自 menuHidden（设置页「右键菜单」可调）。
+      // 只排「工具项」这一段——配图、睡觉、动画树、显示位置与「更多」各有出现条件，混在一起排没意义。
+      const layout = resolveMenuLayout(cfgRef.current.menuOrder, cfgRef.current.menuHidden);
+      const toolNode = (action: string): MenuNode | null => {
+        switch (action) {
+          case 'chat':
+            return { label: '对话', action: 'chat', hint: CHAT_HOTKEY_HINT };
+          case 'show-balance':
+            return { label: '查看余额', action: 'show-balance' };
+          case 'todo':
+            return { label: '待办事项', action: 'todo', hint: TODO_HOTKEY_HINT };
+          case 'history':
+            return { label: '最近记录', action: 'history' };
+          case 'whisper':
+            return { label: '碎碎念', action: 'whisper' };
+          // 睡觉/起来是同一个入口的两种文案：该条目没配 animations.sleep 就整项不出现。
+          case 'sleep':
+            return canSleep ? sleepItem : null;
+          default:
+            return null;
+        }
+      };
+      // 顺序：布局里的工具项（跳过隐藏的）→ 配图 → 动作树 → 显示位置 / 回到初始位置。
       // 桌面专属的两项（打开软件、重载配置）在网页端没有对应动作，不出现。
       const tools: MenuNode[] = [
-        { label: '查看余额', action: 'show-balance' },
-        { label: '待办事项', action: 'todo', hint: TODO_HOTKEY_HINT },
-        { label: '最近记录', action: 'history' },
-        { label: '碎碎念', action: 'whisper' },
-        { label: '对话', action: 'chat', hint: CHAT_HOTKEY_HINT },
+        ...layout.order
+          .filter((action) => !layout.hidden.includes(action))
+          .map(toolNode)
+          .filter((node): node is MenuNode => node !== null),
         ...(memes ? [memes] : []),
-        ...(canSleep ? [sleepItem] : []),
       ];
       const tail: MenuNode[] = [
         // 显示位置子菜单与桌面端同一份；改成不含 web 的值后本宠物会从页面消失。

@@ -161,6 +161,16 @@ export const en: Record<Key, string> = {
   scheduleReminderToggle: 'Task reminders',
   scheduleReminderToggleHint:
     'When a task created with schedule_create comes due, the pet shows a reminder bubble. Reminders only — the DSH scheduler still triggers the session. Rescheduled tasks are re-armed automatically; skipped while no pet page is online and caught up when one returns. Written to the user config on "Save".',
+  menuTitle: 'Context menu',
+  menuHint:
+    'What appears when you right-click the pet, and in what order. Only the tool items are listed here - animation playback, display position and third-party "more" have their own visibility rules and are not sortable. Written to your user config on Save.',
+  menuMoveUp: 'Move up',
+  menuMoveDown: 'Move down',
+  menuShow: 'Show',
+  menuHide: 'Hide',
+  menuReset: 'Reset to default',
+  menuNote:
+    'Hidden items keep their slot, so showing them again returns them to the same place. Chat comes first in the default order.',
   voiceTitle: 'Voice',
   voiceHint:
     'Three switches plus a voice: the master switch gates automatic speech, the two sub-switches gate one kind of proactive message each. All off by default; written to the user config on "Save" (never written immediately).',

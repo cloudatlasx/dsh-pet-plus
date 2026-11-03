@@ -240,6 +240,8 @@ describe('buildSaveBody —— 请求体字段', () => {
       chatMemoryRounds: 5,
       chatImageLimit: 10,
       font: {},
+      menuOrder: [],
+      menuHidden: [],
     } as unknown as SaveFields;
     assert.deepEqual(Object.keys(buildSaveBody(fields)).sort(), [
       'chatAnimationEnabled',
@@ -250,6 +252,8 @@ describe('buildSaveBody —— 请求体字段', () => {
       'clickSoundEnabled',
       'confineToScreen',
       'font',
+      'menuHidden',
+      'menuOrder',
       'notificationsEnabled',
       'pets',
       'physics',
@@ -282,10 +286,15 @@ describe('buildSaveBody —— 请求体字段', () => {
       chatMemoryRounds: 0,
       chatImageLimit: 3,
       font: { size: 20 },
+      menuOrder: ['chat'],
+      menuHidden: ['whisper'],
     } as unknown as SaveFields;
     const body = buildSaveBody(fields);
     assert.equal(body.chatMemoryRounds, 0);
     assert.deepEqual(body.physics, { gravity: 3 });
     assert.equal(body.notificationsEnabled, false);
+    // 数组字段要复制一份：调用方之后改本地状态不该影响已经发出去的请求体
+    assert.deepEqual(body.menuOrder, ['chat']);
+    assert.deepEqual(body.menuHidden, ['whisper']);
   });
 });

@@ -18,6 +18,8 @@ export * from './config.ts';
 export * from './fonts.ts';
 export * from './notify.ts';
 export * from './menu.ts';
+// 菜单布局（顺序/显隐）：网页端与桌面 Helper 各自拼菜单，但排序规则必须是同一份实现
+export * from './menu/layout.ts';
 export * from './chat/index.ts';
 export * from './physics.ts';
 export * from './score.ts';

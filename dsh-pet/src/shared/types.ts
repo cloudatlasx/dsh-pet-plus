@@ -145,6 +145,12 @@ export interface Pet {
   chatAnimationEnabled?: boolean;
   /** 条目级：对话配图张数上限（非负整数，0 = 不限制）。只截「交给模型的清单」，不截碎碎念抽图。 */
   chatImageLimit?: number;
+  /** 全局默认：右键菜单里工具项的顺序（动作名数组，见 shared/menu/layout 的 MENU_TOOL_ACTIONS）。
+   *  空 / 缺省 = 默认顺序（对话在前）；写了不认得的名字会被忽略，缺失的项按默认顺序补在末尾。 */
+  menuOrder?: string[];
+  /** 全局默认：右键菜单里要隐藏的工具项（动作名数组）。隐藏项仍保留在 menuOrder 里，
+   *  所以重新显示时能回到原来的位置。 */
+  menuHidden?: string[];
 }
 
 /** 一处「服务商 + 模型」选择（config.jsonc 的 whisperModel / chatModel 段）。

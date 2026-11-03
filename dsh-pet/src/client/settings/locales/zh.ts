@@ -151,6 +151,15 @@ export const zh = {
   scheduleReminderToggle: '定时任务提醒',
   scheduleReminderToggleHint:
     '用 schedule_create 建的任务到点时，宠物顶着气泡提醒一句（只负责提醒，真正触发会话的仍是 DSH 调度器）。任务改期会跟着重排；宠物页不在线时跳过，回来再补。随「保存」写入用户配置。',
+  menuTitle: '右键菜单',
+  menuHint:
+    '右键宠物弹出什么、按什么顺序。只排工具项——动画点播、显示位置与第三方「更多」各有出现条件，不在这里排。随「保存」写入用户配置。',
+  menuMoveUp: '上移',
+  menuMoveDown: '下移',
+  menuShow: '显示',
+  menuHide: '隐藏',
+  menuReset: '恢复默认',
+  menuNote: '隐藏的项仍留在原位置，重新「显示」就回到原位。默认顺序里「对话」在最前。',
   voiceTitle: '语音播报',
   voiceHint:
     '桌宠出声的三个开关与音色：总开关管自动播报，两个细分开关各管一类主动消息。默认全关，随「保存」写入用户配置（不做即时写入）。',

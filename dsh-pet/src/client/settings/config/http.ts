@@ -65,6 +65,10 @@ export interface SaveFields {
   chatMemoryRounds: number;
   chatImageLimit: number;
   font: FontConfig;
+  /** 右键菜单顺序（动作名数组；空 = 默认顺序）。 */
+  menuOrder: readonly string[];
+  /** 右键菜单隐藏项（动作名数组）。 */
+  menuHidden: readonly string[];
 }
 
 /** 保存结果：调用方按 `kind` 分支，不再猜 HTTP 细节。 */
@@ -103,6 +107,8 @@ export function buildSaveBody(fields: SaveFields): Record<string, unknown> {
     chatMemoryRounds: fields.chatMemoryRounds,
     chatImageLimit: fields.chatImageLimit,
     font: fields.font,
+    menuOrder: [...fields.menuOrder],
+    menuHidden: [...fields.menuHidden],
   };
 }
 

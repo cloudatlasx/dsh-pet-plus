@@ -161,6 +161,16 @@ export const pt: Record<Key, string> = {
   scheduleReminderToggle: 'Lembretes de tarefas',
   scheduleReminderToggleHint:
     'Quando uma tarefa criada com schedule_create vence, o mascote mostra um lembrete (apenas aviso — quem dispara a sessão continua sendo o agendador do DSH). Mudanças de horário são reajustadas sozinhas; ignorado sem mascote online e recuperado ao voltar. Gravado na configuração ao «Salvar».',
+  menuTitle: 'Menu de contexto',
+  menuHint:
+    'O que aparece ao clicar com o botão direito no pet e em que ordem. Só as ferramentas são reordenadas: reprodução de animação, posição na tela e o "mais" de terceiros têm condições próprias. É gravado na sua configuração ao salvar.',
+  menuMoveUp: 'Subir',
+  menuMoveDown: 'Descer',
+  menuShow: 'Mostrar',
+  menuHide: 'Ocultar',
+  menuReset: 'Restaurar padrão',
+  menuNote:
+    'Os itens ocultos mantêm o lugar, então ao mostrar de novo voltam para a mesma posição. Na ordem padrão, "Conversar" vem primeiro.',
   voiceTitle: 'Voz',
   voiceHint:
     'Três interruptores e uma voz: o mestre controla a fala automática; os dois secundários controlam um tipo de mensagem proativa cada. Tudo desligado por padrão; gravado na configuração do usuário ao "Salvar" (nunca na hora).',

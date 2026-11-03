@@ -47,7 +47,24 @@ export interface MainConfigPatch {
   chatModel?: ModelSelection;
   chatMemoryRounds?: number;
   chatImageLimit?: number;
+  /** 右键菜单顺序（动作名数组）；只保留字符串项，非法形状当作没写。 */
+  menuOrder?: string[];
+  /** 右键菜单隐藏项（动作名数组）；同上。 */
+  menuHidden?: string[];
 }
+
+/** 只保留字符串项并按原序去重：配置里手写错一个数字不该让整页读不出菜单布局。 */
+const stringList = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const text = item.trim();
+    if (!text || out.includes(text)) continue;
+    out.push(text);
+  }
+  return out;
+};
 
 /** 非负有限数才算合法；其余（`NaN`、负数、字符串）一律当作没写。 */
 const nonNegative = (value: unknown): number | undefined => {
@@ -105,6 +122,11 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   if (rounds !== undefined) patch.chatMemoryRounds = rounds;
   const limit = nonNegative(main.chatImageLimit);
   if (limit !== undefined) patch.chatImageLimit = limit;
+  // 右键菜单布局：空数组也是合法值（= 用默认顺序），所以要按「有没有这个字段」判，而不是看长度。
+  const order = stringList(main.menuOrder);
+  if (order !== undefined) patch.menuOrder = order;
+  const hiddenList = stringList(main.menuHidden);
+  if (hiddenList !== undefined) patch.menuHidden = hiddenList;
   // 上界在宿主侧已经把关，这里补一次跨进程读回的判定：脏值只影响显示，不让它流到播放端
   const volume = nonNegative(main.voiceVolume);
   if (volume !== undefined && volume <= 1) patch.voiceVolume = volume;

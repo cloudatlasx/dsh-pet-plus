@@ -161,6 +161,16 @@ export const de: Record<Key, string> = {
   scheduleReminderToggle: 'Aufgaben-Erinnerungen',
   scheduleReminderToggleHint:
     'Wenn eine mit schedule_create erstellte Aufgabe fällig wird, zeigt das Haustier eine Erinnerung (nur Hinweis — die Sitzung startet weiterhin der DSH-Scheduler). Zeitänderungen werden automatisch übernommen; ohne online Haustier-Seite wird übersprungen und beim Zurückkommen nachgeholt. Wird beim „Speichern“ in die Benutzerkonfiguration geschrieben.',
+  menuTitle: 'Kontextmenü',
+  menuHint:
+    'Was beim Rechtsklick auf das Haustier erscheint und in welcher Reihenfolge. Nur die Werkzeuge lassen sich sortieren - Animationswiedergabe, Anzeigeposition und das „Mehr" von Drittanbietern haben eigene Bedingungen. Wird beim Speichern in die Benutzerkonfiguration geschrieben.',
+  menuMoveUp: 'Nach oben',
+  menuMoveDown: 'Nach unten',
+  menuShow: 'Anzeigen',
+  menuHide: 'Ausblenden',
+  menuReset: 'Zurücksetzen',
+  menuNote:
+    'Ausgeblendete Einträge behalten ihren Platz und erscheinen beim erneuten Anzeigen wieder dort. In der Standardreihenfolge steht „Chat" vorn.',
   voiceTitle: 'Sprachausgabe',
   voiceHint:
     'Drei Schalter und eine Stimme: Der Hauptschalter steuert die automatische Ausgabe, die beiden Unterschalter je eine Art proaktiver Meldung. Standardmäßig alle aus; wird beim „Speichern" in die Benutzerkonfiguration geschrieben (kein sofortiges Schreiben).',
