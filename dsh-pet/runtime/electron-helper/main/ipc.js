@@ -192,6 +192,20 @@ function registerIpc({ ipcMain, petWindows, shell, openTarget, petRoute }) {
   });
 
   /**
+   * 屏幕坐标 → 该坐标所在显示器的工作区（与 deskGeometry 同一坐标系）。
+   * 浏览器半侧只知道自己的窗口坐标，桌面宠物用它把「跟随 DSH 窗口所在屏」变成角落锚点。
+   */
+  ipcMain.handle('pet:display-at', (event, point) => {
+    const x = Number(point && point.x);
+    const y = Number(point && point.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const display = screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) });
+    const area = display && display.workArea;
+    if (!area || !(area.width > 0) || !(area.height > 0)) return null;
+    return { x: area.x, y: area.y, width: area.width, height: area.height };
+  });
+
+  /**
    * 截一帧桌面：只取宠物所在那块屏，按物理像素请求缩略图，回一次 JPEG base64。
    * 不做流、不落盘；渲染端拿到后与上传图片走同一条预算编码。
    */

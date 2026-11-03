@@ -20,6 +20,8 @@ import { createPetLookup } from './plugin/pet-lookup.ts';
 import { createDownloadReport } from './plugin/download-report.ts';
 import { createWorkStatusBridge } from './plugin/work-status-bridge.ts';
 import { registerTodoReminders } from './plugin/todo-reminders.ts';
+import { registerScheduleReminders } from './plugin/schedule-reminders.ts';
+import { createRequestHub } from './request-hub.ts';
 import { createVoiceService } from './voice/speak.ts';
 import { createHearService } from './voice/hear.ts';
 import { TODO_FILE_NAME, TodoStore } from './todo/store.ts';
@@ -95,6 +97,34 @@ export function apply(ctx: any): void {
   });
   const { startHelper, stopHelper, markDisposed } = desktopHelper;
 
+  // 审批 / 提问气泡：宿主 prepend 抢在 DSH 内置面板之前拿到会话请求，转成 /state 里的
+  // sections.request，由宠物气泡作答；不接管（关开关 / 没端在线 / 已有待处理）就 next() 回落。
+  const requests = createRequestHub({
+    state,
+    log,
+    enabled: () => readAllConfig(configPaths).main?.requestBubbleEnabled === true,
+    hasClient: () => state.waiterCount(),
+  });
+  ctx.effect(
+    () => {
+      const offApproval = ctx.on(
+        'approval/request',
+        (req: unknown, next: () => unknown) => requests.interceptApproval(req, next),
+        true,
+      );
+      const offQuestions = ctx.on(
+        'user-questions/request',
+        (req: unknown, next: () => unknown) => requests.interceptQuestions(req, next),
+        true,
+      );
+      return () => {
+        offApproval();
+        offQuestions();
+      };
+    },
+    'dsh-pet: user requests',
+  );
+
   const deps: PetRouteDeps = {
     ...setup,
     ...petLookup,
@@ -105,6 +135,7 @@ export function apply(ctx: any): void {
     ...sessionNotify,
     ctx,
     todos,
+    requests,
     // 语音合成：缓存落 userRoot，失败只留日志，不打断宿主
     voice: createVoiceService({ userRoot, log }),
     // 语音识别：能力来自宿主（DSH 的 speechToText），没启用时服务自己在调用时回 unsupported
@@ -162,6 +193,15 @@ export function apply(ctx: any): void {
     state,
     todos,
     waiterCount: () => state.waiterCount(),
+  });
+
+  // 定时任务提醒：跟 DSH 的 schedule 目录对表，到点在气泡里叫一声；开关现读现用。
+  registerScheduleReminders({
+    ctx,
+    state,
+    log,
+    enabled: () => readAllConfig(configPaths).main?.scheduleRemindersEnabled === true,
+    hasClient: () => state.waiterCount(),
   });
 
   registerLifecycle({

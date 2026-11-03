@@ -158,6 +158,12 @@ export const es: Record<Key, string> = {
   trayToggle: 'Bandeja del sistema',
   trayToggleHint:
     'Muestra un icono en la bandeja (área de notificaciones en Windows, barra de menús en macOS) cuando el modo escritorio está activo. Lista todas las mascotas de la configuración y alterna cada una entre escritorio y web/ninguno, incluidas las que ahora no están en el escritorio y no tienen ventana donde hacer clic derecho. Con esto desactivado, para devolver una mascota al escritorio hay que abrir el navegador (la página de configuración o el clic derecho sobre la mascota web). Windows ya oculta los iconos de terceros en «iconos ocultos». Solo afecta al modo escritorio.',
+  requestBubbleToggle: 'Burbuja de aprobación',
+  requestBubbleToggleHint:
+    'Cuando una llamada a herramienta necesita tu aprobación, o la IA hace una pregunta, la mascota muestra las opciones justo encima: pulsa «Permitir una vez / Rechazar» o elige una opción y la respuesta vuelve al instante a la sesión. Solo toma el control si hay una página de mascota en línea; si no, o si el interruptor está apagado o ya hay otra solicitud pendiente, decide el panel nativo de DSH.',
+  scheduleReminderToggle: 'Recordatorios de tareas',
+  scheduleReminderToggleHint:
+    'Cuando vence una tarea creada con schedule_create, la mascota muestra un recordatorio (solo avisa; quien lanza la sesión sigue siendo el planificador de DSH). Los cambios de hora se reajustan solos; se omite si no hay mascota en línea y se recupera al volver. Se escribe en la configuración al «Guardar».',
   voiceTitle: 'Voz',
   voiceHint:
     'Tres interruptores y una voz: el maestro controla la locución automática y los dos secundarios controlan un tipo de mensaje proactivo cada uno. Todo desactivado por defecto; se escribe en la configuración del usuario al "Guardar" (nunca al instante).',
@@ -263,6 +269,13 @@ export const es: Record<Key, string> = {
   notifyDenyError: 'Error al solicitar permiso',
   notifyGuide:
     'Guía: haz clic en el icono 🔒/ⓘ junto a la barra de direcciones → Configuración del sitio → Notificaciones → cámbialo a «Permitir» y luego recarga la página y reintenta.',
+  homeLabel: 'Directorio de datos',
+  homeHint: 'Dónde se guardan la configuración, las tareas, la memoria y los memes. Déjalo vacío para el valor predeterminado; reinicia DSH para aplicarlo.',
+  homeApply: 'Aplicar',
+  homeReset: 'Usar predeterminado',
+  homeSaved: 'Guardado. Reinicia DSH para aplicarlo.',
+  homeFailed: 'No se pudo guardar: usa una ruta absoluta con permiso de escritura.',
+  homeEnvLocked: 'El directorio está fijado por la variable de entorno DSH_PET_HOME.',
   storageTitle: 'Desinstalación y almacenamiento',
   storageHint:
     'Todas las ubicaciones que escribe este plugin. Borrar las cachés no rompe nada (se vuelven a descargar/reconstruir); borrar los «datos de usuario del plugin» pierde la configuración y la memoria del chat.',

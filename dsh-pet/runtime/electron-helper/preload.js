@@ -58,6 +58,10 @@ contextBridge.exposeInMainWorld('petBridge', {
   focusDshHost() {
     ipcRenderer.send('pet:focus-host');
   },
+  // 屏幕坐标 → 该点所在显示器的工作区（与桌面几何同一坐标系）；null 表示坐标非法。
+  displayAt(x, y) {
+    return ipcRenderer.invoke('pet:display-at', { x, y });
+  },
   // 截一帧桌面（宠物所在那块屏）：一次性读取，不建流、不留存。
   // 返回 { mediaType, data, width, height, bytes } 或 null（取不到画面）。
   captureScreen() {

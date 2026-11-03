@@ -50,6 +50,11 @@ Object.assign(PetSprite.prototype, {
     window.__dshPetDebug.tooltipOn = this.tipOn;
   },
   renderBubble() {
+    // 审批/提问请求优先级最高：它是等用户回话的，不接管就会卡住 DSH 那一轮。
+    if (this.requestEnvelope) {
+      this.renderRequestBubble();
+      return;
+    }
     // 待办面板占气泡槽且优先级最高：它是用户主动打开的窗口，其余气泡一律让位。
     // 面板是外部塞进来的 DOM，重建 innerHTML 会把它自己抹掉，所以这一段只补显隐与让位。
     this.bubble.classList.toggle('dsh-pet-todo-bubble', this.todoOpen);
@@ -58,6 +63,11 @@ Object.assign(PetSprite.prototype, {
       this.bubble.classList.add('is-on');
       window.__dshPetDebug.lastBubbleTitle = '待办事项';
       this.syncInputBusy();
+      return;
+    }
+    // 定时任务提醒：到点由宿主写 sections.reminder，展示期间盖过工作/碎碎念气泡（它本来就是来抢注意的）。
+    if (this.reminderEnvelope) {
+      this.renderReminderBubble();
       return;
     }
     // 气泡单槽：同一时刻只显示一个（优先级：终态任务 > 碎碎念/对话 > 余额 > 非终态任务）。
@@ -232,5 +242,167 @@ Object.assign(PetSprite.prototype, {
     window.__dshPetDebug.lastBubbleTitle = this.bubble.textContent.slice(0, 60);
     // 气泡内容/尺寸变了 → 重报控件矩形并同步 busy 标记。这里是所有显隐与换内容的汇聚点。
     this.syncInputBusy();
+  },
+
+  /** 小工具：造一个元素并挂类名/文本。 */
+  bubbleEl(tag, cls, text) {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  },
+
+  /** 小工具：造一个参与请求回答的按钮。 */
+  bubbleButton(label, cls, action) {
+    const btn = this.bubbleEl('button', 'pet-bub-btn' + (cls ? ' ' + cls : ''), label);
+    btn.type = 'button';
+    btn.dataset.reqAction = action;
+    return btn;
+  },
+
+  /**
+   * 审批 / 提问气泡：把宿主 `sections.request` 的信封画成可直接点的选项。
+   * 按钮点击由 init.js 的 bubble click 分流到 onRequestAction（窗口穿透已由 is-clickable 登记）。
+   */
+  renderRequestBubble() {
+    const req = this.requestEnvelope;
+    this.bubble.classList.remove('is-whisper', 'is-expanded', S.MEME_BUBBLE_CLASS, 'dsh-pet-todo-bubble');
+    this.bubble.classList.add('is-on', 'is-request', 'is-clickable');
+    this.bubbleSlot = 'request';
+    this.bubble.innerHTML = '';
+    const wrap = this.bubbleEl('div', 'pet-bub-req');
+    const head = this.bubbleEl('div', 'pet-bub-req__head');
+    const isQuestion = req.kind === 'question';
+    head.appendChild(
+      this.bubbleEl('span', 'pet-bub-req__badge' + (isQuestion ? ' is-question' : ''), isQuestion ? '提问' : '审批'),
+    );
+    head.appendChild(
+      this.bubbleEl('span', 'pet-bub-req__title', isQuestion ? '宠物需要你选一下' : req.toolName || '需要确认'),
+    );
+    wrap.appendChild(head);
+    if (!isQuestion) {
+      wrap.appendChild(this.bubbleEl('div', 'pet-bub-req__text', req.reason || '是否允许这次操作？'));
+      const actions = this.bubbleEl('div', 'pet-bub-req__actions');
+      actions.append(
+        this.bubbleButton('允许一次', 'is-primary', 'approve'),
+        this.bubbleButton('拒绝', '', 'reject'),
+        this.bubbleButton('去 DSH', 'is-ghost', 'delegate'),
+      );
+      wrap.appendChild(actions);
+    } else {
+      const questions = req.questions || [];
+      const picksFor = (qid) => this.requestPicks[qid] || [];
+      for (const q of questions) {
+        const box = this.bubbleEl('div', 'pet-bub-req__q');
+        if (q.header) box.appendChild(this.bubbleEl('div', 'pet-bub-req__qhead', q.header));
+        box.appendChild(this.bubbleEl('div', 'pet-bub-req__text', q.question));
+        const opts = this.bubbleEl('div', 'pet-bub-req__actions');
+        for (const opt of q.options || []) {
+          const picked = picksFor(q.id).includes(opt.label);
+          const btn = this.bubbleButton(opt.label, 'pet-bub-opt' + (picked ? ' is-picked' : ''), 'pick');
+          btn.dataset.reqQ = q.id;
+          btn.dataset.reqValue = opt.label;
+          if (opt.description) btn.title = opt.description;
+          opts.appendChild(btn);
+        }
+        box.appendChild(opts);
+        wrap.appendChild(box);
+      }
+      const ready = questions.length > 0 && questions.every((q) => picksFor(q.id).length > 0);
+      const actions = this.bubbleEl('div', 'pet-bub-req__actions');
+      const send = this.bubbleButton('发送', 'is-primary', 'send');
+      if (!ready) send.disabled = true;
+      actions.append(send, this.bubbleButton('去 DSH', 'is-ghost', 'delegate'));
+      wrap.appendChild(actions);
+    }
+    this.bubble.appendChild(wrap);
+    window.__dshPetDebug.lastBubbleTitle = this.bubble.textContent.slice(0, 60);
+    this.syncInputBusy();
+  },
+
+  /** 定时任务提醒气泡：标题 + 摘要 + 到点时刻，不参与点击。 */
+  renderReminderBubble() {
+    const rem = this.reminderEnvelope;
+    this.bubble.classList.remove('is-whisper', 'is-clickable', 'is-expanded', S.MEME_BUBBLE_CLASS, 'is-request');
+    this.bubble.classList.add('is-on');
+    this.bubbleSlot = 'reminder';
+    this.bubble.innerHTML = '';
+    const wrap = this.bubbleEl('div', 'pet-bub-req');
+    wrap.appendChild(this.bubbleEl('div', 'pet-bub-rem__title', '⏰ ' + (rem.title || '定时提醒')));
+    const text = rem.prompt && rem.prompt !== rem.title ? rem.prompt : '';
+    if (text) wrap.appendChild(this.bubbleEl('div', 'pet-bub-rem__text', text));
+    const when = rem.scheduledAt ? new Date(rem.scheduledAt) : new Date(rem.ts);
+    if (!Number.isNaN(when.getTime())) {
+      wrap.appendChild(
+        this.bubbleEl('div', 'pet-bub-rem__time', when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+      );
+    }
+    this.bubble.appendChild(wrap);
+    window.__dshPetDebug.lastBubbleTitle = this.bubble.textContent.slice(0, 60);
+    this.syncInputBusy();
+  },
+
+  /** 请求气泡的按钮分流：选选项、发送、允许/拒绝、交给 DSH。 */
+  onRequestAction(action, qid, value) {
+    const req = this.requestEnvelope;
+    if (!req || this.requestPending) return;
+    if (action === 'delegate') {
+      this.submitRequestAnswer({ id: req.id, kind: req.kind, cancel: true });
+      return;
+    }
+    if (req.kind === 'approval') {
+      if (action !== 'approve' && action !== 'reject') return;
+      this.submitRequestAnswer({
+        id: req.id,
+        kind: 'approval',
+        outcome: action === 'approve' ? 'allowed-once' : 'rejected',
+      });
+      return;
+    }
+    if (action === 'pick') {
+      const q = (req.questions || []).find((item) => item.id === qid);
+      if (!q) return;
+      const picks = this.requestPicks[qid] || [];
+      let next;
+      if (q.multiSelect) next = picks.includes(value) ? picks.filter((v) => v !== value) : picks.concat(value);
+      else next = picks.includes(value) ? [] : [value];
+      this.requestPicks[qid] = next;
+      this.renderBubble();
+      return;
+    }
+    if (action === 'send') {
+      const answers = [];
+      for (const q of req.questions || []) {
+        const picks = this.requestPicks[q.id] || [];
+        if (picks.length === 0) return;
+        answers.push({ id: q.id, selected: picks });
+      }
+      if (answers.length === 0) return;
+      this.submitRequestAnswer({ id: req.id, kind: 'question', answers });
+    }
+  },
+
+  /** POST 回答；成功后乐观收起，宿主随后会写 closed 信封做最终清理。 */
+  submitRequestAnswer(body) {
+    this.requestPending = true;
+    fetch(BASE + '/request/answer', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json && json.ok) {
+          this.requestEnvelope = null;
+          this.requestPicks = {};
+          this.requestPending = false;
+          this.renderBubble();
+          return;
+        }
+        this.requestPending = false;
+      })
+      .catch(() => {
+        this.requestPending = false;
+      });
   },
 });

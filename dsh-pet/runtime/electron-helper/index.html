@@ -295,6 +295,119 @@
         height: 100%;
         background: #b4703c;
       }
+      /* ---- 请求气泡（审批 / 提问）与定时提醒：与网页端 request-bubble.ts 同一套视觉 ----
+         请求气泡必须可点：窗口级穿透由主进程按控件矩形翻转，类名 is-clickable 是渲染端登记矩形的唯一入口 */
+      .pet-bubble.is-request {
+        width: min(calc(var(--f) * 20), 100%);
+        max-width: 100%;
+        pointer-events: auto;
+      }
+      .pet-bub-req {
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--f) * 0.32);
+        max-height: calc(var(--f) * 9.2);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .pet-bub-req__head {
+        display: flex;
+        align-items: center;
+        gap: calc(var(--f) * 0.35);
+      }
+      .pet-bub-req__badge {
+        flex: none;
+        font-size: calc(var(--f) * 0.72);
+        font-weight: 700;
+        color: #fff;
+        background: #4a6cf7;
+        border-radius: 999px;
+        padding: 0 calc(var(--f) * 0.4);
+        line-height: 1.5;
+      }
+      .pet-bub-req__badge.is-question {
+        background: #e8952f;
+      }
+      .pet-bub-req__title {
+        font-weight: 700;
+        font-size: calc(var(--f) * 0.95);
+        overflow-wrap: anywhere;
+      }
+      .pet-bub-req__text {
+        font-size: calc(var(--f) * 0.86);
+        line-height: 1.5;
+        opacity: 0.85;
+        overflow-wrap: break-word;
+      }
+      .pet-bub-req__q {
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--f) * 0.18);
+      }
+      .pet-bub-req__qhead {
+        font-size: calc(var(--f) * 0.8);
+        font-weight: 700;
+        opacity: 0.7;
+      }
+      .pet-bub-req__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: calc(var(--f) * 0.28);
+        margin-top: calc(var(--f) * 0.12);
+      }
+      .pet-bub-btn {
+        appearance: none;
+        border: 1px solid rgba(43, 43, 43, 0.18);
+        background: rgba(255, 255, 255, 0.9);
+        color: #2b2b2b;
+        border-radius: calc(var(--f) * 0.45);
+        padding: calc(var(--f) * 0.16) calc(var(--f) * 0.55);
+        font: inherit;
+        font-size: calc(var(--f) * 0.82);
+        line-height: 1.5;
+        cursor: pointer;
+      }
+      .pet-bub-btn:hover {
+        background: #fff;
+        border-color: rgba(43, 43, 43, 0.32);
+      }
+      .pet-bub-btn.is-primary {
+        background: #4a6cf7;
+        border-color: #4a6cf7;
+        color: #fff;
+      }
+      .pet-bub-btn.is-primary:hover {
+        background: #3d5ce0;
+      }
+      .pet-bub-btn.is-ghost {
+        border-color: transparent;
+        background: transparent;
+        opacity: 0.7;
+      }
+      .pet-bub-btn[disabled] {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .pet-bub-opt {
+        text-align: left;
+      }
+      .pet-bub-opt.is-picked {
+        border-color: #4a6cf7;
+        background: rgba(74, 108, 247, 0.12);
+      }
+      .pet-bub-rem__title {
+        font-weight: 700;
+        font-size: calc(var(--f) * 0.95);
+      }
+      .pet-bub-rem__text {
+        font-size: calc(var(--f) * 0.85);
+        opacity: 0.82;
+        overflow-wrap: break-word;
+      }
+      .pet-bub-rem__time {
+        font-size: calc(var(--f) * 0.72);
+        opacity: 0.55;
+      }
       /* 配置错误提示（大声报错，不做静默兜底）：配置缺失/非法时显示，每 5s 自动重试 */
       .pet-error {
         position: fixed;

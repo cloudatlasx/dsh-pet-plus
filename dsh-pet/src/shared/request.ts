@@ -1,0 +1,182 @@
+/**
+ * 交互请求（审批 / 提问）与定时提醒的气泡载荷：两端共用的形状与读取口径。
+ *
+ * 宿主把要用户拍板的事写进 `sections.request`，把到点的定时任务写进 `sections.reminder`；
+ * 页面轮询读到后在宠物气泡里给出按钮，用户点完 POST 回宿主，宿主再把结论交给 DSH。
+ * 叶子只有一份槽位：同一时刻最多一条请求，新请求覆盖旧请求（宿主侧保证不会并发写）。
+ *
+ * 结束态用 `closed: true` 的同一 id 信封表达，而不是把 data 写回 null——轮询比对会跳过
+ * null 叶子（见 shared/state 的 takeChanged），写 null 客户端永远收不到「收起」这一拍。
+ * @module dsh-pet/src/shared/request
+ */
+import type { StateLeaf } from './state.ts';
+
+/** 审批结论（与 DSH ApprovalService 的结果词表一致，另加一个只在本插件内部使用的 delegate）。 */
+export type ApprovalOutcome = 'allowed-once' | 'rejected' | 'delegate';
+
+/** 一个可选项。 */
+export interface QuestionOption {
+  /** 选项文案，也是回传答案里的 selected 值。 */
+  label: string;
+  /** 补充说明。 */
+  description?: string;
+}
+
+/** 一道问题；字段与 DSH user-questions 的 request 对齐。 */
+export interface QuestionPrompt {
+  /** 问题 id，回传答案时原样带回。 */
+  id: string;
+  /** 问题正文。 */
+  question: string;
+  /** 细节（如方案全文）。 */
+  detail?: string;
+  /** 短标题。 */
+  header?: string;
+  /** 选项；缺省表示自由回答。 */
+  options?: QuestionOption[];
+  /** 是否多选。 */
+  multiSelect?: boolean;
+}
+
+/** 一条待用户处理的请求。 */
+export interface RequestEnvelope {
+  /** 本次请求 id；回答时原样带回，宿主据此丢弃过期回答。 */
+  id: string;
+  /** 请求类型。 */
+  kind: 'approval' | 'question';
+  /** 写入时刻（ms）。 */
+  ts: number;
+  /** 到这里还没人回答，宿主就撤掉气泡回落到 DSH 面板（ms）。 */
+  expiresAt: number;
+  /** kind = approval 时的工具名。 */
+  toolName?: string;
+  /** kind = approval 时的理由。 */
+  reason?: string;
+  /** kind = question 时的问题列表。 */
+  questions?: QuestionPrompt[];
+  /** 预览（设置页「试一下」）：不等待真实回答，点任意按钮只收起。 */
+  preview?: boolean;
+  /** 结束标记：读到它即视为没有待处理请求。 */
+  closed?: boolean;
+}
+
+/** 一道题的答案。 */
+export interface QuestionAnswer {
+  /** 对应 QuestionPrompt.id。 */
+  id: string;
+  /** 选中的选项文案；自由回答时为空数组。 */
+  selected: string[];
+  /** 用户自己写的答案，覆盖或补充选项。 */
+  custom?: string;
+}
+
+/** 回答请求的请求体。 */
+export type RequestAnswerPayload =
+  | { id: string; kind: 'approval'; outcome: ApprovalOutcome }
+  | { id: string; kind: 'question'; answers: QuestionAnswer[] }
+  | { id: string; kind: 'approval' | 'question'; cancel: true };
+
+/** 一条到点的定时任务提醒。 */
+export interface ReminderEnvelope {
+  /** 提醒 id（由任务 id + 计划时刻拼成，同一条任务的不同次提醒不同）。 */
+  id: string;
+  /** 固定为 schedule。 */
+  kind: 'schedule';
+  /** 写入时刻（ms）。 */
+  ts: number;
+  /** 任务标题。 */
+  title: string;
+  /** 任务提示词摘要。 */
+  prompt?: string;
+  /** 计划时刻（RFC 3339 UTC）。 */
+  scheduledAt?: string;
+  /** 结束标记。 */
+  closed?: boolean;
+}
+
+/** 从字符串数组里挑出非空字符串。 */
+function labelsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item === 'string' && item.trim() !== '') out.push(item);
+  }
+  return out;
+}
+
+/** 类型收窄：请求叶子 → 请求信封；形状非法或已结束 → null。 */
+export function readRequest(leaf: StateLeaf): RequestEnvelope | null {
+  if (!leaf.data || typeof leaf.data !== 'object') return null;
+  const d = leaf.data as Record<string, unknown>;
+  if (d.closed === true) return null;
+  if (typeof d.id !== 'string' || d.id === '') return null;
+  if (d.kind !== 'approval' && d.kind !== 'question') return null;
+  if (typeof d.ts !== 'number' || !Number.isFinite(d.ts)) return null;
+  const expiresAt = typeof d.expiresAt === 'number' && Number.isFinite(d.expiresAt) ? d.expiresAt : d.ts;
+  const out: RequestEnvelope = {
+    id: d.id,
+    kind: d.kind,
+    ts: d.ts,
+    expiresAt,
+    ...(d.preview === true ? { preview: true } : {}),
+  };
+  if (d.kind === 'approval') {
+    out.toolName = typeof d.toolName === 'string' ? d.toolName : '';
+    out.reason = typeof d.reason === 'string' ? d.reason : undefined;
+    return out;
+  }
+  const rawQuestions = Array.isArray(d.questions) ? d.questions : [];
+  const questions: QuestionPrompt[] = [];
+  for (const item of rawQuestions) {
+    if (!item || typeof item !== 'object') continue;
+    const q = item as Record<string, unknown>;
+    if (typeof q.id !== 'string' || q.id === '' || typeof q.question !== 'string') continue;
+    const opts: QuestionOption[] = [];
+    if (Array.isArray(q.options)) {
+      for (const o of q.options) {
+        if (!o || typeof o !== 'object') continue;
+        const opt = o as Record<string, unknown>;
+        if (typeof opt.label !== 'string' || opt.label === '') continue;
+        opts.push({
+          label: opt.label,
+          description: typeof opt.description === 'string' ? opt.description : undefined,
+        });
+      }
+    }
+    questions.push({
+      id: q.id,
+      question: q.question,
+      detail: typeof q.detail === 'string' ? q.detail : undefined,
+      header: typeof q.header === 'string' ? q.header : undefined,
+      options: opts.length > 0 ? opts : undefined,
+      multiSelect: q.multiSelect === true,
+    });
+  }
+  // 一道题都没读出来 = 坏形状：吞掉它，免得用户面对一个没有内容的空面板。
+  if (questions.length === 0) return null;
+  out.questions = questions;
+  return out;
+}
+
+/** 类型收窄：提醒叶子 → 提醒信封；形状非法或已结束 → null。 */
+export function readReminder(leaf: StateLeaf): ReminderEnvelope | null {
+  if (!leaf.data || typeof leaf.data !== 'object') return null;
+  const d = leaf.data as Record<string, unknown>;
+  if (d.closed === true) return null;
+  if (typeof d.id !== 'string' || d.id === '') return null;
+  if (d.kind !== 'schedule') return null;
+  if (typeof d.title !== 'string' || d.title.trim() === '') return null;
+  return {
+    id: d.id,
+    kind: 'schedule',
+    ts: typeof d.ts === 'number' && Number.isFinite(d.ts) ? d.ts : Date.now(),
+    title: d.title,
+    prompt: typeof d.prompt === 'string' && d.prompt.trim() !== '' ? d.prompt : undefined,
+    scheduledAt: typeof d.scheduledAt === 'string' ? d.scheduledAt : undefined,
+  };
+}
+
+/** 收窄答案里的选项：非空字符串数组。 */
+export function answerLabels(value: unknown): string[] {
+  return labelsOf(value);
+}

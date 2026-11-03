@@ -421,6 +421,59 @@ function applyMenuLeaf(leaf) {
   for (const s of sprites) s.menuItems = items;
 }
 
+/** 审批 / 提问请求叶子：非 closed 就画成可点气泡，closed 就收起。
+ *  请求是持续状态（用户不点就一直挂着），所以不设自动消失计时。 */
+function applyRequestLeaf(leaf) {
+  const data = leaf ? leaf.data : null;
+  const req = data && data.closed !== true ? data : null;
+  for (const s of sprites) {
+    if (req) {
+      // 待办面板占着同一个气泡槽：请求优先，先正常关掉面板（面板会自己收节点、撤类）。
+      if (s.todoOpen) s.closeTodo();
+      s.requestPicks = s.requestEnvelope && s.requestEnvelope.id === req.id ? s.requestPicks : {};
+      if (!s.requestEnvelope || s.requestEnvelope.id !== req.id) s.playClickSound();
+    }
+    s.requestPending = false;
+    s.requestEnvelope = req;
+    if (!req) s.requestPicks = {};
+    s.renderBubble();
+    s.syncInputBusy();
+  }
+}
+
+/** 定时任务提醒叶子：到点亮 20s（宿主那边也是 20s 后写 closed），提醒一声就收。 */
+function applyReminderLeaf(leaf) {
+  const data = leaf ? leaf.data : null;
+  const reminder = data && data.closed !== true ? data : null;
+  for (const s of sprites) {
+    if (s.reminderTimer !== null) {
+      window.clearTimeout(s.reminderTimer);
+      s.reminderTimer = null;
+    }
+    if (s.reminderSoundTimer) {
+      window.clearTimeout(s.reminderSoundTimer);
+      s.reminderSoundTimer = null;
+    }
+    s.reminderEnvelope = reminder;
+    if (reminder) {
+      // 连响两声：任务提醒可能盖过环境音，单声容易被错过；与点击共用同一份音效与开关。
+      s.playClickSound();
+      s.reminderSoundTimer = window.setTimeout(() => {
+        s.reminderSoundTimer = null;
+        if (s.reminderEnvelope && s.reminderEnvelope.id === reminder.id) s.playClickSound();
+      }, 380);
+      s.reminderTimer = window.setTimeout(() => {
+        s.reminderTimer = null;
+        if (s.reminderEnvelope && s.reminderEnvelope.id === reminder.id) {
+          s.reminderEnvelope = null;
+          s.renderBubble();
+        }
+      }, 20000);
+    }
+    s.renderBubble();
+  }
+}
+
 /** 跑一拍 /state。返回 true = 按长轮询命中（宿主支持长轮询，可以立刻再请求）。 */
 async function pollStateOnce() {
   try {
@@ -449,6 +502,8 @@ async function pollStateOnce() {
       if (change.path === 'sections.balance') applyBalanceLeaf(change.leaf);
       else if (change.path === 'sections.workStatus') applyWorkStatusLeaf(change.leaf);
       else if (change.path === 'sections.menu') applyMenuLeaf(change.leaf);
+      else if (change.path === 'sections.request') applyRequestLeaf(change.leaf);
+      else if (change.path === 'sections.reminder') applyReminderLeaf(change.leaf);
       else if (change.path.startsWith('pets.') && change.path.endsWith('.say')) {
         // 宠物 id 允许含点号：按前缀/后缀切片，绝不 split('.')
         applySayLeaf(change.path.slice('pets.'.length, -'.say'.length), change.leaf);
@@ -476,6 +531,38 @@ async function pollStateOnce() {
   }
 }
 
+/** 锚定屏：浏览器上报「DSH 窗口在哪块屏」，桌面宠物默认摆到那块屏的角落。
+ *  优先让主进程按窗口坐标找屏（与桌面几何同坐标系），拿不到再用上报的工作区原值；
+ *  只在结果变化时重摆未拖拽过的宠物，拖过的保持用户放的位置。 */
+let anchorTimer = null;
+async function refreshAnchor() {
+  try {
+    const res = await fetch(BASE + '/anchor', { cache: 'no-store' });
+    if (!res.ok) return;
+    const body = await res.json();
+    const reported = body && body.area;
+    if (!reported) return;
+    let area = null;
+    if (
+      Number.isFinite(reported.windowX) &&
+      Number.isFinite(reported.windowY) &&
+      window.petBridge &&
+      typeof window.petBridge.displayAt === 'function'
+    ) {
+      try {
+        area = await window.petBridge.displayAt(reported.windowX, reported.windowY);
+      } catch {
+        /* IPC 不可用时退回上报值 */
+      }
+    }
+    if (!area) area = reported;
+    if (!setAnchorArea(area)) return;
+    for (const s of sprites) if (!s.customPos) s.position();
+  } catch {
+    /* 上报还没来或宿主不可达：下一拍再试，角落保持主屏 */
+  }
+}
+
 function startLoops() {
   if (loopsStarted) return;
   loopsStarted = true;
@@ -491,6 +578,10 @@ function startLoops() {
   S.subscribeVoiceUtterance((event) => {
     for (const s of sprites) if (s.whisperText === event.text) s.applyWhisperHold(event);
   });
+
+  // 锚定屏 5 秒对一次：多屏切换、拔插屏后宠物跟随 DSH 窗口；未拖拽过的宠物才重摆。
+  void refreshAnchor();
+  if (anchorTimer === null) anchorTimer = setInterval(() => void refreshAnchor(), 5000);
 
   // 统一轮询是自调度的长轮询（请求 → 处理 → 立刻再请求）：宿主在版本没变时挂起，空闲时
   // 1 请求/秒，叶子一变立刻收到。本窗口只装一只宠物，所以每个窗口各跑一份；全局计数器意味着

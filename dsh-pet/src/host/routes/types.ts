@@ -8,6 +8,7 @@
  */
 import type { ChatMemoryMessage } from '../chat.ts';
 import type { ConfigPaths } from '../config.ts';
+import type { PetHomeInfo } from '../home.ts';
 import type { RouteResult } from '../http.ts';
 import type { PetImageRef } from '../image-attachment.ts';
 import type { LockStore } from '../lock.ts';
@@ -15,6 +16,7 @@ import type { FileLogger } from '../log-file.ts';
 import type { MenuRegistry } from '../menu.ts';
 import type { PlaybackStore } from '../playback.ts';
 import type { PoseStore } from '../pose.ts';
+import type { RequestHub } from '../request-hub.ts';
 import type { SleepStore } from '../sleep.ts';
 import type { PollStateStore } from '../state.ts';
 import type { VoiceTarget } from '../surface.ts';
@@ -162,4 +164,8 @@ export interface PetRouteDeps {
   readonly voice: VoiceService;
   /** 语音识别服务（音频转文字；宿主没启用语音输入时由它自己回 unsupported）。 */
   readonly speech: HearService;
+  /** 审批 / 提问气泡的中转站：回答入口与会话瀑布监听都在里面。 */
+  readonly requests: RequestHub;
+  /** 用户数据根（设置页「存储位置」与切换指针）。 */
+  readonly home: PetHomeInfo;
 }

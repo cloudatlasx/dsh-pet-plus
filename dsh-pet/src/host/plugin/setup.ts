@@ -6,13 +6,13 @@
  * 必须始终成立：日志只创建一次——复用到 standalone 挂上的 logger 时不得再建第二个。
  * @module dsh-pet/src/host/plugin/setup
  */
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
 import { listBalanceProviders, registerBalanceProvider } from '../balance/index.ts';
 import { listVoiceProviders, registerVoiceProvider } from '../voice/registry.ts';
 import { listSpeechProviders, registerSpeechProvider } from '../voice/speech-registry.ts';
 import { migrateUserConfig, type ConfigPaths } from '../config.ts';
+import { resolvePetHome, type PetHomeInfo } from '../home.ts';
 import { createFileLogger, isFileLogger, setDefaultLogger, type FileLogger, type LoggerLike } from '../log-file.ts';
 import { MenuRegistry } from '../menu.ts';
 import { PACKAGE_MEMES_DIR, PACKAGE_ROOT } from '../paths.ts';
@@ -44,6 +44,8 @@ export interface StandaloneBalanceAuth {
 export interface HostSetup {
   /** 本插件的数据根（配置与用户素材都收敛于此） */
   readonly userRoot: string;
+  /** 数据根的来源与默认位置（设置页「存储位置」用） */
+  readonly home: PetHomeInfo;
   /** 插件日志出口（文件 + 终端） */
   readonly log: FileLogger;
   /** 配置路径集 */
@@ -84,10 +86,12 @@ export interface HostSetup {
  * @returns 日志、路径、store 与两个工具函数。
  */
 export function createHostSetup(ctx: HostSetupContext): HostSetup {
-  // 用户数据根：配置与用户素材统一收敛于此（扩展包按 <插件id> 各自建目录）
-  const dshHome = resolveDshHome();
-
-  const userRoot = join(dshHome, 'dsh-pet');
+  // 用户数据根：配置与用户素材统一收敛于此（扩展包按 <插件id> 各自建目录）。
+  // 位置可被 DSH_PET_HOME 或默认根下的 home.json 指针覆盖（见 ../home.ts），这里只解析一次。
+  const home = resolvePetHome();
+  const userRoot = home.dir;
+  // 指针可能指向一个尚未创建的目录：先建出来，后续 mkdir 才有落点。
+  mkdirSync(userRoot, { recursive: true });
 
   // 统一日志出口（单文件、按大小截断，见 ./log-file）：桌面版 DSH 没有控制台，ctx.logger 只写
   // stdout 等于把排障信息丢掉；base 保留终端输出。
@@ -229,6 +233,7 @@ export function createHostSetup(ctx: HostSetupContext): HostSetup {
 
   return {
     userRoot,
+    home,
     log,
     configPaths,
     userConfigPath,

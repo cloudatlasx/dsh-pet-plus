@@ -192,6 +192,12 @@ export function topFieldValid(key: string, value: unknown): boolean {
     case 'trayEnabled':
       // 桌面模式系统托盘开关（main 条目顶层；helper 读它决定建不建托盘图标）
       return typeof value === 'boolean';
+    case 'requestBubbleEnabled':
+      // 审批 / 提问的交互气泡开关（全局布尔）：关掉就全部回落 DSH 自己的面板
+      return typeof value === 'boolean';
+    case 'scheduleRemindersEnabled':
+      // 定时任务到点的宠物提醒开关（全局布尔）
+      return typeof value === 'boolean';
     case 'animations':
       return animationsValid(value);
     case 'animationWeights':

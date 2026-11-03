@@ -19,7 +19,7 @@ export const zh = {
   globalTitle: '全局开关',
   globalHint:
     '所有宠物共用（pet pack 可在自己种类文件里单独覆盖）。这几个开关只改本地状态，随「保存」整包写入用户配置（不做即时写入）；系统通知在保存后即时重读，无需刷新页面。',
-  cornerHint: '宠物贴着屏幕的哪个角（桌面端按各自显示器的工作区算）。',
+  cornerHint: '宠物贴着哪个角；桌面端跟随 DSH 窗口所在的那块屏幕（多屏时以它为准），拿不到时用主屏。',
   marginXHint: '距所选角落的水平距离（px），可为任意数字。',
   marginYHint: '距所选角落的垂直距离（px），可为任意数字。',
   // 「/」命令菜单的行标题（图标由 app.ts 经 command-faces.ts 补上）。
@@ -145,6 +145,12 @@ export const zh = {
   trayToggle: '系统托盘',
   trayToggleHint:
     '桌面模式启动后在通知区域（macOS 为菜单栏）常驻一个图标，列出配置里的全部宠物，勾选就能切换显示位置——包括当前不在桌面、没有窗口可右键的那些。关掉之后要把宠物叫回桌面，只能开浏览器用设置页，或在网页端那只宠物身上右键。Windows 本来就会把它折叠进「隐藏的图标」面板。仅影响桌面模式。',
+  requestBubbleToggle: '审批气泡',
+  requestBubbleToggleHint:
+    '需要你审批的工具调用、以及 AI 的提问，直接弹在宠物头顶：点「允许一次 / 拒绝」，或从选项里挑一个，答案立刻回传给会话，不必切回 DSH 面板。只有宠物页在线时才接管；不在线、关掉这个开关、或已有另一条请求在处理时，都会自动交回 DSH 原生面板。',
+  scheduleReminderToggle: '定时任务提醒',
+  scheduleReminderToggleHint:
+    '用 schedule_create 建的任务到点时，宠物顶着气泡提醒一句（只负责提醒，真正触发会话的仍是 DSH 调度器）。任务改期会跟着重排；宠物页不在线时跳过，回来再补。随「保存」写入用户配置。',
   voiceTitle: '语音播报',
   voiceHint:
     '桌宠出声的三个开关与音色：总开关管自动播报，两个细分开关各管一类主动消息。默认全关，随「保存」写入用户配置（不做即时写入）。',
@@ -237,6 +243,13 @@ export const zh = {
   notifyDenyRejected: '你在权限询问弹窗中选择了「阻止」。',
   notifyDenyError: '申请权限时出错',
   notifyGuide: '引导：点击地址栏左侧 🔒/ⓘ →「网站设置」→「通知」→ 改为「允许」，刷新页面后重试。',
+  homeLabel: '数据目录',
+  homeHint: '配置、待办、记忆、表情包等数据的存放位置。留空恢复默认；切换后需重启 DSH 生效。',
+  homeApply: '应用',
+  homeReset: '恢复默认',
+  homeSaved: '已保存，重启 DSH 后生效。',
+  homeFailed: '保存失败：请确认是绝对路径且有写入权限。',
+  homeEnvLocked: '当前目录由环境变量 DSH_PET_HOME 指定，这里改不了。',
   storageTitle: '卸载与存储',
   storageHint: '插件在本机落下的全部位置。删缓存不影响使用（会自动重下/重建）；删「插件用户数据」会丢配置与对话记忆。',
   'storage.userData':

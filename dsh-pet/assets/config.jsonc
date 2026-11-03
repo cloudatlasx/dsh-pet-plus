@@ -166,6 +166,19 @@
   // 也可在用户配置（main-config.jsonc）顶层覆盖，设置页「全局开关」里的托盘开关写的就是它。
   // 改动后保存即生效（宿主会重启桌面 Helper，桌面宠物窗口会重建一次）。
   "trayEnabled": true,
+  // ===================== 交互请求气泡（全局） =====================
+  // true（默认）= 需要你审批的工具调用、以及 AI 的提问，直接弹在宠物头顶：点「允许一次 / 拒绝」，
+  //   或选一个选项，答案立刻回传给会话，不必切回 DSH 面板。只有宠物页在线时才接管；不在线、
+  //   关掉这个开关、或已有另一条请求在处理时，都会自动交回 DSH 自己的面板。
+  // false = 完全不接管，审批与提问都走 DSH 原生面板（设置页「全局开关」里的开关写的就是它）。
+  // 必填布尔值，缺失即配置错误；也可在用户配置（main-config.jsonc）顶层覆盖。
+  "requestBubbleEnabled": true,
+  // ===================== 定时任务提醒（全局） =====================
+  // true（默认）= 用 `schedule_create` 建的任务到点时，宠物顶着气泡提醒一句（只提醒，
+  //   真正触发会话的仍是 DSH 调度器）。任务改了时间会跟着重排；宠物页不在线时跳过，回来再补。
+  // false = 不提醒（设置页「全局开关」里的开关写的就是它）。必填布尔值，缺失即配置错误；
+  // 也可在用户配置（main-config.jsonc）顶层覆盖。
+  "scheduleRemindersEnabled": true,
   // ===================== 工作状态联动文案（条目级，与 animations/physics 同级；种类文件 pet/<名>-config.json 顶层可覆盖） =====================
   // 工作状态气泡文本（pets[].workStatusEnabled 开启时展示；仅在 events.workStatus 动画触发时弹）。
   // 结构 = 二维数组，外层索引即档位（与 events.workStatus 动画索引一一对应，勿在中间插入新档）：
@@ -263,9 +276,10 @@
       "fixedEnabled": false,
       "display": "both",
       "position": {
-        "corner": "top-right",
+        // bottom-right = DSH 窗口所在显示器的右下角（多屏时跟随窗口，不再固定主屏右上角）
+        "corner": "bottom-right",
         "marginX": 24,
-        "marginY": 100
+        "marginY": 24
       }
       // 想让这只宠物有自己的性格，就取消下面这行的注释（留空/不写 = 跟随文件顶层的 whisperPrompt）
       // "whisperPrompt": "你是主人桌面上的猫娘，说话简短、爱吐槽，20 字以内。"

@@ -212,6 +212,8 @@ describe('/state + /balance —— 轮询统一状态与余额动作端点', () 
       'focusSession',
       'menu',
       'notify',
+      'reminder',
+      'request',
       'workStatus',
     ]);
     assert.equal(body.sections.balance.counter, 0, '没人写过时 counter=0（前端首拉当基线）');

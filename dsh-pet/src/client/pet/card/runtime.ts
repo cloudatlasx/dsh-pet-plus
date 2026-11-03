@@ -12,6 +12,12 @@ import { resolveFontPx } from '../../../shared/fonts.ts';
 import { resolvePetSizePx } from '../../../shared/pet-size.ts';
 import { makeBalanceBubble, makeWhisperBubble } from '../../bubble.ts';
 import { makeTodoBubble } from '../../todo-bubble.ts';
+import {
+  makeApprovalBubble,
+  makeQuestionBubble,
+  makeReminderBubble,
+} from '../../request-bubble.ts';
+import type { RequestEnvelope } from '../../../shared/request.ts';
 import { petBridge } from '../../settings.ts';
 import { playClickSound } from '../click-sound.ts';
 import { createMenuActions, type MenuActions } from '../menu-actions.ts';
@@ -46,10 +52,26 @@ export function createCardRuntime(rt: PetRuntime) {
   const WhisperBubble = makeWhisperBubble({ h });
   /** 待办气泡：面板本体挂在自己身上，关闭按钮回调装配根。 */
   const TodoBubble = makeTodoBubble({ h, useEffect, useRef });
-  /** 四种气泡的单槽：显隐、停留计时与优先级都在这里。 */
+  /** 审批 / 提问气泡：同一个组件按 kind 分成两套渲染，点按钮直接 POST 回宿主。 */
+  const ApprovalBubble = makeApprovalBubble({ h, useState, useEffect });
+  const QuestionBubble = makeQuestionBubble({ h, useState, useEffect });
+  /** 定时提醒气泡。 */
+  const ReminderBubble = makeReminderBubble({ h, useState, useEffect });
+  /** 选择器：审批与提问的 props 只差 kind，这里把两组工厂收成一个组件。 */
+  const RequestBubble = (props: { request: RequestEnvelope; on: boolean }) =>
+    props.request.kind === 'approval'
+      ? h(ApprovalBubble, { request: props.request, on: props.on })
+      : h(QuestionBubble, { request: props.request, on: props.on });
+  /** 五种气泡的单槽：显隐、停留计时与优先级都在这里。 */
   const useBubbleSlots = createBubbleSlots(
     { h, useState, useEffect, useRef },
-    { balanceBubble: BalanceBubble, todoBubble: TodoBubble, whisperBubble: WhisperBubble },
+    {
+      balanceBubble: BalanceBubble,
+      todoBubble: TodoBubble,
+      whisperBubble: WhisperBubble,
+      requestBubble: RequestBubble,
+      reminderBubble: ReminderBubble,
+    },
   );
   const useCardState = createCardState({ useState, useRef });
   const useLockFreeze = createLockFreeze({ useEffect, useRef });
@@ -127,6 +149,8 @@ export function createCardRuntime(rt: PetRuntime) {
       balance,
       balanceEnabled: cfg.balanceEnabled,
       balanceManual,
+      request: props.request ?? null,
+      reminder: props.reminder ?? null,
       workStatusEnabled: cfg.workStatusEnabled,
       workTerminal: workStatus?.state === 'success' || workStatus?.state === 'error',
       workSessionId: workStatus?.sessionId ?? null,

@@ -20,7 +20,7 @@ export const en: Record<Key, string> = {
   globalTitle: 'Global switches',
   globalHint:
     'Shared by every pet (a pet pack may override them in its own kind file). These switches only change local state and are written to the user config on "Save" (never written immediately); system notifications re-read right after saving, no page refresh needed.',
-  cornerHint: 'Which screen corner the pet sticks to (per-monitor work area in desktop mode).',
+  cornerHint: 'Which corner the pet sticks to; in desktop mode it follows the screen that holds the DSH window (multi-monitor aware), falling back to the primary display.',
   marginXHint: 'Horizontal distance from the chosen corner (px); any number.',
   marginYHint: 'Vertical distance from the chosen corner (px); any number.',
   // 「/」命令菜单的行标题（图标由 app.ts 补上）。
@@ -154,6 +154,12 @@ export const en: Record<Key, string> = {
   trayToggle: 'System tray',
   trayToggleHint:
     'Shows a tray icon (notification area on Windows, menu bar on macOS) once desktop mode is running. It lists every pet in the config and toggles each one between desktop and web/none — including pets that are currently off the desktop and therefore have no window to right-click. With it off, bringing a pet back to the desktop requires opening the browser (the settings page, or right-clicking a web pet there). Windows already folds third-party icons into the "hidden icons" overflow. Desktop mode only.',
+  requestBubbleToggle: 'Approval bubble',
+  requestBubbleToggleHint:
+    'Tool calls that need your approval, and the AI\'s questions, pop up right above the pet: hit "Allow once / Reject" or pick an option and the answer goes straight back to the session — no need to switch back to the DSH panel. It only takes over while a pet page is online; when nothing is online, the switch is off, or another request is already pending, DSH\'s own panel handles it.',
+  scheduleReminderToggle: 'Task reminders',
+  scheduleReminderToggleHint:
+    'When a task created with schedule_create comes due, the pet shows a reminder bubble. Reminders only — the DSH scheduler still triggers the session. Rescheduled tasks are re-armed automatically; skipped while no pet page is online and caught up when one returns. Written to the user config on "Save".',
   voiceTitle: 'Voice',
   voiceHint:
     'Three switches plus a voice: the master switch gates automatic speech, the two sub-switches gate one kind of proactive message each. All off by default; written to the user config on "Save" (never written immediately).',
@@ -258,6 +264,13 @@ export const en: Record<Key, string> = {
   notifyDenyError: 'Failed to request permission',
   notifyGuide:
     'Guide: click the 🔒/ⓘ icon next to the address bar → Site settings → Notifications → set to "Allow", then refresh and retry.',
+  homeLabel: 'Data directory',
+  homeHint: 'Where config, todos, memory and memes live. Leave empty for the default; restart DSH to apply.',
+  homeApply: 'Apply',
+  homeReset: 'Use default',
+  homeSaved: 'Saved. Restart DSH to apply.',
+  homeFailed: 'Could not save: use an absolute path with write permission.',
+  homeEnvLocked: 'The directory is pinned by the DSH_PET_HOME environment variable.',
   storageTitle: 'Uninstall & storage',
   storageHint:
     'Every location this plugin writes to. Deleting cache folders is harmless (they re-download / rebuild); deleting "plugin user data" loses your config and chat memory.',

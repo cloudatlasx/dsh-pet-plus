@@ -9,6 +9,7 @@ import type { BalanceState } from '../../../shared/balance/index.ts';
 import type { PetCollisionSlot } from '../../../shared/physics.ts';
 import type { LockState, PositionMode, SayCue, PetFacing, SleepState } from '../../../shared/state.ts';
 import type { MenuMoreItem } from '../../../shared/menu.ts';
+import type { ReminderEnvelope, RequestEnvelope } from '../../../shared/request.ts';
 import type { WorkStatusSnapshot } from '../../../shared/work-status.ts';
 import type { RuntimePet } from '../types.ts';
 
@@ -28,6 +29,14 @@ export interface PetCardProps {
   workStatus: WorkStatusSnapshot | null;
   /** 工作状态变化次数。 */
   workStatusTick: number;
+  /** 待处理的审批 / 提问；有值时压过一切气泡，等用户点完才由宿主清空。 */
+  request?: RequestEnvelope | null;
+  /** 请求叶子变化次数。 */
+  requestTick?: number;
+  /** 到点的定时任务提醒；20 秒后由宿主写 closed 收起。 */
+  reminder?: ReminderEnvelope | null;
+  /** 提醒叶子变化次数。 */
+  reminderTick?: number;
   /** 点工作气泡时跳到它所属会话；缺省即气泡不可点（桌面端由容器转发）。 */
   onFocusSession?: (sessionId: string) => void;
   /** 本宠物的说话指令；kind 为 clear 时收起气泡，其余弹气泡。 */

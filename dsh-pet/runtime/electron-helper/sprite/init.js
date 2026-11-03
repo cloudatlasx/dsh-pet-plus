@@ -126,6 +126,15 @@ Object.assign(PetSprite.prototype, {
     // todoPanel 是面板句柄（占气泡槽，节点塞在 this.bubble 里），todoOpen 是穿透守卫标记。
     this.todoPanel = null;
     this.todoOpen = false;
+    // 审批/提问请求：宿主在 sections.request 写一条信封，气泡里直接给选项；answerPending 防连点。
+    // requestPicks 是提问的已选标签（单选存一个、多选可多个），按题目 id 记。
+    this.requestEnvelope = null;
+    this.requestPicks = {};
+    this.requestPending = false;
+    // 定时任务提醒：宿主在 sections.reminder 写一条信封，20s 后宿主自己写 closed，这里也留一条兜底计时。
+    this.reminderEnvelope = null;
+    this.reminderTimer = null;
+    this.reminderSoundTimer = null;
   },
 
   /** 建 DOM 并把首帧位置落到窗口；布局数值全部来自上面算好的 geometry。 */
@@ -165,6 +174,16 @@ Object.assign(PetSprite.prototype, {
     this.bubble.className = 'pet-bubble';
     // 气泡点击按当前槽位分流：工作气泡跳会话，余额气泡切页。都就地吞掉事件，别落到下面的本体命中层。
     this.bubble.addEventListener('click', (e) => {
+      // 请求气泡优先：只有按钮参与，点正文不做事，别落到下面的翻页/跳会话分支。
+      if (this.requestEnvelope) {
+        const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('[data-req-action]') : null;
+        if (btn) {
+          e.stopPropagation();
+          e.preventDefault();
+          this.onRequestAction(btn.dataset.reqAction, btn.dataset.reqQ, btn.dataset.reqValue);
+        }
+        return;
+      }
       if (this.workClickable()) {
         e.stopPropagation();
         e.preventDefault();

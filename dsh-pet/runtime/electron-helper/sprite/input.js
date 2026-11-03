@@ -245,6 +245,7 @@ Object.assign(PetSprite.prototype, {
       this.menuOpen ||
       this.chatOpen ||
       this.todoOpen ||
+      !!this.requestEnvelope ||
       this.balanceClickable() ||
       this.workClickable()
     );

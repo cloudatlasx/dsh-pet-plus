@@ -214,6 +214,8 @@ function createWindows({
         sandbox: false,
         paintWhenInitiallyHidden: false,
         spellcheck: false,
+        // 提醒音效是宿主主动推来的，不是用户手势：不放开自动播放会被静音策略吞掉。
+        autoplayPolicy: 'no-user-gesture-required',
       },
     };
   }

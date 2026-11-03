@@ -22,6 +22,14 @@ export interface ConfigMeta {
   logs?: string;
   /** 插件落盘的全部位置（路径与是否已存在）。 */
   storage?: Array<{ key: string; path: string; exists?: boolean }>;
+  /** 数据根（可切换）：当前值、默认值与来源。 */
+  home?: {
+    dir: string;
+    defaultDir: string;
+    pointerFile: string;
+    source: 'env' | 'pointer' | 'default';
+    envVar: string;
+  };
   /** 当前 profile 名（拼卸载命令用）。 */
   profile?: string;
 }
@@ -37,6 +45,10 @@ export interface SaveFields {
   chatAnimationEnabled: boolean;
   confineToScreen: boolean;
   trayEnabled: boolean;
+  /** 审批 / 提问是否交给宠物气泡作答。 */
+  requestBubbleEnabled: boolean;
+  /** 定时任务到点是否让宠物提醒。 */
+  scheduleRemindersEnabled: boolean;
   /** 语音播报总开关。 */
   voiceEnabled: boolean;
   /** 语音音色 id（白名单内的四个之一）。 */
@@ -78,6 +90,8 @@ export function buildSaveBody(fields: SaveFields): Record<string, unknown> {
     chatAnimationEnabled: fields.chatAnimationEnabled,
     confineToScreen: fields.confineToScreen,
     trayEnabled: fields.trayEnabled,
+    requestBubbleEnabled: fields.requestBubbleEnabled,
+    scheduleRemindersEnabled: fields.scheduleRemindersEnabled,
     voiceEnabled: fields.voiceEnabled,
     voiceName: fields.voiceName,
     voiceVolume: fields.voiceVolume,

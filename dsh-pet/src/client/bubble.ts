@@ -99,10 +99,49 @@ const bubbleCss = [
   '.dsh-pet-bubble .pet-bub-usage-bar{display:flex;height:calc(var(--f)*0.3);border-radius:calc(var(--f)*0.15);overflow:hidden;background:rgba(43,43,43,.1);margin:calc(var(--f)*0.05) 0}',
   '.dsh-pet-bubble .pet-bub-usage-bar-in{display:block;height:100%;background:#3f6ea8}',
   '.dsh-pet-bubble .pet-bub-usage-bar-out{display:block;height:100%;background:#b4703c}',
+  // ===== 交互请求（审批 / 提问）与定时提醒 =====
+  // 结构：徽标 + 工具名 / 正文 / 按钮行；提问额外有可滚动的题目区。
+  '.dsh-pet-bubble.dsh-pet-request{display:flex;flex-direction:column;gap:calc(var(--f)*0.36)}',
+  '.dsh-pet-bubble.dsh-pet-request.is-question{max-height:min(calc(var(--f)*15),46vh);overflow-y:auto;overscroll-behavior:contain}',
+  '.dsh-pet-request__head{display:flex;align-items:center;gap:calc(var(--f)*0.35);min-width:0}',
+  '.dsh-pet-request__badge{flex:none;font-size:calc(var(--f)*0.58);font-weight:700;color:#fff;background:#e8952f;' +
+    'border-radius:calc(var(--f)*0.3);padding:calc(var(--f)*0.06) calc(var(--f)*0.34);letter-spacing:.02em}',
+  '.dsh-pet-request__badge.is-reminder{background:#3f6ea8}',
+  '.dsh-pet-request__tool{font-size:calc(var(--f)*0.64);color:rgba(43,43,43,.62);overflow:hidden;' +
+    'text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}',
+  '.dsh-pet-request__body{font-size:calc(var(--f)*0.7);line-height:1.45;color:#2b2b2b;word-break:break-word}',
+  '.dsh-pet-reminder__title{font-size:calc(var(--f)*0.82);line-height:1.35;font-weight:700;color:#1f1f1f;word-break:break-word}',
+  '.dsh-pet-request__actions{display:flex;gap:calc(var(--f)*0.3);flex-wrap:wrap;align-items:center}',
+  '.dsh-pet-request__btn{appearance:none;font-family:inherit;font-size:calc(var(--f)*0.68);line-height:1.2;' +
+    'padding:calc(var(--f)*0.22) calc(var(--f)*0.5);border-radius:calc(var(--f)*0.36);cursor:pointer;' +
+    'border:1px solid rgba(43,43,43,.2);background:#fff;color:#2b2b2b}',
+  '.dsh-pet-request__btn:hover{background:rgba(43,43,43,.05)}',
+  '.dsh-pet-request__btn.is-primary{background:#2e9e4f;border-color:#2e9e4f;color:#fff;font-weight:650}',
+  '.dsh-pet-request__btn.is-primary:hover{background:#278a44}',
+  '.dsh-pet-request__btn.is-primary:disabled{background:rgba(43,43,43,.14);border-color:transparent;' +
+    'color:rgba(43,43,43,.45);cursor:default}',
+  '.dsh-pet-request__btn.is-ghost{border-color:transparent;background:transparent;color:rgba(43,43,43,.55);' +
+    'font-size:calc(var(--f)*0.6);padding-left:calc(var(--f)*0.24);padding-right:calc(var(--f)*0.24)}',
+  '.dsh-pet-request__question{display:flex;flex-direction:column;gap:calc(var(--f)*0.24);' +
+    'padding-top:calc(var(--f)*0.22);border-top:1px solid rgba(43,43,43,.1)}',
+  '.dsh-pet-request__question:first-child{border-top:none;padding-top:0}',
+  '.dsh-pet-request__title{font-size:calc(var(--f)*0.72);line-height:1.4;font-weight:650;color:#1f1f1f;word-break:break-word}',
+  '.dsh-pet-request__detail{font-size:calc(var(--f)*0.62);line-height:1.4;color:rgba(43,43,43,.6);' +
+    'max-height:calc(var(--f)*3.2);overflow-y:auto;white-space:pre-wrap;word-break:break-word}',
+  '.dsh-pet-request__options{display:flex;flex-wrap:wrap;gap:calc(var(--f)*0.24)}',
+  '.dsh-pet-request__opt{appearance:none;font-family:inherit;font-size:calc(var(--f)*0.66);line-height:1.2;' +
+    'padding:calc(var(--f)*0.18) calc(var(--f)*0.42);border-radius:calc(var(--f)*0.32);cursor:pointer;' +
+    'border:1px solid rgba(43,43,43,.18);background:rgba(43,43,43,.03);color:#2b2b2b;max-width:100%;' +
+    'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.dsh-pet-request__opt.is-picked{background:#e8f3eb;border-color:#2e9e4f;color:#1d6b36;font-weight:650}',
+  '.dsh-pet-request__input{flex:1 1 calc(var(--f)*5);min-width:calc(var(--f)*4);font-family:inherit;' +
+    'font-size:calc(var(--f)*0.66);padding:calc(var(--f)*0.16) calc(var(--f)*0.3);' +
+    'border-radius:calc(var(--f)*0.3);border:1px solid rgba(43,43,43,.18);background:#fff;color:#2b2b2b}',
+  '.dsh-pet-request__input:focus{outline:none;border-color:#2e9e4f}',
 ].join('\n');
 
 /** 注入气泡样式，每页只注入一次。 */
-function injectBubbleCss(): void {
+export function injectBubbleCss(): void {
   if (typeof document !== 'undefined' && document.querySelector('style[data-plugin-css="dsh-pet/bubble"]') === null) {
     const tag = document.createElement('style');
     tag.dataset.plugin = 'dsh-pet';

@@ -17,6 +17,7 @@ import { installSectionNavIcon } from './nav-icon.ts';
 import { registerPetChatTab, openPetChatTab } from './chat/register.ts';
 import { PET_CHAT_COMMAND_ID, registerPetChatShortcut } from './chat/shortcut.ts';
 import { registerPetCardShortcuts } from './pet/card/shortcut.ts';
+import { startAnchorReport } from './anchor-report.ts';
 import type * as ReactNS from 'react';
 import type * as PrimitivesNS from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -72,6 +73,10 @@ export function makeFactory(): (require: (mod: string) => any) => any {
       // 设置页文案字典。
       ctx.effect(() => ctx.locale.register(NS, dicts), 'dsh-pet: dictionaries');
       const t = ctx.locale.bind(NS);
+
+      // 把本窗口所在显示器的工作区上报给宿主：桌面宠物默认落在这块屏的右下角（多屏跟随 DSH 窗口）。
+      // 只读 window.screen，不参与任何控制流；上报失败只是让 Helper 回落到主屏。
+      ctx.effect(() => startAnchorReport(), 'dsh-pet: anchor report');
 
       // 同页第三方插件可通过 Cordis 服务 petApi7340 读取本页宠物的实况、播放进度、最近一拍状态与菜单点击。
       // 只开读，控制仍走 HTTP，避免出现两条控制通道。

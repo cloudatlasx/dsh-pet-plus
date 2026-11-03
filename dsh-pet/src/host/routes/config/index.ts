@@ -49,12 +49,20 @@ function getConfig(deps: PetRouteDeps): RouteResult {
 
 /** 路径与存储清单：只读环境与路径，不做业务判断，因此没有失败实体。 */
 function getMeta(deps: PetRouteDeps): RouteResult {
-  const { log, memesUserRoot, thumbUserRoot, userConfigPath, userRoot } = deps;
+  const { home, log, memesUserRoot, thumbUserRoot, userConfigPath, userRoot } = deps;
   return okResult({
     user: userConfigPath,
     default: join(PACKAGE_ROOT, 'assets', 'config.jsonc'),
     animations: thumbUserRoot,
     memes: memesUserRoot,
+    // 数据根：位置可被 DSH_PET_HOME / home.json 指针覆盖，设置页据此展示与修改。
+    home: {
+      dir: home.dir,
+      defaultDir: home.defaultDir,
+      pointerFile: home.pointerFile,
+      source: home.source,
+      envVar: home.envVar,
+    },
     // 待办数据文件：一份用户级数据（不分宠物），路径与宿主建库时用的是同一个文件名常量。
     todos: join(userRoot, TODO_FILE_NAME),
     // 统一日志出口（就是上面那个 logger 的 file：三种模式都落在 $DSH_HOME/dsh-pet/logs.txt）：

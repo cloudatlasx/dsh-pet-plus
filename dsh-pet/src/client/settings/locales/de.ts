@@ -155,6 +155,12 @@ export const de: Record<Key, string> = {
   trayToggle: 'System-Tray',
   trayToggleHint:
     'Zeigt im Desktop-Modus ein Tray-Symbol (Windows: Infobereich, macOS: Menüleiste). Es listet alle Pets der Konfiguration und schaltet die Anzeige um – auch für Pets, die gerade nicht auf dem Desktop sind und kein Fenster zum Rechtsklicken haben. Ohne Tray lässt sich ein Pet nur über den Browser (Einstellungsseite oder Rechtsklick auf das Web-Pet) zurück auf den Desktop holen. Windows blendet das Symbol ohnehin in die „ausgeblendeten Symbole" aus. Nur Desktop-Modus.',
+  requestBubbleToggle: 'Genehmigungsblase',
+  requestBubbleToggleHint:
+    'Wenn ein Tool-Aufruf deine Freigabe braucht oder die KI eine Frage stellt, zeigt das Haustier die Auswahl direkt darüber: „Einmal erlauben / Ablehnen“ oder eine Option antippen — die Antwort geht sofort an die Sitzung zurück. Übernimmt nur, solange eine Haustier-Seite online ist; sonst, bei ausgeschaltetem Schalter oder wenn schon eine andere Anfrage läuft, bleibt es beim DSH-Panel.',
+  scheduleReminderToggle: 'Aufgaben-Erinnerungen',
+  scheduleReminderToggleHint:
+    'Wenn eine mit schedule_create erstellte Aufgabe fällig wird, zeigt das Haustier eine Erinnerung (nur Hinweis — die Sitzung startet weiterhin der DSH-Scheduler). Zeitänderungen werden automatisch übernommen; ohne online Haustier-Seite wird übersprungen und beim Zurückkommen nachgeholt. Wird beim „Speichern“ in die Benutzerkonfiguration geschrieben.',
   voiceTitle: 'Sprachausgabe',
   voiceHint:
     'Drei Schalter und eine Stimme: Der Hauptschalter steuert die automatische Ausgabe, die beiden Unterschalter je eine Art proaktiver Meldung. Standardmäßig alle aus; wird beim „Speichern" in die Benutzerkonfiguration geschrieben (kein sofortiges Schreiben).',
@@ -259,6 +265,13 @@ export const de: Record<Key, string> = {
   notifyDenyError: 'Fehler beim Anfordern der Berechtigung',
   notifyGuide:
     'Anleitung: links neben der Adressleiste auf 🔒/ⓘ klicken → „Website-Einstellungen" → „Benachrichtigungen" → auf „Zulassen" setzen, Seite neu laden und erneut versuchen.',
+  homeLabel: 'Datenverzeichnis',
+  homeHint: 'Speicherort für Konfiguration, Todos, Erinnerungen und Memes. Leer lassen für den Standard; DSH zum Anwenden neu starten.',
+  homeApply: 'Übernehmen',
+  homeReset: 'Standard',
+  homeSaved: 'Gespeichert. DSH neu starten, um es anzuwenden.',
+  homeFailed: 'Speichern fehlgeschlagen: absoluten Pfad mit Schreibrecht verwenden.',
+  homeEnvLocked: 'Das Verzeichnis ist durch die Umgebungsvariable DSH_PET_HOME festgelegt.',
   storageTitle: 'Deinstallation & Speicher',
   storageHint:
     'Alle Orte, an denen das Plugin auf diesem Rechner Daten ablegt. Cache löschen ist unschädlich (wird automatisch neu geladen/neu aufgebaut); „Plugin-Benutzerdaten" löschen kostet Konfiguration und Chat-Gedächtnis.',

@@ -12,6 +12,8 @@ import { balancePageCount, decideBubbleSlot, type BubbleSlotInput } from './bubb
 /** 一份全部关闭的输入，逐项覆盖出目标场景。 */
 function input(overrides: Partial<BubbleSlotInput> = {}): BubbleSlotInput {
   return {
+    requestOn: false,
+    reminderOn: false,
     workTerminal: false,
     workOn: false,
     workText: null,

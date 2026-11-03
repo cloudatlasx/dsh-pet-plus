@@ -120,6 +120,11 @@ export function saveUserConfig(
   // 系统托盘开关（全局，仅桌面模式）：与上面几个全局布尔同语义——传了必须是布尔，没传走透传保留。
   const te = o.trayEnabled;
   if (te !== undefined && typeof te !== 'boolean') return null;
+  // 交互请求气泡 / 定时任务提醒（全局布尔）：与上面几个开关同语义——传了必须是布尔，没传走透传保留。
+  const rbe = o.requestBubbleEnabled;
+  if (rbe !== undefined && typeof rbe !== 'boolean') return null;
+  const sre = o.scheduleRemindersEnabled;
+  if (sre !== undefined && typeof sre !== 'boolean') return null;
   // physics（拖拽抛掷手感，设置页「物理」区可图形化编辑）：整段校验——physicsValid 与读取侧
   // 是同一份规则（gravity/groundFriction ≥ 0、restitution ∈ [0,1]、throwPower > 0、两个布尔）。
   // 传了就按白名单写入；没传则走下面的透传保留（用户手改的值原样不动）。
@@ -165,6 +170,8 @@ export function saveUserConfig(
   if (vwe !== undefined) outConfig.voiceWhisperEnabled = vwe;
   if (vte !== undefined) outConfig.voiceTodoEnabled = vte;
   if (te !== undefined) outConfig.trayEnabled = te;
+  if (rbe !== undefined) outConfig.requestBubbleEnabled = rbe;
+  if (sre !== undefined) outConfig.scheduleRemindersEnabled = sre;
   if (ph !== undefined) outConfig.physics = ph;
   if (fo !== undefined) outConfig.font = fo;
   if (wm !== undefined) outConfig.whisperModel = cleanModel(wm as Record<string, unknown>);
@@ -189,6 +196,8 @@ export function saveUserConfig(
   if (vwe !== undefined) bodyOwned.add('voiceWhisperEnabled');
   if (vte !== undefined) bodyOwned.add('voiceTodoEnabled');
   if (te !== undefined) bodyOwned.add('trayEnabled');
+  if (rbe !== undefined) bodyOwned.add('requestBubbleEnabled');
+  if (sre !== undefined) bodyOwned.add('scheduleRemindersEnabled');
   if (ph !== undefined) bodyOwned.add('physics');
   if (fo !== undefined) bodyOwned.add('font');
   if (wm !== undefined) bodyOwned.add('whisperModel');

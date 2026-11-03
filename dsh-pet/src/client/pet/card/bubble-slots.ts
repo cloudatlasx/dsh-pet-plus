@@ -13,16 +13,21 @@ import {
   type BubbleHoldState,
 } from '../../../shared/bubble-hold.ts';
 import { subscribeVoiceState, subscribeVoiceUtterance, type VoiceState } from '../../../shared/voice.ts';
+import type { ReminderEnvelope, RequestEnvelope } from '../../../shared/request.ts';
 import { BUBBLE_DURATION_MS } from '../timings.ts';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type * as ReactNS from 'react';
 import type { jsx } from 'react/jsx-runtime';
 
 /** 当前该挂哪个气泡；`none` 表示哪个条件都不成立。 */
-export type BubbleSlot = 'todo' | 'work-terminal' | 'whisper' | 'balance' | 'work' | 'none';
+export type BubbleSlot = 'request' | 'reminder' | 'todo' | 'work-terminal' | 'whisper' | 'balance' | 'work' | 'none';
 
 /** 优先级判定的输入：全部是渲染期的既成事实，判定本身不产生副作用。 */
 export interface BubbleSlotInput {
+  /** 待处理的审批 / 提问；有值时独占槽位——比待办面板更急。 */
+  requestOn: boolean;
+  /** 到点的定时任务提醒。 */
+  reminderOn: boolean;
   /** 待办面板是否打开；打开时独占槽位，其余气泡一律让位。 */
   todoOn: boolean;
   /** 工作状态是否为终态（success / error）。 */
@@ -56,6 +61,10 @@ export interface BubbleSlotInput {
  * @returns 命中的槽位；都不成立时为 `none`。
  */
 export function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot {
+  // 审批 / 提问是会话在等答案：压过一切，免得被别的气泡挡住。
+  if (input.requestOn) return 'request';
+  // 定时任务提醒只活 20s，排在待办面板之前，但让位给真正的交互请求。
+  if (input.reminderOn) return 'reminder';
   // 面板是用户主动打开的窗口：它占槽时其余气泡一律让位，关掉后按原规则恢复。
   if (input.todoOn) return 'todo';
   if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return 'work-terminal';
@@ -111,6 +120,12 @@ export interface BubbleSlotsRuntime {
 /** 待办面板气泡组件；props 与 `client/todo-bubble.ts` 的 TodoBubble 一致。 */
 export type TodoBubbleComponent = (props: { on: boolean; onClose: () => void }) => ReactNode;
 
+/** 交互请求气泡组件：按 `request.kind` 自行决定画审批按钮还是提问选项。 */
+export type RequestBubbleComponent = (props: { request: RequestEnvelope; on: boolean }) => ReactNode;
+
+/** 定时提醒气泡组件。 */
+export type ReminderBubbleComponent = (props: { reminder: ReminderEnvelope; on: boolean }) => ReactNode;
+
 /** 三种气泡组件。 */
 export interface BubbleComponents {
   /** 余额气泡。 */
@@ -119,10 +134,18 @@ export interface BubbleComponents {
   todoBubble: TodoBubbleComponent;
   /** 说话气泡。 */
   whisperBubble: WhisperBubbleComponent;
+  /** 审批 / 提问气泡。 */
+  requestBubble: RequestBubbleComponent;
+  /** 定时提醒气泡。 */
+  reminderBubble: ReminderBubbleComponent;
 }
 
 /** 每次渲染由 PetCard 提供的视图输入。 */
 export interface BubbleSlotsInput {
+  /** 待处理的审批 / 提问；null 表示没有。 */
+  request?: RequestEnvelope | null;
+  /** 到点的定时任务提醒；null 表示没有。 */
+  reminder?: ReminderEnvelope | null;
   /** 最近一次余额结果。 */
   balance: BalanceState | null;
   /** 配置是否启用余额。 */
@@ -181,6 +204,8 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
   const BalanceBubble = components.balanceBubble;
   const TodoBubble = components.todoBubble;
   const WhisperBubble = components.whisperBubble;
+  const RequestBubble = components.requestBubble;
+  const ReminderBubble = components.reminderBubble;
 
   return function useBubbleSlots(input: BubbleSlotsInput): BubbleSlots {
     // 余额气泡：显隐与展开页。
@@ -304,6 +329,8 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
 
     const node = (): ReactNode => {
       const slot = decideBubbleSlot({
+        requestOn: input.request !== undefined && input.request !== null,
+        reminderOn: input.reminder !== undefined && input.reminder !== null,
         todoOn,
         workTerminal: input.workTerminal,
         workOn,
@@ -316,6 +343,12 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
         balanceEnabled: input.balanceEnabled,
         balanceManual: input.balanceManual,
       });
+      if (slot === 'request') {
+        return input.request ? h(RequestBubble, { request: input.request, on: true }) : null;
+      }
+      if (slot === 'reminder') {
+        return input.reminder ? h(ReminderBubble, { reminder: input.reminder, on: true }) : null;
+      }
       if (slot === 'todo') return h(TodoBubble, { on: todoOn, onClose: hideTodo });
       if (slot === 'balance') {
         return input.balance === null

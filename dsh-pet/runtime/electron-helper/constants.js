@@ -55,6 +55,40 @@ let WORK_AREAS = [];
 let PANELS = [];
 /** 主屏工作区（视口相对坐标）：角落定位与「回到初始位置」用它——外接矩形的角落可能落在空洞里 */
 let PRIMARY_AREA = null;
+/** 锚定屏工作区（屏幕坐标，与 AREAS 同系）：浏览器上报 DSH 窗口在哪块屏，角落定位优先用它 */
+let ANCHOR_SCREEN = null;
+
+/**
+ * 设定锚定屏（屏幕坐标）。面积非法时退回 null（角落回落主屏）。
+ * @returns 是否发生变化（调用方据此决定要不要重摆宠物）
+ */
+function setAnchorArea(area) {
+  const next =
+    area && Number(area.width) > 0 && Number(area.height) > 0
+      ? { x: Number(area.x), y: Number(area.y), width: Number(area.width), height: Number(area.height) }
+      : null;
+  const changed = JSON.stringify(next) !== JSON.stringify(ANCHOR_SCREEN);
+  ANCHOR_SCREEN = next;
+  return changed;
+}
+
+/** 锚定屏在视口坐标里的矩形；未上报返回 null（调用方回落 PRIMARY_AREA）。 */
+function anchorAreaLocal() {
+  if (ANCHOR_SCREEN === null) return null;
+  const rect = S.translateRects(
+    [
+      {
+        x: toLocal(ANCHOR_SCREEN.x),
+        y: toLocal(ANCHOR_SCREEN.y),
+        width: toLocal(ANCHOR_SCREEN.width),
+        height: toLocal(ANCHOR_SCREEN.height),
+      },
+    ],
+    -VIEW.x,
+    -VIEW.y,
+  )[0];
+  return rect && rect.width > 0 && rect.height > 0 ? rect : null;
+}
 
 /** 把主进程下发的桌面几何（{hull, areas, panels, primaryIndex}，屏幕坐标）挂到 VIEW / AREAS / PANELS。 */
 function applyDeskGeometry(geo) {

@@ -25,6 +25,10 @@ export interface MainConfigPatch {
   chatAnimationEnabled?: boolean;
   confineToScreen?: boolean;
   trayEnabled?: boolean;
+  /** 审批 / 提问的宠物气泡开关；缺省表示这次响应里没有可信值。 */
+  requestBubbleEnabled?: boolean;
+  /** 定时任务到点的宠物提醒开关；缺省表示这次响应里没有可信值。 */
+  scheduleRemindersEnabled?: boolean;
   /** 语音播报总开关；缺省表示这次响应里没有可信值。 */
   voiceEnabled?: boolean;
   /** 语音音色 id（宿主已按白名单校验，客户端原样展示）。 */
@@ -80,6 +84,9 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   if (typeof main.chatAnimationEnabled === 'boolean') patch.chatAnimationEnabled = main.chatAnimationEnabled;
   if (typeof main.confineToScreen === 'boolean') patch.confineToScreen = main.confineToScreen;
   if (typeof main.trayEnabled === 'boolean') patch.trayEnabled = main.trayEnabled;
+  if (typeof main.requestBubbleEnabled === 'boolean') patch.requestBubbleEnabled = main.requestBubbleEnabled;
+  if (typeof main.scheduleRemindersEnabled === 'boolean')
+    patch.scheduleRemindersEnabled = main.scheduleRemindersEnabled;
   if (typeof main.voiceEnabled === 'boolean') patch.voiceEnabled = main.voiceEnabled;
   if (typeof main.voiceName === 'string') patch.voiceName = main.voiceName;
   if (typeof main.voiceWhisperEnabled === 'boolean') patch.voiceWhisperEnabled = main.voiceWhisperEnabled;

@@ -147,6 +147,10 @@ export function makePetConfigSection(
     const [confineScreen, setConfineScreen] = useState(false);
     // 系统托盘开关（全局）：随「保存」一起提交；宿主半侧据此决定建不建托盘、没桌面宠物时还值不值得常驻 Helper。
     const [trayEnabled, setTrayEnabled] = useState(true);
+    // 审批 / 提问的宠物气泡开关（全局）：随「保存」一起提交；初值 true 是内置默认。
+    const [requestBubble, setRequestBubble] = useState(true);
+    // 定时任务到点提醒开关（全局）：同上，初值 true 是内置默认。
+    const [scheduleReminders, setScheduleReminders] = useState(true);
     // 语音播报开关与音色（全局默认）：随「保存」整包写入；初值即内置默认，加载后用成品值覆盖。
     const [voiceEnabled, setVoiceEnabled] = useState(false);
     const [voiceName, setVoiceName] = useState('zh-CN-XiaoyiNeural');
@@ -188,6 +192,8 @@ export function makePetConfigSection(
         if (patch.chatAnimationEnabled !== undefined) setChatAnimation(patch.chatAnimationEnabled);
         if (patch.confineToScreen !== undefined) setConfineScreen(patch.confineToScreen);
         if (patch.trayEnabled !== undefined) setTrayEnabled(patch.trayEnabled);
+        if (patch.requestBubbleEnabled !== undefined) setRequestBubble(patch.requestBubbleEnabled);
+        if (patch.scheduleRemindersEnabled !== undefined) setScheduleReminders(patch.scheduleRemindersEnabled);
         if (patch.voiceEnabled !== undefined) setVoiceEnabled(patch.voiceEnabled);
         if (patch.voiceName !== undefined) setVoiceName(patch.voiceName);
         if (patch.voiceVolume !== undefined) setVoiceVolume(patch.voiceVolume);
@@ -249,12 +255,14 @@ export function makePetConfigSection(
     // 文件宠物条目数：只用于标题提示「另 n 只来自 pet/ 目录」。
     const packCount = kinds.filter((item) => item.kind === 'pack').length;
 
-    // 七个顶层开关的当前值：卡片各认自己那几项，键名与成品配置字段同名。
+    // 九个顶层开关的当前值：卡片各认自己那几项，键名与成品配置字段同名。
     const globalFlags: GlobalFlags = {
       notificationsEnabled: notifyEnabled,
       clickSoundEnabled: clickSound,
       confineToScreen: confineScreen,
       trayEnabled,
+      requestBubbleEnabled: requestBubble,
+      scheduleRemindersEnabled: scheduleReminders,
     };
     const chatFlags: ChatFlagValues = {
       whisperImageEnabled: whisperImage,
@@ -269,6 +277,8 @@ export function makePetConfigSection(
       clickSoundEnabled: setClickSound,
       confineToScreen: setConfineScreen,
       trayEnabled: setTrayEnabled,
+      requestBubbleEnabled: setRequestBubble,
+      scheduleRemindersEnabled: setScheduleReminders,
       whisperImageEnabled: setWhisperImage,
       chatImageEnabled: setChatImage,
       chatAnimationEnabled: setChatAnimation,
@@ -299,6 +309,8 @@ export function makePetConfigSection(
         chatAnimationEnabled: chatAnimation,
         confineToScreen: confineScreen,
         trayEnabled,
+        requestBubbleEnabled: requestBubble,
+        scheduleRemindersEnabled: scheduleReminders,
         voiceEnabled,
         voiceName,
         voiceVolume,

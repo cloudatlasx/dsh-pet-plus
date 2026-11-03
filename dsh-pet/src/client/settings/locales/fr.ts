@@ -156,6 +156,12 @@ export const fr: Record<Key, string> = {
   trayToggle: 'Zone de notification',
   trayToggleHint:
     "Affiche une icône dans la zone de notification (barre de menus sur macOS) dès que le mode bureau démarre. Elle liste tous les compagnons de la configuration et permet de basculer chacun entre bureau et web / aucun — y compris ceux qui ne sont pas sur le bureau et n'ont donc aucune fenêtre à cliquer droit. Une fois désactivée, ramener un compagnon sur le bureau exige d'ouvrir le navigateur (la page de configuration, ou un clic droit sur le compagnon web). Windows range déjà ces icônes dans le panneau « icônes masquées ». Mode bureau uniquement.",
+  requestBubbleToggle: "Bulle d'approbation",
+  requestBubbleToggleHint:
+    "Quand un appel d'outil attend votre approbation, ou que l'IA pose une question, le compagnon affiche les choix juste au-dessus : « Autoriser une fois / Refuser » ou une option, et la réponse repart aussitôt vers la session. Il ne prend la main que si une page compagnon est en ligne ; sinon, ou si l'interrupteur est coupé ou qu'une autre demande est en cours, le panneau natif de DSH s'en charge.",
+  scheduleReminderToggle: 'Rappels de tâches',
+  scheduleReminderToggleHint:
+    "Quand une tâche créée avec schedule_create arrive à échéance, le compagnon affiche un rappel (simple rappel : c'est toujours l'ordonnanceur DSH qui lance la session). Les changements d'heure sont repris automatiquement ; ignoré si aucun compagnon n'est en ligne, rattrapé à son retour. Écrit dans la configuration lors de l'enregistrement.",
   voiceTitle: 'Synthèse vocale',
   voiceHint:
     "Trois interrupteurs et une voix : l'interrupteur principal commande la lecture automatique, les deux sous-interrupteurs commandent chacun un type de message proactif. Tout est désactivé par défaut et écrit dans la configuration utilisateur lors de l'enregistrement (jamais immédiatement).",
@@ -263,6 +269,13 @@ export const fr: Record<Key, string> = {
   notifyDenyError: "Échec de la demande d'autorisation",
   notifyGuide:
     "Marche à suivre : cliquez sur l'icône 🔒/ⓘ à gauche de la barre d'adresse → « Paramètres du site » → « Notifications » → choisissez « Autoriser », puis rafraîchissez la page et réessayez.",
+  homeLabel: 'Répertoire de données',
+  homeHint: 'Où sont stockés la configuration, les tâches, la mémoire et les mèmes. Laissez vide pour la valeur par défaut ; redémarrez DSH pour appliquer.',
+  homeApply: 'Appliquer',
+  homeReset: 'Valeur par défaut',
+  homeSaved: 'Enregistré. Redémarrez DSH pour appliquer.',
+  homeFailed: 'Échec de l’enregistrement : utilisez un chemin absolu avec droit d’écriture.',
+  homeEnvLocked: 'Le répertoire est imposé par la variable d’environnement DSH_PET_HOME.',
   storageTitle: 'Désinstallation et stockage',
   storageHint:
     'Tous les emplacements où ce plugin écrit sur la machine. Supprimer les caches est sans risque (ils sont retéléchargés / reconstruits) ; supprimer les « données utilisateur du plugin » fait perdre la configuration et la mémoire de discussion.',

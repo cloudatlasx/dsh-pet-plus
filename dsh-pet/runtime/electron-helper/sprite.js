@@ -197,8 +197,8 @@ class PetSprite {
       x = this.customPos.rx * W - this.halfW;
       y = this.customPos.ry * H - this.halfH;
     } else {
-      // 角落取主屏而不是外接矩形：不规则多屏布局下外接矩形的角落可能不属于任何显示器，
-      // 配了该角落的宠物会开机即隐身。
+      // 角落取锚定屏（DSH 窗口所在显示器）；没上报时回落主屏。不规则多屏布局下外接矩形的角落
+      // 可能不属于任何显示器，配了该角落的宠物会开机即隐身，所以永远不用 hull。
       const anchor = S.anchorPixel({
         corner: this.pet.position.corner,
         // marginX/marginY 是配置里的绝对像素：页面级缩放已统一放大整窗，配置值不再乘 scale
@@ -210,7 +210,7 @@ class PetSprite {
         size: this.size,
         W,
         H,
-        area: PRIMARY_AREA || undefined,
+        area: anchorAreaLocal() || PRIMARY_AREA || undefined,
       });
       x = anchor.x;
       y = anchor.y;
@@ -303,3 +303,6 @@ class PetSprite {
     return { x: vx0 - winX, y: vy0 - winY, w, h };
   }
 }
+
+// 气泡相关模块（sprite/bubble.js、events.js）也要播这一声：挂到原型上共享同一份开关与节流。
+PetSprite.prototype.playClickSound = playClickSound;

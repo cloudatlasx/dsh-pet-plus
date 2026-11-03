@@ -155,6 +155,12 @@ export const pt: Record<Key, string> = {
   trayToggle: 'Bandeja do sistema',
   trayToggleHint:
     'Mostra um ícone na área de notificação (barra de menus no macOS) quando o modo desktop inicia. Ele lista todos os pets da configuração e alterna a exibição de cada um — inclusive os que estão fora do desktop agora e não têm janela para clicar com o botão direito. Sem ele, para trazer um pet de volta ao desktop é preciso abrir o navegador (a página de configuração, ou clicar com o botão direito no pet na web). O Windows já esconde ícones de terceiros na gaveta "ícones ocultos". Só afeta o modo desktop.',
+  requestBubbleToggle: 'Bolha de aprovação',
+  requestBubbleToggleHint:
+    'Quando uma chamada de ferramenta precisa da sua aprovação ou a IA faz uma pergunta, o mascote mostra as opções logo acima: «Permitir uma vez / Recusar» ou escolha uma opção, e a resposta volta na hora para a sessão. Só assume enquanto houver uma página do mascote online; caso contrário, ou com o interruptor desligado ou outra solicitação pendente, o painel nativo do DSH resolve.',
+  scheduleReminderToggle: 'Lembretes de tarefas',
+  scheduleReminderToggleHint:
+    'Quando uma tarefa criada com schedule_create vence, o mascote mostra um lembrete (apenas aviso — quem dispara a sessão continua sendo o agendador do DSH). Mudanças de horário são reajustadas sozinhas; ignorado sem mascote online e recuperado ao voltar. Gravado na configuração ao «Salvar».',
   voiceTitle: 'Voz',
   voiceHint:
     'Três interruptores e uma voz: o mestre controla a fala automática; os dois secundários controlam um tipo de mensagem proativa cada. Tudo desligado por padrão; gravado na configuração do usuário ao "Salvar" (nunca na hora).',
@@ -260,6 +266,13 @@ export const pt: Record<Key, string> = {
   notifyDenyError: 'Erro ao pedir permissão',
   notifyGuide:
     'Como liberar: clique no 🔒/ⓘ ao lado da barra de endereços → "Configurações do site" → "Notificações" → mude para "Permitir", atualize a página e tente de novo.',
+  homeLabel: 'Diretório de dados',
+  homeHint: 'Onde ficam configuração, tarefas, memória e memes. Deixe vazio para o padrão; reinicie o DSH para aplicar.',
+  homeApply: 'Aplicar',
+  homeReset: 'Usar padrão',
+  homeSaved: 'Salvo. Reinicie o DSH para aplicar.',
+  homeFailed: 'Não foi possível salvar: use um caminho absoluto com permissão de escrita.',
+  homeEnvLocked: 'O diretório é fixado pela variável de ambiente DSH_PET_HOME.',
   storageTitle: 'Desinstalação e armazenamento',
   storageHint:
     'Todos os lugares em que o plugin grava arquivos. Apagar caches não atrapalha (são baixados ou recriados sozinhos); apagar "dados do usuário do plugin" perde a configuração e a memória da conversa.',
