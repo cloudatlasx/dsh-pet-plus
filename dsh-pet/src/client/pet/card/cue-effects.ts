@@ -7,7 +7,7 @@
  */
 import { balanceEventIndex, balancePercent } from '../../../shared/balance/index.ts';
 import { pickSlot, poolIncludes } from '../../../shared/pickers.ts';
-import { progressLabel, WORK_STATUS_INDEX } from '../../../shared/work-status.ts';
+import { progressLabel, todoPercent, todoProgressLabel, WORK_STATUS_INDEX } from '../../../shared/work-status.ts';
 import { playSayVoice } from '../../../shared/voice.ts';
 import type { CardHub } from './hub.ts';
 import type { PetCardProps } from './props.ts';
@@ -147,7 +147,10 @@ export function createCueEffects(rt: CueEffectsRuntime) {
           ? textGroup[Math.floor(Math.random() * textGroup.length)]
           : undefined;
       // 文本总是更新，任务详情可能在同一状态下变化。
-      hub.bubbles.updateWorkText(workStatus.task ?? configuredText ?? null, progressLabel(workStatus));
+      hub.bubbles.updateWorkText(workStatus.task ?? configuredText ?? null, progressLabel(workStatus), {
+        percent: todoPercent(workStatus),
+        label: todoProgressLabel(workStatus),
+      });
       const terminal = workStatus.state === 'success' || workStatus.state === 'error';
       // 只在状态变化时点亮或收起气泡：同状态后续 tick 不重新点亮已自动收起的终态气泡。
       if (stateChanged) hub.bubbles.lightWork(terminal);

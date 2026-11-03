@@ -17,6 +17,7 @@ import {
   goalUpdateAction,
   reduceWorkStatus,
   TASK_TEXT_MAX,
+  todoCounts,
   WorkStatusStore,
   type HostWorkStatusState,
 } from './work-status.ts';
@@ -272,5 +273,61 @@ describe('WorkStatusStore —— 进度（步数 / 起点）', () => {
     assert.equal(snap.state, null);
     assert.equal(snap.steps, 0);
     assert.equal(snap.startedAt, null);
+    assert.equal(snap.todoDone, 0);
+    assert.equal(snap.todoTotal, 0);
+  });
+});
+
+describe('todoCounts —— 清单进度口径', () => {
+  test('只把 completed 计入完成，in_progress 不算', () => {
+    const counts = todoCounts({
+      data: {
+        todos: [{ status: 'completed' }, { status: 'completed' }, { status: 'in_progress' }, { status: 'pending' }],
+      },
+    });
+    assert.deepEqual(counts, { done: 2, total: 4 });
+  });
+
+  test('没有清单 / 形状不对 → 0 / 0', () => {
+    assert.deepEqual(todoCounts({}), { done: 0, total: 0 });
+    assert.deepEqual(todoCounts({ data: {} }), { done: 0, total: 0 });
+    assert.deepEqual(todoCounts({ data: { todos: [] } }), { done: 0, total: 0 });
+  });
+});
+
+describe('WorkStatusStore —— 清单进度', () => {
+  test('setTodoCounts 写进快照；done 超过 total 时收敛到 total', () => {
+    const s = new WorkStatusStore();
+    s.setState('a', 'working', 1);
+    assert.equal(s.setTodoCounts('a', 2, 5), true);
+    assert.equal(s.snapshot().todoDone, 2);
+    assert.equal(s.snapshot().todoTotal, 5);
+    assert.equal(s.setTodoCounts('a', 9, 5), true);
+    assert.equal(s.snapshot().todoDone, 5);
+  });
+
+  test('同值不重复写（返回 false）；换档保留清单进度', () => {
+    const s = new WorkStatusStore();
+    s.setState('a', 'working', 1);
+    s.setTodoCounts('a', 1, 3);
+    assert.equal(s.setTodoCounts('a', 1, 3), false);
+    s.setState('a', 'result', 2);
+    assert.equal(s.snapshot().todoDone, 1);
+    assert.equal(s.snapshot().todoTotal, 3);
+  });
+
+  test('新一轮 beginTurn 清掉上一轮清单（否则进度条一开轮就满）', () => {
+    const s = new WorkStatusStore();
+    s.setState('a', 'working', 1);
+    s.setTodoCounts('a', 3, 3);
+    s.beginTurn('a', 100);
+    assert.equal(s.snapshot().todoDone, 0);
+    assert.equal(s.snapshot().todoTotal, 0);
+  });
+
+  test('没有条目时不制造条目', () => {
+    const s = new WorkStatusStore();
+    assert.equal(s.setTodoCounts('ghost', 1, 2), false);
+    assert.equal(s.has('ghost'), false);
   });
 });

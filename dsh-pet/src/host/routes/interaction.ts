@@ -72,7 +72,7 @@ export async function handleInteractionRoutes(deps: PetRouteDeps, input: RouteIn
 
   // 碎碎念：POST /whisper?pet= 立即让桌宠新说一句，返回 {ok,text,image?}。文本照旧写进 S 的
   // pets.<id>.say（与命令气泡、对话回复同一个叶子），同时随响应带回。
-  // 手动语义不受 whisperEnabled 门控：那个字段只关自动周期。
+  // 念不念只看 main.voiceWhisperEnabled：手动点一句同样受它管，关掉就不该突然出声（与周期生成同一口径）。
   // ?image= 指定这一次用哪张图（右键「配图」菜单点了具体某张）：不在池内 → unknown-image，
   // 由 publishWhisper 判定，这里只搬运。
   if (rest === 'whisper') {

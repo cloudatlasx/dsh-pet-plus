@@ -39,7 +39,11 @@ export function createWorkStatusBridge(deps: WorkStatusBridgeInput) {
       '\u0000' +
       String(snap.sessionId ?? '') +
       '\u0000' +
-      String(snap.steps);
+      String(snap.steps) +
+      '\u0000' +
+      String(snap.todoDone) +
+      '/' +
+      String(snap.todoTotal);
     if (key === publishedWork) return;
     // 抖动判定：只压 working → result 这一个方向（同档只换文案不算抖动，照常立即写；
     // 反向 result → working 立即写）
@@ -69,6 +73,8 @@ export function createWorkStatusBridge(deps: WorkStatusBridgeInput) {
       sessionId,
       steps: snap.steps,
       startedAt: snap.startedAt,
+      todoDone: snap.todoDone,
+      todoTotal: snap.todoTotal,
     });
   };
 

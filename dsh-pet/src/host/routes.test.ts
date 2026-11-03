@@ -779,7 +779,7 @@ describe('/work-status —— 外部写入工作状态', () => {
   test('POST 写入 state/task，/state 同步可见', async () => {
     const r = await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify({ state: 'working', task: '编译中' }));
     assert.equal(r.status, 200);
-    assert.deepEqual(JSON.parse(r.body), { state: 'working', task: '编译中' });
+    assert.deepEqual(JSON.parse(r.body), { state: 'working', task: '编译中', todoDone: 0, todoTotal: 0 });
     const data = (await work()).sections.workStatus.data;
     assert.equal(data.state, 'working');
     assert.equal(data.task, '编译中');
@@ -790,13 +790,13 @@ describe('/work-status —— 外部写入工作状态', () => {
     await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify({ state: 'working', task: '保留我' }));
 
     const keep = await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify({ state: 'result' }));
-    assert.deepEqual(JSON.parse(keep.body), { state: 'result', task: '保留我' });
+    assert.deepEqual(JSON.parse(keep.body), { state: 'result', task: '保留我', todoDone: 0, todoTotal: 0 });
 
     const nulled = await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify({ state: 'working', task: null }));
-    assert.deepEqual(JSON.parse(nulled.body), { state: 'working', task: null });
+    assert.deepEqual(JSON.parse(nulled.body), { state: 'working', task: null, todoDone: 0, todoTotal: 0 });
 
     const emptied = await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify({ state: 'working', task: '   ' }));
-    assert.deepEqual(JSON.parse(emptied.body), { state: 'working', task: null });
+    assert.deepEqual(JSON.parse(emptied.body), { state: 'working', task: null, todoDone: 0, todoTotal: 0 });
   });
 
   test('DELETE 清空回空闲且幂等', async () => {
@@ -809,6 +809,46 @@ describe('/work-status —— 外部写入工作状态', () => {
 
     const again = await call('/dsh-pet-7340/work-status', 'DELETE');
     assert.equal(again.status, 204);
+  });
+
+  test('todoDone / todoTotal 写进快照，气泡据此画进度条', async () => {
+    const r = await call(
+      '/dsh-pet-7340/work-status',
+      'POST',
+      JSON.stringify({ state: 'working', task: '整理清单', todoDone: 3, todoTotal: 7 }),
+    );
+    assert.equal(r.status, 200);
+    assert.deepEqual(JSON.parse(r.body), { state: 'working', task: '整理清单', todoDone: 3, todoTotal: 7 });
+
+    const data = (await work()).sections.workStatus.data as unknown as {
+      todoDone: number;
+      todoTotal: number;
+    };
+    assert.equal(data.todoDone, 3);
+    assert.equal(data.todoTotal, 7);
+
+    // 只报 state 时保留上一次的条数（别因为换了档位就把条子清零）
+    const keep = await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify({ state: 'result' }));
+    assert.deepEqual(JSON.parse(keep.body), { state: 'result', task: '整理清单', todoDone: 3, todoTotal: 7 });
+
+    // 总数 0 = 收掉条子
+    const off = await call(
+      '/dsh-pet-7340/work-status',
+      'POST',
+      JSON.stringify({ state: 'working', todoDone: 0, todoTotal: 0 }),
+    );
+    assert.deepEqual(JSON.parse(off.body), { state: 'working', task: '整理清单', todoDone: 0, todoTotal: 0 });
+
+    // 负数 / 非数字一律拒
+    for (const payload of [
+      { state: 'working', todoDone: -1, todoTotal: 3 },
+      { state: 'working', todoDone: '3', todoTotal: 3 },
+    ]) {
+      const bad = await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify(payload));
+      const parsed = JSON.parse(bad.body) as { ok: boolean; reason: string };
+      assert.equal(parsed.ok, false, JSON.stringify(payload));
+      assert.equal(parsed.reason, 'bad-request');
+    }
   });
 
   test('坏 JSON → 400；业务参数非法 → 200 + bad-request；GET → 405；body 超限 → 413', async () => {

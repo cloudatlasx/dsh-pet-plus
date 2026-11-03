@@ -31,12 +31,24 @@ export interface WorkStatusSnapshot {
   startedAt?: number | null;
   /** 当前展示条目所属会话；空闲 / 外部槽 / 老版本宿主缺该字段时都不出现，气泡因此不可点。 */
   sessionId?: string | null;
+  /** 清单里已完成的条数；没有清单或老版本宿主时 0。 */
+  todoDone?: number;
+  /** 清单总条数；0 = 没有清单，客户端据此不画进度条。 */
+  todoTotal?: number;
 }
 
 /** 快照解析：档位不认识 → 归一成 null（空闲）；形状非法 → null，消费端跳过这一拍。 */
 export function toWorkStatus(raw: unknown): WorkStatusSnapshot | null {
   if (!raw || typeof raw !== 'object') return null;
-  const r = raw as { state?: unknown; task?: unknown; sessionId?: unknown; steps?: unknown; startedAt?: unknown };
+  const r = raw as {
+    state?: unknown;
+    task?: unknown;
+    sessionId?: unknown;
+    steps?: unknown;
+    startedAt?: unknown;
+    todoDone?: unknown;
+    todoTotal?: unknown;
+  };
   const state: WorkStatusState | null =
     r.state === null || (typeof r.state === 'string' && (WORK_STATUS_STATES as readonly string[]).includes(r.state))
       ? (r.state as WorkStatusState | null)
@@ -46,7 +58,12 @@ export function toWorkStatus(raw: unknown): WorkStatusSnapshot | null {
   const steps = typeof r.steps === 'number' && Number.isFinite(r.steps) && r.steps > 0 ? Math.floor(r.steps) : 0;
   const startedAt =
     typeof r.startedAt === 'number' && Number.isFinite(r.startedAt) && r.startedAt > 0 ? r.startedAt : null;
-  return { state, task: typeof r.task === 'string' ? r.task : null, sessionId, steps, startedAt };
+  const todoTotal =
+    typeof r.todoTotal === 'number' && Number.isFinite(r.todoTotal) && r.todoTotal > 0 ? Math.floor(r.todoTotal) : 0;
+  const rawDone =
+    typeof r.todoDone === 'number' && Number.isFinite(r.todoDone) && r.todoDone > 0 ? Math.floor(r.todoDone) : 0;
+  const todoDone = todoTotal > 0 ? Math.min(rawDone, todoTotal) : 0;
+  return { state, task: typeof r.task === 'string' ? r.task : null, sessionId, steps, startedAt, todoDone, todoTotal };
 }
 
 /**
@@ -65,4 +82,24 @@ export function progressLabel(snap: WorkStatusSnapshot | null, now = Date.now())
   if (steps > 0) parts.push(`第 ${steps} 步`);
   if (minutes > 0) parts.push(`已用 ${minutes} 分钟`);
   return parts.join(' · ');
+}
+
+/**
+ * 清单进度百分比（0–100 的整数）；没有清单（`todoTotal` 为 0）返回 null。
+ *
+ * 这是**唯一**能诚实画成条子的进度：todo 清单的条数是真的，工具总步数则只有模型知道。
+ */
+export function todoPercent(snap: WorkStatusSnapshot | null): number | null {
+  const total = snap?.todoTotal ?? 0;
+  if (total <= 0) return null;
+  const done = Math.min(Math.max(snap?.todoDone ?? 0, 0), total);
+  return Math.round((done / total) * 100);
+}
+
+/** 清单进度文案「4/7 项」；没有清单返回 null。 */
+export function todoProgressLabel(snap: WorkStatusSnapshot | null): string | null {
+  const total = snap?.todoTotal ?? 0;
+  if (total <= 0) return null;
+  const done = Math.min(Math.max(snap?.todoDone ?? 0, 0), total);
+  return `${done}/${total} 项`;
 }

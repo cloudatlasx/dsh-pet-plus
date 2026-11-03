@@ -163,11 +163,12 @@ export const en: Record<Key, string> = {
     'When a task created with schedule_create comes due, the pet shows a reminder bubble. Reminders only — the DSH scheduler still triggers the session. Rescheduled tasks are re-armed automatically; skipped while no pet page is online and caught up when one returns. Written to the user config on "Save".',
   menuTitle: 'Context menu',
   menuHint:
-    'What appears when you right-click the pet, and in what order. Only the tool items are listed here - animation playback, display position and third-party "more" have their own visibility rules and are not sortable. Written to your user config on Save.',
+    'What appears when you right-click the pet, and in what order. Drag the handle on the left to reorder, and use the button on the right to show or hide an item. Only the tool items are listed here - animation playback, display position and third-party "more" have their own visibility rules and are not sortable. Written to your user config on Save.',
   menuMoveUp: 'Move up',
   menuMoveDown: 'Move down',
   menuShow: 'Show',
   menuHide: 'Hide',
+  menuDrag: 'Drag to reorder',
   menuReset: 'Reset to default',
   menuNote:
     'Hidden items keep their slot, so showing them again returns them to the same place. Chat comes first in the default order.',
@@ -176,10 +177,10 @@ export const en: Record<Key, string> = {
     'Three switches plus a voice: the master switch gates automatic speech, the two sub-switches gate one kind of proactive message each. All off by default; written to the user config on "Save" (never written immediately).',
   voiceEnabled: 'Speak replies',
   voiceEnabledHint:
-    'Master switch for automatic speech. When off, periodic whispers and todo reminders stay silent (the two sub-switches below have no effect). Manual whispers, chat replies and the speaker button in the chat panel are not gated — you asked for those, so the surface you asked from speaks them directly. It only affects whether sound is produced — bubbles, chat memory and system notifications are untouched; a failed synthesis is logged and never interrupts the conversation.',
+    'Master switch for automatic speech. When off, periodic whispers and todo reminders stay silent (the two sub-switches below have no effect). Chat replies and the speaker button in the chat panel are not gated — you asked for those, so the surface you asked from speaks them directly. It only affects whether sound is produced — bubbles, chat memory and system notifications are untouched; a failed synthesis is logged and never interrupts the conversation.',
   voiceWhisperEnabled: 'Speak whispers',
   voiceWhisperEnabledHint:
-    'Speaks the periodically generated whisper (right-clicking for a manual whisper is unaffected). Gated by the master switch above. Off by default — whispers are background narration and should not make noise unasked.',
+    'Speaks every whisper — the periodic one, the one you trigger from the right-click menu, and the one from the slash command. Gated by the master switch above. Off by default — whispers are background narration and should not make noise unasked.',
   voiceTodoEnabled: 'Speak todo reminders',
   voiceTodoEnabledHint:
     'Speaks a todo reminder when it comes due (the bubble still appears; this only decides whether it is spoken). Gated by the master switch above. Off by default.',

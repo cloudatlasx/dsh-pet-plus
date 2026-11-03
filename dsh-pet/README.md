@@ -14,10 +14,10 @@
 | 设置项可拖动      | 物理参数、音量、大小、对话记忆条数都改成滑条；字号仍是数字输入。                                                                         |
 | 语音试听          | 选音色时可试听，默认一句问候，也能自己输入文字（不超过 500 字）。                                                                        |
 | 操作按钮置顶      | 保存 / 同步 / 测试通知固定在设置页顶部。                                                                                                 |
-| 进度看得见        | 工作气泡第二行写 `第 3 步 · 已用 2 分钟`，不编百分比。                                                                                   |
+| 进度看得见        | 工作气泡第二行写 `第 3 步 · 已用 2 分钟`，再下面一条任务队列进度条（`3/7 项`，按 todo 真实条数）。                                       |
 | 等会儿 / 静音     | 提醒气泡带「等会儿」（15 分钟后重发）与「静音 1 小时」（`POST /mute`），忙的时候不用被追着提醒。                                         |
 | 最近记录 / 换角落 | 弹过的提醒收进 20 条台账（点条目回到对应会话）；双击宠物在四个角落间循环。                                                               |
-| 右键菜单可调      | 设置页里调工具项顺序与显隐，默认「对话」在最前；`menuOrder` / `menuHidden` 写进用户配置。                                                |
+| 右键菜单可调      | 设置页里拖左侧把手排序、右侧按钮控显隐，每行等高；默认「对话」在最前；`menuOrder` / `menuHidden` 写进用户配置。                          |
 
 完整说明、安装方式、设置项与许可信息见仓库首页：
 **<https://github.com/cloudatlasx/dsh-pet-plus>**
@@ -25,7 +25,7 @@
 ## 安装
 
 ```bash
-dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.10.0/dsh-pet-plus-0.10.0.tgz
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.11.0/dsh-pet-plus-0.11.0.tgz
 ```
 
 装完重开 DSH。宿主半侧改动需要重开 DSH，浏览器半侧刷新页面即可。

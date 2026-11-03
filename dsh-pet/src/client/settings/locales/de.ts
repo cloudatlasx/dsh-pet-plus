@@ -163,11 +163,12 @@ export const de: Record<Key, string> = {
     'Wenn eine mit schedule_create erstellte Aufgabe fällig wird, zeigt das Haustier eine Erinnerung (nur Hinweis — die Sitzung startet weiterhin der DSH-Scheduler). Zeitänderungen werden automatisch übernommen; ohne online Haustier-Seite wird übersprungen und beim Zurückkommen nachgeholt. Wird beim „Speichern“ in die Benutzerkonfiguration geschrieben.',
   menuTitle: 'Kontextmenü',
   menuHint:
-    'Was beim Rechtsklick auf das Haustier erscheint und in welcher Reihenfolge. Nur die Werkzeuge lassen sich sortieren - Animationswiedergabe, Anzeigeposition und das „Mehr" von Drittanbietern haben eigene Bedingungen. Wird beim Speichern in die Benutzerkonfiguration geschrieben.',
+    'Was beim Rechtsklick auf das Haustier erscheint und in welcher Reihenfolge. Ziehen Sie den Griff links zum Sortieren und nutzen Sie die Schaltfläche rechts, um einen Eintrag ein- oder auszublenden. Nur die Werkzeuge lassen sich sortieren - Animationswiedergabe, Anzeigeposition und das „Mehr" von Drittanbietern haben eigene Bedingungen. Wird beim Speichern in die Benutzerkonfiguration geschrieben.',
   menuMoveUp: 'Nach oben',
   menuMoveDown: 'Nach unten',
   menuShow: 'Anzeigen',
   menuHide: 'Ausblenden',
+  menuDrag: 'Ziehen zum Sortieren',
   menuReset: 'Zurücksetzen',
   menuNote:
     'Ausgeblendete Einträge behalten ihren Platz und erscheinen beim erneuten Anzeigen wieder dort. In der Standardreihenfolge steht „Chat" vorn.',
@@ -179,7 +180,7 @@ export const de: Record<Key, string> = {
     'Hauptschalter für die automatische Sprachausgabe. Aus = regelmäßige Flüstern-Sätze und To-do-Erinnerungen werden nicht gesprochen (die beiden Unterschalter unten wirken dann nicht). Manuelles Flüstern, Chat-Antworten und die Lautsprecher-Schaltfläche im Chat-Panel sind nicht betroffen – die haben Sie selbst ausgelöst, die sprechen direkt. Es betrifft nur das Sprechen: Blasen, Chat-Gedächtnis und Systembenachrichtigungen bleiben unberührt; eine fehlgeschlagene Synthese wird nur protokolliert und unterbricht den Chat nicht.',
   voiceWhisperEnabled: 'Flüstern sprechen',
   voiceWhisperEnabledHint:
-    'Spricht den regelmäßig erzeugten Flüstern-Satz (manuelles Flüstern per Rechtsklick bleibt unberührt). Unterliegt dem Hauptschalter oben: Ist er aus, wirkt dieser Schalter nicht. Standardmäßig aus – Flüstern ist Hintergrundbegleitung und sollte nicht ungefragt Geräusche machen.',
+    'Spricht den regelmäßig erzeugten Flüstern-Satz (auch manuelles Flüstern per Rechtsklick oder Slash-Befehl). Unterliegt dem Hauptschalter oben: Ist er aus, wirkt dieser Schalter nicht. Standardmäßig aus – Flüstern ist Hintergrundbegleitung und sollte nicht ungefragt Geräusche machen.',
   voiceTodoEnabled: 'To-do-Erinnerungen sprechen',
   voiceTodoEnabledHint:
     'Spricht eine fällige To-do-Erinnerung (die Blase erscheint weiterhin; dieser Schalter entscheidet nur, ob gesprochen wird). Unterliegt dem Hauptschalter oben. Standardmäßig aus.',

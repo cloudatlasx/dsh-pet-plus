@@ -164,11 +164,12 @@ export const fr: Record<Key, string> = {
     "Quand une tâche créée avec schedule_create arrive à échéance, le compagnon affiche un rappel (simple rappel : c'est toujours l'ordonnanceur DSH qui lance la session). Les changements d'heure sont repris automatiquement ; ignoré si aucun compagnon n'est en ligne, rattrapé à son retour. Écrit dans la configuration lors de l'enregistrement.",
   menuTitle: 'Menu contextuel',
   menuHint:
-    "Ce qui apparaît au clic droit sur la mascotte, et dans quel ordre. Seuls les outils sont réordonnés : lecture d'animation, position d'affichage et « plus » tiers ont leurs propres conditions. Enregistré dans votre configuration lors de l'enregistrement.",
+    "Ce qui apparaît au clic droit sur la mascotte, et dans quel ordre. Faites glisser la poignée de gauche pour réordonner, et utilisez le bouton de droite pour afficher ou masquer un élément. Seuls les outils sont réordonnés : lecture d'animation, position d'affichage et « plus » tiers ont leurs propres conditions. Enregistré dans votre configuration lors de l'enregistrement.",
   menuMoveUp: 'Monter',
   menuMoveDown: 'Descendre',
   menuShow: 'Afficher',
   menuHide: 'Masquer',
+  menuDrag: 'Glisser pour réordonner',
   menuReset: 'Réinitialiser',
   menuNote:
     "Les éléments masqués gardent leur place : les réafficher les remet au même endroit. Dans l'ordre par défaut, « Discuter » vient en premier.",
@@ -180,7 +181,7 @@ export const fr: Record<Key, string> = {
     "Interrupteur principal de la lecture automatique. Désactivé, les murmures périodiques et les rappels de tâches restent muets (les deux sous-interrupteurs ci-dessous n'ont alors aucun effet). Les murmures manuels, les réponses de discussion et le bouton haut-parleur du panneau de discussion ne sont pas concernés — vous les avez demandés, la surface qui les déclenche les lit directement. Cela ne décide que du son émis : bulles, mémoire de discussion et notifications système restent intactes ; un échec de synthèse est seulement journalisé et n'interrompt jamais la conversation.",
   voiceWhisperEnabled: 'Lire les murmures',
   voiceWhisperEnabledHint:
-    "Lit le murmure généré périodiquement (un murmure manuel par clic droit n'est pas concerné). Soumis à l'interrupteur principal ci-dessus. Désactivé par défaut — les murmures sont une narration de fond et ne doivent pas faire de bruit sans qu'on le demande.",
+    "Lit le murmure généré périodiquement (y compris un murmure manuel par clic droit ou par commande slash). Soumis à l'interrupteur principal ci-dessus. Désactivé par défaut — les murmures sont une narration de fond et ne doivent pas faire de bruit sans qu'on le demande.",
   voiceTodoEnabled: 'Lire les rappels de tâches',
   voiceTodoEnabledHint:
     "Lit un rappel de tâche à son échéance (la bulle s'affiche toujours ; cet interrupteur décide seulement s'il est lu). Soumis à l'interrupteur principal ci-dessus. Désactivé par défaut.",

@@ -4,7 +4,13 @@
  * 不决定通知文案与档位（归 notify-events 与 shared/work-status），只做事件到判定的转接。
  * @module dsh-pet/src/host/plugin/session-watch
  */
-import { GOAL_UPDATE_TOOL, currentTaskFromTodo, goalUpdateAction, reduceWorkStatus } from '../work-status.ts';
+import {
+  GOAL_UPDATE_TOOL,
+  currentTaskFromTodo,
+  goalUpdateAction,
+  reduceWorkStatus,
+  todoCounts,
+} from '../work-status.ts';
 import { toolDetailFromEvent } from '../tool-detail.ts';
 import {
   agentErrorFrame,
@@ -167,6 +173,10 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
         const text = currentTaskFromTodo(event as { data?: { todos?: Array<{ status?: string; content?: string }> } });
         // 缓存无条件更新：工具跑完要靠它把气泡恢复回来（见下方 tool/call 的接线）
         lastTodoText.set(sessionId, text);
+        // 清单进度（已完成 / 总数）单独记：它描述的是队列，不是「此刻在动什么」，
+        // 所以即使工具正在执行（下面那条 return）也要更新，否则进度条会停在上一条 todo/write。
+        const counts = todoCounts(event as { data?: { todos?: Array<{ status?: string }> } });
+        if (workStatus.setTodoCounts(sessionId, counts.done, counts.total)) publishWorkStatus();
         // 工具正在执行时不覆盖气泡：「修改 index.ts」比清单里那句更能说明此刻在动什么
         if ((toolsInFlight.get(sessionId)?.size ?? 0) > 0) return;
         if (workStatus.has(sessionId)) {

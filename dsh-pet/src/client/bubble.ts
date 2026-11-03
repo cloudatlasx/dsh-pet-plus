@@ -71,6 +71,15 @@ const bubbleCss = [
   // 工作气泡的第二行（第 N 步 · 已用 X 分钟）：小一号、灰一点，不跟正文抢注意力。
   '.dsh-pet-whisper__meta{display:block;margin-top:calc(var(--f)*0.14);font-size:calc(var(--f)*0.58);' +
     'line-height:1.3;color:rgba(43,43,43,.55);font-variant-numeric:tabular-nums}',
+  // 清单进度条：细条 + 右侧「4/7 项」。条子只表达「队列走了多少」，不表示「这轮快完了」。
+  '.dsh-pet-whisper__progress{display:flex;align-items:center;gap:calc(var(--f)*0.4);' +
+    'margin-top:calc(var(--f)*0.3)}',
+  '.dsh-pet-whisper__track{flex:1 1 auto;height:calc(var(--f)*0.3);border-radius:calc(var(--f)*0.15);' +
+    'background:rgba(43,43,43,.12);overflow:hidden}',
+  '.dsh-pet-whisper__fill{display:block;height:100%;border-radius:inherit;background:#2e9e4f;' +
+    'transition:width .3s cubic-bezier(.05,.7,.1,1)}',
+  '.dsh-pet-whisper__pct{flex:none;font-size:calc(var(--f)*0.56);line-height:1;color:rgba(43,43,43,.5);' +
+    'font-variant-numeric:tabular-nums}',
   // 配图样式在 shared 的 MEME_BUBBLE_CSS，这里只保留标题与行样式。
   '.dsh-pet-bubble .pet-bub-title{font-size:calc(var(--f)*0.7692);color:rgba(43,43,43,.6);margin-bottom:calc(var(--f)*0.1978)}',
   '.dsh-pet-bubble .pet-bub-row{display:flex;justify-content:space-between;gap:calc(var(--f)*0.6593);flex-wrap:wrap}',
@@ -206,7 +215,33 @@ const bubbleCss = [
     '.dsh-pet-history__title{color:#f4f4f5}' +
     '.dsh-pet-history__sum,.dsh-pet-history__empty{color:rgba(255,255,255,.55)}' +
     '.dsh-pet-history__time,.dsh-pet-history__note{color:rgba(255,255,255,.42)}' +
-    '.dsh-pet-history__row.is-clickable:hover{background:rgba(124,176,255,.14)}}',
+    '.dsh-pet-history__row.is-clickable:hover{background:rgba(124,176,255,.14)}' +
+    // 正文类颜色此前是给浅色底写死的深色字，深色底上会糊成一片——这里统一按底色重设。
+    '.dsh-pet-whisper__meta{color:rgba(255,255,255,.55)}' +
+    '.dsh-pet-whisper__track{background:rgba(255,255,255,.16)}' +
+    '.dsh-pet-whisper__fill{background:#4ade80}' +
+    '.dsh-pet-whisper__pct{color:rgba(255,255,255,.55)}' +
+    '.dsh-pet-bubble .pet-bub-title,.dsh-pet-bubble .pet-bub-sub,.dsh-pet-bubble .pet-bub-quota-label,' +
+    '.dsh-pet-bubble .pet-bub-quota-reset,.dsh-pet-bubble .pet-bub-usage-title,' +
+    '.dsh-pet-bubble .pet-bub-usage-period{color:rgba(255,255,255,.6)}' +
+    '.dsh-pet-bubble .pet-bub-val,.dsh-pet-bubble .pet-bub-quota-used,' +
+    '.dsh-pet-bubble .pet-bub-usage-total,.dsh-pet-bubble .pet-bub-usage-spend{color:#f4f4f5}' +
+    '.dsh-pet-bubble .pet-bub-err{color:#ff8b7a}' +
+    '.dsh-pet-bubble .pet-bub-tag{color:rgba(255,255,255,.55);border-color:rgba(255,255,255,.22)}' +
+    '.dsh-pet-bubble .pet-bub-quota-bar,' +
+    '.dsh-pet-bubble .pet-bub-usage-bar{background:rgba(255,255,255,.14)}' +
+    '.dsh-pet-request__tool{color:rgba(255,255,255,.58)}' +
+    '.dsh-pet-request__body,.dsh-pet-reminder__line{color:#e4e4e7}' +
+    '.dsh-pet-reminder__title,.dsh-pet-request__title{color:#f4f4f5}' +
+    '.dsh-pet-reminder__hint{color:rgba(255,255,255,.5)}' +
+    '.dsh-pet-request__detail{color:rgba(255,255,255,.6)}' +
+    '.dsh-pet-request__question{border-top-color:rgba(255,255,255,.1)}' +
+    '.dsh-pet-request__btn{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.14);color:#f4f4f5}' +
+    '.dsh-pet-request__btn:hover{background:rgba(255,255,255,.12)}' +
+    '.dsh-pet-request__btn.is-ghost{background:transparent;border-color:transparent;color:rgba(255,255,255,.55)}' +
+    '.dsh-pet-request__input{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16);color:#f4f4f5}' +
+    '.dsh-pet-request__opt{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.18);color:#e4e4e7}' +
+    '.dsh-pet-request__opt.is-picked{background:rgba(46,158,79,.22);border-color:#2e9e4f;color:#9be0b0}}',
 ].join('\n');
 
 /** 注入气泡样式，每页只注入一次。 */
@@ -424,6 +459,10 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
   text: string;
   /** 第二行：进度（「第 3 步 · 已用 2 分钟」）。工作状态气泡用，其它气泡不传。 */
   meta?: string | null;
+  /** 清单进度（0–100）；有值才画条子，null/缺省不画。 */
+  percent?: number | null;
+  /** 条子右边的「4/7 项」；不传就只有条子。 */
+  percentLabel?: string | null;
   image?: string;
   url?: string;
   assetRoot?: string;
@@ -439,6 +478,8 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
   return function WhisperBubble({
     text,
     meta,
+    percent,
+    percentLabel,
     image,
     url,
     assetRoot,
@@ -448,6 +489,8 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
   }: {
     text: string;
     meta?: string | null;
+    percent?: number | null;
+    percentLabel?: string | null;
     image?: string;
     url?: string;
     assetRoot?: string;
@@ -477,7 +520,33 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
       typeof meta === 'string' && meta !== ''
         ? h('span', { key: 'meta', className: 'dsh-pet-whisper__meta', children: meta })
         : null;
+    // 清单进度条：只有拿到真实条数（todo 清单）才画；进度不可知时宁可没有，也不给假条子。
+    const pct = typeof percent === 'number' && Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : null;
+    const barNode =
+      pct === null
+        ? null
+        : h('span', {
+            key: 'progress',
+            className: 'dsh-pet-whisper__progress',
+            children: [
+              h('span', {
+                key: 'track',
+                className: 'dsh-pet-whisper__track',
+                children: [
+                  h('span', {
+                    key: 'fill',
+                    className: 'dsh-pet-whisper__fill',
+                    style: { width: pct + '%' },
+                  }),
+                ],
+              }),
+              typeof percentLabel === 'string' && percentLabel !== ''
+                ? h('span', { key: 'label', className: 'dsh-pet-whisper__pct', children: percentLabel })
+                : null,
+            ],
+          });
     const textNodes = Array.isArray(body) ? body : [body];
+    const tailNodes = [...(metaNode === null ? [] : [metaNode]), ...(barNode === null ? [] : [barNode])];
     return h('div', {
       className:
         'dsh-pet-bubble dsh-pet-whisper' +
@@ -493,8 +562,8 @@ export function makeWhisperBubble(rt: { h: typeof jsx }): (props: {
         : undefined,
       children:
         voiceState === 'idle'
-          ? [...textNodes, ...(metaNode === null ? [] : [metaNode])]
-          : [[...textNodes, ...(metaNode === null ? [] : [metaNode])], voiceBadgeNode(h, voiceState)],
+          ? [...textNodes, ...tailNodes]
+          : [[...textNodes, ...tailNodes], voiceBadgeNode(h, voiceState)],
     });
   };
 }

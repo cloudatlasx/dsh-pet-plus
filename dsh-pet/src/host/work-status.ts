@@ -137,7 +137,26 @@ export interface WorkStatusSnapshot {
   steps: number;
   /** 本轮开始时间（毫秒）；空闲恒 null。用来算「已经干了多久」。 */
   startedAt: number | null;
+  /** 清单里已完成的条数（todo/write 提供）；没有清单时 0。 */
+  todoDone: number;
+  /** 清单总条数；没有清单时 0（客户端据此决定要不要画进度条）。 */
+  todoTotal: number;
   ts: number; // 最近一次变化的时间戳（轮询侧据此检测变化）
+}
+
+/**
+ * todo/write 的清单 → 已完成 / 总数。
+ *
+ * 只认 completed 计入「已完成」：in_progress 是「正在做那一条」，算进完成会让条子虚高，
+ * 用户看到的就是「明明还没做完却满了」。
+ */
+export function todoCounts(event: { data?: { todos?: Array<{ status?: string }> } }): { done: number; total: number } {
+  const todos = Array.isArray(event?.data?.todos) ? event.data.todos : [];
+  let done = 0;
+  for (const t of todos) {
+    if (t?.status === 'completed') done += 1;
+  }
+  return { done, total: todos.length };
 }
 
 /** 每会话聚合条目。 */
@@ -152,6 +171,10 @@ export interface SessionWorkEntry {
   steps: number;
   /** 本轮开始时间（毫秒）；null = 还没见到 turn/start。 */
   startedAt: number | null;
+  /** 清单已完成条数；没有清单时 0。 */
+  todoDone: number;
+  /** 清单总条数；没有清单时 0（客户端据此不画进度条）。 */
+  todoTotal: number;
   /** 该条目所属会话；`pickDisplayed` 只遍历 values，所以带着它才能知道展示的是哪一条。 */
   sessionId: string;
 }
@@ -199,7 +222,16 @@ export class WorkStatusStore {
 
   constructor() {
     this.sessions = new Map();
-    this.snap = { state: null, task: null, sessionId: null, steps: 0, startedAt: null, ts: 0 };
+    this.snap = {
+      state: null,
+      task: null,
+      sessionId: null,
+      steps: 0,
+      startedAt: null,
+      todoDone: 0,
+      todoTotal: 0,
+      ts: 0,
+    };
   }
 
   /** 该会话当前是否有活动条目（决定 todo/write 是否还值得更新它的文案）。 */
@@ -217,11 +249,18 @@ export class WorkStatusStore {
     return this.sessions.get(sessionId)?.task ?? null;
   }
 
+  /** 该会话的清单进度（无条目返回 0/0）——写接口回读自己刚写进去的那一份，而不是被优先级挑中的那份。 */
+  todoOf(sessionId: string): { done: number; total: number } {
+    const entry = this.sessions.get(sessionId);
+    return { done: entry?.todoDone ?? 0, total: entry?.todoTotal ?? 0 };
+  }
+
   /** 新一轮开始：步数清零并记下起点（同一会话的上一轮不该把步数带进这一轮）。 */
   beginTurn(sessionId: string, at: number): void {
     const prev = this.sessions.get(sessionId);
     if (!prev) return; // 还没有条目：等 turn/start 的 setState 建出来，beginTurn 由调用方随后重放
-    this.sessions.set(sessionId, { ...prev, steps: 0, startedAt: at });
+    // 清单也跟着清空：上一轮的清单条数不能当这一轮的进度条（否则一开新轮就显示「已完成」）。
+    this.sessions.set(sessionId, { ...prev, steps: 0, startedAt: at, todoDone: 0, todoTotal: 0 });
     this.refresh();
   }
 
@@ -231,6 +270,19 @@ export class WorkStatusStore {
     if (!prev) return;
     this.sessions.set(sessionId, { ...prev, steps: prev.steps + 1 });
     this.refresh();
+  }
+
+  /** 写清单进度（todo/write 时调）；没有清单（total 0）就是把进度条收掉。 */
+  setTodoCounts(sessionId: string, done: number, total: number): boolean {
+    const prev = this.sessions.get(sessionId);
+    if (!prev) return false;
+    const safeDone = Number.isFinite(done) && done > 0 ? Math.floor(done) : 0;
+    const safeTotal = Number.isFinite(total) && total > 0 ? Math.floor(total) : 0;
+    const nextDone = Math.min(safeDone, safeTotal);
+    if (prev.todoDone === nextDone && prev.todoTotal === safeTotal) return false;
+    this.sessions.set(sessionId, { ...prev, todoDone: nextDone, todoTotal: safeTotal });
+    this.refresh();
+    return true;
   }
 
   /** 写会话状态（保留该会话已有的 task / steps / startedAt）；同状态且 seq 不更新则不写并返回 false（防刷屏）。 */
@@ -243,6 +295,8 @@ export class WorkStatusStore {
       task: prev?.task ?? null,
       steps: prev?.steps ?? 0,
       startedAt: prev?.startedAt ?? null,
+      todoDone: prev?.todoDone ?? 0,
+      todoTotal: prev?.todoTotal ?? 0,
       sessionId,
     });
     this.refresh();
@@ -270,7 +324,7 @@ export class WorkStatusStore {
     return this.snap;
   }
 
-  /** 重算展示：state / task / sessionId / 步数 / 起点任一变化才更新 ts（轮询侧据此触发，两端都靠它刷新）。 */
+  /** 重算展示：state / task / sessionId / 步数 / 起点 / 清单进度任一变化才更新 ts。 */
   private refresh(): void {
     const best = pickDisplayed(this.sessions.values());
     const nextState = best?.state ?? null;
@@ -278,12 +332,16 @@ export class WorkStatusStore {
     const nextSession = best?.sessionId ?? null;
     const nextSteps = best?.steps ?? 0;
     const nextStarted = best?.startedAt ?? null;
+    const nextDone = best?.todoDone ?? 0;
+    const nextTotal = best?.todoTotal ?? 0;
     if (
       nextState === this.snap.state &&
       nextTask === this.snap.task &&
       nextSession === this.snap.sessionId &&
       nextSteps === this.snap.steps &&
-      nextStarted === this.snap.startedAt
+      nextStarted === this.snap.startedAt &&
+      nextDone === this.snap.todoDone &&
+      nextTotal === this.snap.todoTotal
     ) {
       return;
     }
@@ -292,6 +350,8 @@ export class WorkStatusStore {
     this.snap.sessionId = nextSession;
     this.snap.steps = nextSteps;
     this.snap.startedAt = nextStarted;
+    this.snap.todoDone = nextDone;
+    this.snap.todoTotal = nextTotal;
     this.snap.ts = Date.now();
   }
 }

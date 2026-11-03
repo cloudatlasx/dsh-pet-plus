@@ -121,8 +121,8 @@ export function registerLoops(deps: LoopsInput): void {
       if (petId === undefined) return;
       pumping = true;
       try {
-        // kind=whisper 让生成侧按 voiceWhisperEnabled 决定要不要带 voiceTo。
-        await publishWhisper(petId, undefined, undefined, 'whisper');
+        // 要不要念由 publishWhisper 自己按 voiceWhisperEnabled 定（周期与手动同一口径）。
+        await publishWhisper(petId);
       } catch {
         // 单只失败不挡住后面的宠物：原因已经由 publishWhisper 记过日志。
       } finally {

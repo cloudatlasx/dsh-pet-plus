@@ -7,7 +7,7 @@
  */
 import { parseStateWaitQuery } from '../state.ts';
 import { type RouteResult } from '../http.ts';
-import { HOST_WORK_STATUS_STATES, TASK_TEXT_MAX, type HostWorkStatusState } from '../work-status.ts';
+import { HOST_WORK_STATUS_STATES, TASK_TEXT_MAX, todoCounts, type HostWorkStatusState } from '../work-status.ts';
 import type { PetRouteDeps, RouteInput } from './types.ts';
 import { failResult, invalidJson, methodNotAllowed, okResult, payloadTooLarge } from './result.ts';
 
@@ -144,10 +144,29 @@ export async function handleStateRoutes(deps: PetRouteDeps, input: RouteInput): 
     }
     workStatus.setState(EXTERNAL_WORK_SESSION, state as HostWorkStatusState, nextExternalWorkSeq());
     if (task !== undefined) workStatus.setTask(EXTERNAL_WORK_SESSION, task);
+    // 队列进度：外部程序能报「几件事做完了几件」，气泡就画得出真的条子（不报就不画）。
+    const progress = todoCounts(parsed as { data?: { todos?: Array<{ status?: string }> } });
+    const rawDone = (parsed as { todoDone?: unknown }).todoDone;
+    const rawTotal = (parsed as { todoTotal?: unknown }).todoTotal;
+    if (rawDone !== undefined || rawTotal !== undefined) {
+      if (rawDone !== undefined && typeof rawDone !== 'number') return failResult('bad-request', 'todoDone 必须是数字');
+      if (rawTotal !== undefined && typeof rawTotal !== 'number')
+        return failResult('bad-request', 'todoTotal 必须是数字');
+      const done = typeof rawDone === 'number' ? rawDone : 0;
+      const total = typeof rawTotal === 'number' ? rawTotal : 0;
+      if (!Number.isFinite(done) || !Number.isFinite(total) || done < 0 || total < 0)
+        return failResult('bad-request', 'todoDone / todoTotal 必须是非负数字');
+      workStatus.setTodoCounts(EXTERNAL_WORK_SESSION, done, total);
+    } else if (progress.total > 0) {
+      workStatus.setTodoCounts(EXTERNAL_WORK_SESSION, progress.done, progress.total);
+    }
     publishWorkStatus();
+    const mine = workStatus.todoOf(EXTERNAL_WORK_SESSION);
     return okResult({
       state: workStatus.stateOf(EXTERNAL_WORK_SESSION) ?? state,
       task: workStatus.taskOf(EXTERNAL_WORK_SESSION),
+      todoDone: mine.done,
+      todoTotal: mine.total,
     });
   }
 

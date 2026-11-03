@@ -103,6 +103,12 @@ export type BalanceBubbleComponent = (props: {
 /** 说话气泡组件；配图二选一，props 与 `client/bubble.ts` 的 WhisperBubble 一致。 */
 export type WhisperBubbleComponent = (props: {
   text: string;
+  /** 第二行进度文案（工作气泡用）。 */
+  meta?: string | null;
+  /** 清单进度百分比（工作气泡用）；null/缺省不画条子。 */
+  percent?: number | null;
+  /** 条子旁的「4/7 项」。 */
+  percentLabel?: string | null;
   image?: string;
   url?: string;
   assetRoot?: string;
@@ -191,8 +197,12 @@ export interface BubbleSlots {
   showWhisper(text: string, parts: { image?: string; url?: string }, duration?: number): void;
   /** 收起说话气泡；不碰动画与另两种气泡。 */
   clearWhisper(): void;
-  /** 更新工作气泡文本与进度行（第二行），显隐不动。 */
-  updateWorkText(text: string | null, meta?: string | null): void;
+  /** 更新工作气泡文本、进度行（第二行）与清单进度条；显隐不动。 */
+  updateWorkText(
+    text: string | null,
+    meta?: string | null,
+    progress?: { percent: number | null; label: string | null } | null,
+  ): void;
   /** 点亮工作气泡；terminal 决定 10s 后自动收起，非终态常驻。 */
   lightWork(terminal: boolean): void;
   /** 收起工作气泡但保留文本。 */
@@ -251,6 +261,9 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
     const [workOn, setWorkOn] = useState(false);
     const [workText, setWorkText] = useState<string | null>(null);
     const [workMeta, setWorkMeta] = useState<string | null>(null);
+    // 清单进度（已完成 / 总数）：null = 没有清单，不画条子。
+    const [workPercent, setWorkPercent] = useState<number | null>(null);
+    const [workPercentLabel, setWorkPercentLabel] = useState<string | null>(null);
     const workTimerRef = useRef<number | null>(null);
     // 语音播报状态：只在手动触发的那一句上有值，气泡据此显示转圈 / 喇叭
     const [voiceState, setVoiceState] = useState<VoiceState>('idle');
@@ -347,6 +360,8 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
       hideWork();
       setWorkText(null);
       setWorkMeta(null);
+      setWorkPercent(null);
+      setWorkPercentLabel(null);
     };
 
     const showTodo = (): void => setTodoOn(true);
@@ -413,6 +428,8 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
         return h(WhisperBubble, {
           text: workText,
           meta: workMeta,
+          percent: workPercent,
+          percentLabel: workPercentLabel,
           on: workOn,
           ...(onClick === undefined ? {} : { onClick }),
         });
@@ -434,9 +451,15 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
       showWhisper,
       toggleHistory,
       toggleTodo,
-      updateWorkText: (text: string | null, meta?: string | null) => {
+      updateWorkText: (
+        text: string | null,
+        meta?: string | null,
+        progress?: { percent: number | null; label: string | null } | null,
+      ) => {
         setWorkText(text);
         setWorkMeta(meta ?? null);
+        setWorkPercent(progress?.percent ?? null);
+        setWorkPercentLabel(progress?.label ?? null);
       },
     };
   };

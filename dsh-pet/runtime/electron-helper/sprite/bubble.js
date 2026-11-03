@@ -123,6 +123,25 @@ Object.assign(PetSprite.prototype, {
         meta.textContent = this.workMeta;
         this.bubble.appendChild(meta);
       }
+      // 清单进度条：只有拿到真实的 todo 条数才画（events.js 已把没有清单的情况算成 null）。
+      if (this.workPercent !== null && this.workPercent !== undefined) {
+        const wrap = document.createElement('div');
+        wrap.className = 'pet-bub-whisper-progress';
+        const track = document.createElement('div');
+        track.className = 'pet-bub-whisper-track';
+        const fill = document.createElement('div');
+        fill.className = 'pet-bub-whisper-fill';
+        fill.style.width = Math.min(100, Math.max(0, this.workPercent)) + '%';
+        track.appendChild(fill);
+        wrap.appendChild(track);
+        if (this.workPercentLabel) {
+          const label = document.createElement('span');
+          label.className = 'pet-bub-whisper-pct';
+          label.textContent = this.workPercentLabel;
+          wrap.appendChild(label);
+        }
+        this.bubble.appendChild(wrap);
+      }
     } else if (slot === 'whisper') {
       // 配图（shared 生成的 <img> + 共用样式）：先看图再读话
       if (whisperImg) this.bubble.appendChild(whisperImg);

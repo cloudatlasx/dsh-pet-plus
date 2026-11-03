@@ -166,11 +166,12 @@ export const es: Record<Key, string> = {
     'Cuando vence una tarea creada con schedule_create, la mascota muestra un recordatorio (solo avisa; quien lanza la sesión sigue siendo el planificador de DSH). Los cambios de hora se reajustan solos; se omite si no hay mascota en línea y se recupera al volver. Se escribe en la configuración al «Guardar».',
   menuTitle: 'Menú contextual',
   menuHint:
-    'Qué aparece al hacer clic derecho en la mascota y en qué orden. Solo se ordenan las herramientas: la reproducción de animaciones, la posición y el "más" de terceros tienen sus propias condiciones. Se guarda en tu configuración al pulsar Guardar.',
+    'Qué aparece al hacer clic derecho en la mascota y en qué orden. Arrastra el asa de la izquierda para ordenar y usa el botón de la derecha para mostrar u ocultar cada elemento. Solo se ordenan las herramientas: la reproducción de animaciones, la posición y el "más" de terceros tienen sus propias condiciones. Se guarda en tu configuración al pulsar Guardar.',
   menuMoveUp: 'Subir',
   menuMoveDown: 'Bajar',
   menuShow: 'Mostrar',
   menuHide: 'Ocultar',
+  menuDrag: 'Arrastra para ordenar',
   menuReset: 'Restablecer',
   menuNote:
     'Los elementos ocultos conservan su sitio, así que al mostrarlos vuelven a donde estaban. En el orden predeterminado, «Conversar» va primero.',
@@ -182,7 +183,7 @@ export const es: Record<Key, string> = {
     'Interruptor maestro de la locución automática. Si está desactivado, los susurros periódicos y los recordatorios de tareas quedan en silencio (los dos interruptores de abajo no tienen efecto). Los susurros manuales, las respuestas del chat y el botón de altavoz del panel de chat no dependen de él: los pediste tú, así que la superficie desde la que los pediste los locuta directamente. Solo afecta a si se produce sonido: los globos, la memoria del chat y las notificaciones del sistema no cambian; un fallo de síntesis se registra y nunca interrumpe la conversación.',
   voiceWhisperEnabled: 'Locutar susurros',
   voiceWhisperEnabledHint:
-    'Locuta el susurro generado periódicamente (el susurro manual con clic derecho no se ve afectado). Depende del interruptor maestro de arriba. Desactivado por defecto: los susurros son narración de fondo y no deberían sonar sin pedirlo.',
+    'Locuta el susurro generado periódicamente (también el susurro manual del menú contextual y el del comando de barra). Depende del interruptor maestro de arriba. Desactivado por defecto: los susurros son narración de fondo y no deberían sonar sin pedirlo.',
   voiceTodoEnabled: 'Locutar recordatorios de tareas',
   voiceTodoEnabledHint:
     'Locuta el recordatorio de una tarea cuando vence (el globo sigue apareciendo; esto solo decide si se locuta). Depende del interruptor maestro de arriba. Desactivado por defecto.',

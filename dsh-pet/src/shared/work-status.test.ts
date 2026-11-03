@@ -7,7 +7,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { progressLabel, toWorkStatus } from './work-status.ts';
+import { progressLabel, todoPercent, todoProgressLabel, toWorkStatus } from './work-status.ts';
 
 describe('toWorkStatus —— sessionId 解析', () => {
   test('带 sessionId → 原样保留，供点气泡跳会话', () => {
@@ -73,5 +73,37 @@ describe('progressLabel —— 第二行进度文案', () => {
   test('不足一分钟且没步数 → 不显示（别写「已用 0 分钟」）', () => {
     const startedAt = 1_700_000_000_000;
     assert.equal(progressLabel(toWorkStatus({ state: 'working', task: null, startedAt }), startedAt + 30_000), null);
+  });
+});
+
+describe('todoPercent / todoProgressLabel —— 清单进度条', () => {
+  test('百分比四舍五入、夹在 0–100', () => {
+    assert.equal(todoPercent(toWorkStatus({ state: 'working', task: null, todoDone: 1, todoTotal: 3 })), 33);
+    assert.equal(todoPercent(toWorkStatus({ state: 'working', task: null, todoDone: 3, todoTotal: 3 })), 100);
+    assert.equal(todoPercent(toWorkStatus({ state: 'working', task: null, todoDone: 9, todoTotal: 3 })), 100);
+  });
+
+  test('没有清单 → null（前端因此不画条子）', () => {
+    assert.equal(todoPercent(toWorkStatus({ state: 'working', task: null })), null);
+    assert.equal(todoPercent(null), null);
+    assert.equal(todoProgressLabel(toWorkStatus({ state: 'working', task: null })), null);
+  });
+
+  test('文案是「已完成/总数 项」', () => {
+    assert.equal(
+      todoProgressLabel(toWorkStatus({ state: 'working', task: null, todoDone: 4, todoTotal: 7 })),
+      '4/7 项',
+    );
+    assert.equal(
+      todoProgressLabel(toWorkStatus({ state: 'working', task: null, todoDone: 0, todoTotal: 7 })),
+      '0/7 项',
+    );
+  });
+
+  test('解析时 done 超过 total 收敛，非法值归零', () => {
+    assert.equal(toWorkStatus({ state: 'working', todoDone: 9, todoTotal: 4 })?.todoDone, 4);
+    assert.equal(toWorkStatus({ state: 'working', todoDone: -1, todoTotal: 4 })?.todoDone, 0);
+    assert.equal(toWorkStatus({ state: 'working', todoDone: 3, todoTotal: 0 })?.todoDone, 0);
+    assert.equal(toWorkStatus({ state: 'working', todoDone: 3, todoTotal: 0 })?.todoTotal, 0);
   });
 });

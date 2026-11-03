@@ -125,14 +125,15 @@ export function createChatMemory(deps: ChatMemoryInput) {
    *  不在池内返回 unknown-image；缺省 = 按开关随机抽或纯文本。
    *  @param voiceTo - 这一句该由哪一端念；缺省按它自己的 display 推导（桌面优先，见 {@link pickVoiceSurface}）。
    *  路由层带 `?surface=` 的会显式传请求面，其余调用点留空即可。
-   *  @param kind - 这次生成的来源：`whisper` = 周期调度，受 `voiceWhisperEnabled` 管；`manual` = 菜单、
-   *  斜杠命令、路由主动触发，不看那个开关（用户主动点的就是这一句）。缺省 `manual`。
+   *
+   *  碎碎念念不念只看 `voiceWhisperEnabled` 一个开关，**不分周期还是手动**：用户关掉「碎碎念播报」
+   *  之后，右键点一句也不该突然出声（那是最常见的误触发场景）。聊天回复与试听不经过这里，
+   *  由各自的入口决定，所以仍然会念。
    */
   const publishWhisper = async (
     petId: string,
     image?: string,
     voiceTo?: VoiceTarget,
-    kind: 'whisper' | 'manual' = 'manual',
   ): Promise<
     | { ok: true; text: string; image?: string }
     | { ok: false; reason: 'provider-missing' | 'generate-error' | 'unknown-pet' | 'unknown-image'; message?: string }
@@ -143,10 +144,10 @@ export function createChatMemory(deps: ChatMemoryInput) {
     // 明确失败、不生成不写 S——写下去就是一只已不存在宠物的幽灵叶子（常驻到进程重启）。
     if (!found) return { ok: false, reason: 'unknown-pet', message: '没有这只桌宠：' + petId };
     // 调用方没指定就按这只宠物自己的 display 推（桌面优先）。规则只写在这一处，
-    // 周期调度、斜杠命令这些调用点不必各算一遍。周期碎碎念另外受自己的开关管：
-    // 关掉就不写 voiceTo（叶子不带这个键 = 谁都不念），气泡照旧弹。
+    // 周期调度、手动右键、斜杠命令这些调用点不必各算一遍。碎碎念统一受 `voiceWhisperEnabled`
+    // 管：关掉就不写 voiceTo（叶子不带这个键 = 谁都不念），气泡照旧弹。
     const whisperVoiceOn = cfg.main?.voiceWhisperEnabled === true;
-    const target = kind === 'whisper' && !whisperVoiceOn ? undefined : (voiceTo ?? voiceTargetFor(found.pet));
+    const target = whisperVoiceOn ? (voiceTo ?? voiceTargetFor(found.pet)) : undefined;
     const system = petSystemPrompt(found);
     // 池只算一次：点名的图与随机抽图共用同一份（含文件存在性判定）。
     const pool = readMemePool(found.conf.memes, memeDirsFor(found.entry));

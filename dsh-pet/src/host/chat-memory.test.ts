@@ -212,8 +212,9 @@ describe('createChatMemory —— 指定配图的碎碎念', () => {
     }
   });
 
-  test('voiceTo：传了就用传的，没传按 display 推导（默认宠物 display=both → desktop）', async () => {
-    const ws = poolWorkspace();
+  test('voiceTo：开关开着时传了就用传的，没传按 display 推导（默认宠物 display=both → desktop）', async () => {
+    // 必须先开「碎碎念播报」：开关关着时无论传不传 voiceTo 都不该写（见下一个用例）。
+    const ws = tempWorkspace({ voiceWhisperEnabled: true });
     const records: Array<{ petId: string; leaf: string; data: Record<string, unknown> }> = [];
     try {
       await createMemory('随便一句', ws, ws.memeDir, { records }).publishWhisper('main', undefined, 'web');
@@ -225,20 +226,19 @@ describe('createChatMemory —— 指定配图的碎碎念', () => {
       rmSync(ws.dir, { recursive: true, force: true });
     }
   });
-  test('kind=whisper 受 voiceWhisperEnabled 管；手动（缺省 kind）不受它管', async () => {
+  test('碎碎念统一受 voiceWhisperEnabled 管：周期与手动右键都不例外', async () => {
     const off = poolWorkspace();
     const offRecords: Array<{ petId: string; leaf: string; data: Record<string, unknown> }> = [];
     try {
-      await createMemory('一句', off, off.memeDir, { records: offRecords }).publishWhisper(
-        'main',
-        undefined,
-        undefined,
-        'whisper',
-      );
+      await createMemory('一句', off, off.memeDir, { records: offRecords }).publishWhisper('main');
       assert.equal('voiceTo' in (offRecords[0]?.data ?? {}), false, '开关关着时周期碎碎念不该写 voiceTo');
 
       await createMemory('一句', off, off.memeDir, { records: offRecords }).publishWhisper('main');
-      assert.equal(offRecords[1]?.data.voiceTo, 'desktop', '手动触发不看那个开关，照常按 display 推导');
+      assert.equal(
+        'voiceTo' in (offRecords[1]?.data ?? {}),
+        false,
+        '手动右键点的那一句也不该出声（用户关的就是「碎碎念播报」）',
+      );
     } finally {
       rmSync(off.dir, { recursive: true, force: true });
     }
@@ -246,13 +246,8 @@ describe('createChatMemory —— 指定配图的碎碎念', () => {
     const on = tempWorkspace({ voiceWhisperEnabled: true });
     const onRecords: Array<{ petId: string; leaf: string; data: Record<string, unknown> }> = [];
     try {
-      await createMemory('一句', on, undefined, { records: onRecords }).publishWhisper(
-        'main',
-        undefined,
-        undefined,
-        'whisper',
-      );
-      assert.equal(onRecords[0]?.data.voiceTo, 'desktop', '开关打开后周期碎碎念照常带 voiceTo');
+      await createMemory('一句', on, undefined, { records: onRecords }).publishWhisper('main');
+      assert.equal(onRecords[0]?.data.voiceTo, 'desktop', '开关打开后碎碎念照常带 voiceTo');
     } finally {
       rmSync(on.dir, { recursive: true, force: true });
     }

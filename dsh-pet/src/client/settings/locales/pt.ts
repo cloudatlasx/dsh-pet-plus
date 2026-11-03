@@ -163,11 +163,12 @@ export const pt: Record<Key, string> = {
     'Quando uma tarefa criada com schedule_create vence, o mascote mostra um lembrete (apenas aviso — quem dispara a sessão continua sendo o agendador do DSH). Mudanças de horário são reajustadas sozinhas; ignorado sem mascote online e recuperado ao voltar. Gravado na configuração ao «Salvar».',
   menuTitle: 'Menu de contexto',
   menuHint:
-    'O que aparece ao clicar com o botão direito no pet e em que ordem. Só as ferramentas são reordenadas: reprodução de animação, posição na tela e o "mais" de terceiros têm condições próprias. É gravado na sua configuração ao salvar.',
+    'O que aparece ao clicar com o botão direito no pet e em que ordem. Arraste a alça à esquerda para ordenar e use o botão à direita para mostrar ou ocultar cada item. Só as ferramentas são reordenadas: reprodução de animação, posição na tela e o "mais" de terceiros têm condições próprias. É gravado na sua configuração ao salvar.',
   menuMoveUp: 'Subir',
   menuMoveDown: 'Descer',
   menuShow: 'Mostrar',
   menuHide: 'Ocultar',
+  menuDrag: 'Arraste para reordenar',
   menuReset: 'Restaurar padrão',
   menuNote:
     'Os itens ocultos mantêm o lugar, então ao mostrar de novo voltam para a mesma posição. Na ordem padrão, "Conversar" vem primeiro.',
@@ -179,7 +180,7 @@ export const pt: Record<Key, string> = {
     'Interruptor mestre da fala automática. Desligado, sussurros periódicos e lembretes de tarefas ficam mudos (os dois secundários abaixo não têm efeito). Sussurro manual, respostas da conversa e o botão de alto-falante do painel de conversa não são afetados — você pediu, então a origem fala direto. Só decide se sai som: balões, memória da conversa e notificações do sistema não mudam; falha na síntese só gera log e nunca interrompe a conversa.',
   voiceWhisperEnabled: 'Falar sussurros',
   voiceWhisperEnabledHint:
-    'Fala o sussurro gerado periodicamente (o sussurro manual pelo botão direito não é afetado). Dependente do interruptor mestre acima. Desligado por padrão — sussurros são narração de fundo e não devem fazer barulho sem pedir.',
+    'Fala o sussurro gerado periodicamente (inclusive o sussurro manual do menu de contexto e o do comando de barra). Dependente do interruptor mestre acima. Desligado por padrão — sussurros são narração de fundo e não devem fazer barulho sem pedir.',
   voiceTodoEnabled: 'Falar lembretes de tarefas',
   voiceTodoEnabledHint:
     'Fala o lembrete quando uma tarefa vence (o balão continua aparecendo; isto só decide se fala). Dependente do interruptor mestre acima. Desligado por padrão.',

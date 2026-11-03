@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.9.0
+  version: 0.11.0
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -257,6 +257,16 @@ paths:
                   oneOf:
                     - type: string
                     - type: "null"
+                todoDone:
+                  type: integer
+                  minimum: 0
+                  description: |
+                    清单里已完成的条数；配合 `todoTotal` 让气泡画出队列进度条。
+                    两个都省略 = 不动条子；`todoTotal` 为 0 = 把条子收掉。
+                todoTotal:
+                  type: integer
+                  minimum: 0
+                  description: 清单总条数；只有它 > 0 时才画进度条。
       responses:
         "200":
           description: |

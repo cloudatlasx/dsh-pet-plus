@@ -44,6 +44,8 @@ PetSprite.prototype.onWorkTick = function onWorkTick(snapshot, tick) {
     this.workOn = false;
     this.workText = null;
     this.workMeta = null;
+    this.workPercent = null;
+    this.workPercentLabel = null;
     this.workSessionId = null;
     this.renderBubble();
     return;
@@ -81,7 +83,11 @@ PetSprite.prototype.onWorkTick = function onWorkTick(snapshot, tick) {
       : undefined;
   this.workText = (snapshot || {}).task || configuredText || null;
   // 第二行进度：与浏览器同一套文案（shared 的 progressLabel），sprite 只负责摆位置。
-  this.workMeta = S.progressLabel ? S.progressLabel(S.toWorkStatus(snapshot), Date.now()) : null;
+  const parsed = S.toWorkStatus(snapshot);
+  this.workMeta = S.progressLabel ? S.progressLabel(parsed, Date.now()) : null;
+  // 清单进度条：同样直接用 shared 的口径，两端不会算出两个数。
+  this.workPercent = S.todoPercent ? S.todoPercent(parsed) : null;
+  this.workPercentLabel = S.todoProgressLabel ? S.todoProgressLabel(parsed) : null;
   const terminal = state === 'success' || state === 'error';
   // 气泡点亮/收起只在状态变化时动作：同状态后续 tick 不重新点亮已自动收起的终态气泡，否则会被反复弹回。
   if (stateChanged) {
