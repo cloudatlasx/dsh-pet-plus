@@ -61,7 +61,7 @@ dsh plugin --profile desktop add E:\path\to\dsh-pet-plus\dsh-pet
 每个 Release 都附一个打包好的 `.tgz`（含 `lib/`、`runtime/`、`assets/`、`cordis.patch.yml`），直接让 DSH 装它：
 
 ```bash
-dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.11.1/dsh-pet-plus-0.11.1.tgz
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.11.2/dsh-pet-plus-0.11.2.tgz
 ```
 
 也可以装 git 子目录（`dsh-pet/` 是包所在目录）：`dsh plugin --profile desktop add github:cloudatlasx/dsh-pet-plus#path:/dsh-pet`。

@@ -25,7 +25,7 @@
 ## 安装
 
 ```bash
-dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.11.1/dsh-pet-plus-0.11.1.tgz
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.11.2/dsh-pet-plus-0.11.2.tgz
 ```
 
 装完重开 DSH。宿主半侧改动需要重开 DSH，浏览器半侧刷新页面即可。

@@ -78,12 +78,25 @@ export function createWorkStatusBridge(deps: WorkStatusBridgeInput) {
     });
   };
 
-  /** 停掉挂起的补写定时器（插件卸载时调用）。 */
+  // 外部槽（`api`）没有「回合结束」这种天然终点，只能靠 touchedAt 过期。但过期判定发生在
+  // 快照读取里，而 section 是「内容真的变了才写」——没人来读就没人写，气泡就会停在最后一次的值上。
+  // 所以这里定期读一次：过期后快照换成别的会话（或 null），key 变了，上面那段自然会把条子收掉。
+  // 15s 足够让「十分钟」看着准（最多晚 15s 下线），又不会让空转的写变成噪声。
+  const WORK_STATUS_SWEEP_MS = 15000;
+
+  const sweepTimer = setInterval(() => {
+    publishWorkStatus();
+  }, WORK_STATUS_SWEEP_MS);
+
+  sweepTimer.unref?.();
+
+  /** 停掉挂起的补写定时器与周期清扫（插件卸载时调用）。 */
   const stopWorkStatusFlush = (): void => {
     if (workFlushTimer !== null) {
       clearTimeout(workFlushTimer);
       workFlushTimer = null;
     }
+    clearInterval(sweepTimer);
   };
   return { publishWorkStatus, stopWorkStatusFlush };
 }
