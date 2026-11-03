@@ -1,14 +1,16 @@
 /**
- * 语音卡：播报总开关、两个细分开关与音色选择。
+ * 语音卡：播报总开关、两个细分开关、音色选择、音量滑条与试听。
  *
  * 切换只改本地状态、随「保存」整包写入——即时写盘会重启桌面 Helper、重建全部桌面宠物窗口。
  * 音色选择器由外壳注入（与模型卡注入 picker 同构），卡片本身不硬编码任何音色 id。
+ * 两个细分开关（碎碎念 / 待办）都从属于总开关：总开关关掉时它们置灰且不可点，避免配出「念不念都行」的中间态。
  * @module dsh-pet/src/client/settings/voice-card
  */
 import type { FunctionComponent } from 'react';
 import type { VoiceOption, VoicePickerProps } from './picker/voice-picker.ts';
 import type { SettingsRuntime } from './runtime.ts';
-import { makeUiKit, numberInputProps } from './ui.ts';
+import type { VoicePreviewProps } from './voice-preview.ts';
+import { makeUiKit } from './ui.ts';
 
 export type { VoiceOption } from './picker/voice-picker.ts';
 
@@ -45,28 +47,33 @@ export interface VoiceCardProps {
  *
  * @param rt - 注入的 react 能力与翻译函数。
  * @param picker - 音色选择器组件；与模型卡一样由装配根造一次后注入，保证组件类型跨渲染稳定。
+ * @param preview - 试听组件；同样由装配根造一次，内部状态才不会每次渲染被重置。
  * @returns 卡片组件。
  */
 export function makeVoiceCard(
   rt: SettingsRuntime,
   picker: FunctionComponent<VoicePickerProps>,
+  preview: FunctionComponent<VoicePreviewProps>,
 ): FunctionComponent<VoiceCardProps> {
   const { h, t } = rt;
-  const { cardHead, field, toggleCell } = makeUiKit({ h, t });
+  const { cardHead, field, toggleCell, slider } = makeUiKit({ h, t });
 
   return function VoiceCard(props: VoiceCardProps) {
+    // 总开关关掉时两个子项一起置灰：它们的语义是「总开关打开后念哪些」，独立打勾没有意义。
+    const subDisabled = props.busy || !props.enabled;
+
     return h('div', {
       className: 'dsh-pet-cfg__card',
       children: [
         cardHead(t('voiceTitle'), t('voiceHint')),
-        // 第一行三个开关：总开关与两个子项必须相邻，读得出是「同一类」；第二行两个输入：音色与音量。
+        // 第一行三个开关：总开关与两个子项必须相邻，读得出是「同一类」；第二行音色与音量滑条；第三行试听。
         // 音色不挂文字标签也不挂问号：下拉当前值「晓伊（女·活泼）」自己就说明了它是什么。
         h('div', {
           className: 'dsh-pet-cfg__grid3',
           children: [
             toggleCell('voiceEnabled', props.enabled, props.busy, props.onToggle),
-            toggleCell('voiceWhisperEnabled', props.whisperEnabled, props.busy, props.onWhisperToggle),
-            toggleCell('voiceTodoEnabled', props.todoEnabled, props.busy, props.onTodoToggle),
+            toggleCell('voiceWhisperEnabled', props.whisperEnabled, subDisabled, props.onWhisperToggle),
+            toggleCell('voiceTodoEnabled', props.todoEnabled, subDisabled, props.onTodoToggle),
           ],
         }),
         h('div', {
@@ -81,19 +88,19 @@ export function makeVoiceCard(
             }),
             field(
               t('voiceVolumeLabel'),
-              h(
-                'input',
-                numberInputProps(props.volume, props.onVolumeChange, {
-                  step: '0.05',
-                  min: '0',
-                  max: '1',
-                  disabled: props.busy,
-                }),
-              ),
+              slider({
+                value: Math.min(Math.max(props.volume, 0), 1),
+                min: 0,
+                max: 1,
+                step: 0.05,
+                disabled: props.busy,
+                onCommit: props.onVolumeChange,
+              }),
               t('voiceVolumeHint'),
             ),
           ],
         }),
+        h(preview, { busy: props.busy, voice: props.voiceName, volume: props.volume }),
       ],
     });
   };

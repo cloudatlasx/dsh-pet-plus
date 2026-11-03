@@ -10,7 +10,7 @@ import type { ModelSelection } from '../../shared/types.ts';
 import type { ModelCatalogGroup } from './picker/index.ts';
 import type { ModelPickerProps } from './picker/index.ts';
 import type { SettingsRuntime } from './runtime.ts';
-import { makeUiKit, numberInputProps } from './ui.ts';
+import { makeUiKit } from './ui.ts';
 
 /** 两个模型字段的键名。 */
 export type ModelFieldKey = 'whisperModel' | 'chatModel';
@@ -68,16 +68,27 @@ export function makeModelCard(
   picker: FunctionComponent<ModelPickerProps>,
 ): FunctionComponent<ModelCardProps> {
   const { h, t } = rt;
-  const { cardHead, field, toggleCell } = makeUiKit({ h, t });
+  const { cardHead, field, toggleCell, slider } = makeUiKit({ h, t });
 
   return function ModelCard(props: ModelCardProps) {
     const { busy, catalog, failed } = props;
 
-    /** 「全局默认」的数字格：标签与问号在上、数字输入在下。 */
+    /**
+     * 「全局默认」的一格：标签与问号在上、滑条在下。
+     *
+     * 这两个值是「条数」与「张数」，拖两下就知道自己在收放什么；上限 50 足够（再多纯属烧上下文）。
+     */
     const numField = (label: string, value: number, setter: (v: number) => void) =>
       field(
         t(label),
-        h('input', numberInputProps(value, setter, { step: '1', min: '0', disabled: busy })),
+        slider({
+          value: Math.min(Math.max(value, 0), 50),
+          min: 0,
+          max: 50,
+          step: 1,
+          disabled: busy,
+          onCommit: setter,
+        }),
         t(label + 'Hint'),
       );
 
@@ -114,7 +125,7 @@ export function makeModelCard(
           children: [modelCell('whisperModel', props.whisperModel), modelCell('chatModel', props.chatModel)],
         }),
         h('div', {
-          className: 'dsh-pet-cfg__grid4',
+          className: 'dsh-pet-cfg__grid2',
           children: [
             numField('chatMemory', props.chatMemory, props.onChatMemoryChange),
             numField('chatImageLimit', props.chatImageLimit, props.onChatImageLimitChange),

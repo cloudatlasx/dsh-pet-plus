@@ -41,6 +41,7 @@ import { usePetList } from './settings/use-pet-list.ts';
 import { useRemoteData } from './settings/use-remote-data.ts';
 import { makeUiKit } from './settings/ui.ts';
 import { makeVoiceCard, type VoiceOption } from './settings/voice-card.ts';
+import { makeVoicePreview } from './settings/voice-preview.ts';
 
 // 字典与桥的真源都在 settings/ 里：宿主的 locale 注册、容器与测试夹具都经这里取，不各自深路径引用。
 export { dicts, NS } from './settings/locales/index.ts';
@@ -70,11 +71,12 @@ export function makePetConfigSection(
   // 否则选择器的浮层状态（打开 / 搜索词 / 高亮）每次渲染都会丢。
   const ModelPicker = makeModelPicker({ h, useState, useEffect, useRef, t });
   const VoicePicker = makeVoicePicker({ h, useState, useEffect, useRef });
+  const VoicePreview = makeVoicePreview({ h, useState, useEffect, useRef, useCallback, t });
   const PetTabs = makePetTabs({ h, t });
   const KindTabs = makeKindTabs({ h, t });
   const PetCard = makePetCard(rt);
   const GlobalCard = makeGlobalCard(rt);
-  const VoiceCard = makeVoiceCard(rt, VoicePicker);
+  const VoiceCard = makeVoiceCard(rt, VoicePicker, VoicePreview);
   const FontCard = makeFontCard(rt);
   const ModelCard = makeModelCard(rt, ModelPicker);
   const PhysicsCard = makePhysicsCard(rt);
@@ -374,6 +376,16 @@ export function makePetConfigSection(
 
         h(LoadStatus, { loadState, onRetry: retry }),
 
+        // 保存 / 同步 / 测试摆在顶部：改完不用滚到底部去找保存，滚走了也还粘在顶上。
+        h(Actions, {
+          busy,
+          msg,
+          permMsg,
+          onSave: () => void write.save(),
+          onSync: write.requestSync,
+          onTestNotification: testNotification,
+        }),
+
         h(KindTabs, { kinds, kind, busy, onSelect: selectKind }),
         h(PetTabs, { pets: visiblePets, selId, busy, onSelect: select, onAdd: add }),
         h(PetCard, {
@@ -422,14 +434,6 @@ export function makePetConfigSection(
         }),
         h(PhysicsCard, { busy, physics, onChange: patchPhysics }),
         h(MobileCard, { busy, physics, onChange: patchPhysics }),
-        h(Actions, {
-          busy,
-          msg,
-          permMsg,
-          onSave: () => void write.save(),
-          onSync: write.requestSync,
-          onTestNotification: testNotification,
-        }),
 
         // 保存按钮以下是参考类卡片：只读说明，改不改都不用点保存。
         h(ShortcutsCard, {}),

@@ -180,6 +180,11 @@ export const es: Record<Key, string> = {
   voiceVolumeLabel: 'Volumen',
   voiceVolumeHint:
     'Volumen de reproducción como decimal 0–1: 1 es el volumen máximo (100 %) y 0 silencia. Solo cambia la intensidad y no vuelve a sintetizar el audio, así que ajustarlo no tiene coste extra. Es independiente del interruptor general de arriba: con ese interruptor apagado no surte efecto.',
+  voicePreview: 'Escuchar',
+  voicePreviewSample: '¡Hola! Soy tu mascota de escritorio. ¡Que tengas un buen día!',
+  voicePreviewHint: 'Reproduce una frase con la voz elegida: es lo mismo que oirás tras guardar. Déjalo vacío para usar la frase por defecto o escribe la tuya (máx. 500 caracteres).',
+  voicePreviewBusy: 'Sintetizando…',
+  voicePreviewFailed: 'Error al escuchar: {msg}',
   physicsTitle: 'Física (sensación al arrastrar y lanzar)',
   physicsHint:
     'Valor predeterminado global, compartido por todas las mascotas (un pet pack puede sobrescribirlo en el archivo de su propio tipo); se escribe en la configuración del usuario al "Guardar" (nunca al instante). En el navegador se aplica al instante; en el escritorio se aplica cuando Guardar recarga las ventanas de mascotas.',

@@ -49,6 +49,31 @@ export function numberInputProps(
   };
 }
 
+/**
+ * 滑条要展示的数值：按 step 的小数位截断，去掉 `0.7000000000000001` 这类浮点尾巴。
+ *
+ * @param value - 当前值。
+ * @param step - 步长（决定显示几位小数）。
+ * @returns 可直接印在滑条右侧的文本。
+ */
+export function formatSliderValue(value: number, step: number): string {
+  const text = String(step);
+  const dot = text.indexOf('.');
+  const digits = dot < 0 ? 0 : text.length - dot - 1;
+  return value.toFixed(Math.min(digits + 1, 3)).replace(/\.?0+$/, '') || '0';
+}
+
+/** 一个滑条：拖动即提交，右侧常显当前值；范围里没有精确输入的余地，精确值仍可回落到数字框。 */
+export interface SliderOptions {
+  readonly value: number;
+  readonly min: number;
+  readonly max: number;
+  readonly step: number;
+  readonly disabled?: boolean;
+  /** 提交新值；滑条只在拖动与键盘调整时回调。 */
+  readonly onCommit: (value: number) => void;
+}
+
 /** 等宽字体栈（路径与命令展示用），走系统栈以免多拉一份资源。 */
 export const MONO_STACK = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace';
 
@@ -89,6 +114,12 @@ export interface SettingsUiKit {
    * 高度过渡走 `grid-template-rows` 的 0fr→1fr，不猜 max-height——正文多长都能收干净。
    */
   foldCard: (options: FoldCardOptions) => ReturnType<typeof jsx>;
+  /**
+   * 一个滑条：拖动即提交，右侧常显当前值。
+   *
+   * 受控写法在这里是对的——range 没有「空值」中间态，外部改配置时滑块要立刻跟上。
+   */
+  slider: (options: SliderOptions) => ReturnType<typeof jsx>;
 }
 
 /**
@@ -192,6 +223,28 @@ export function makeUiKit(rt: Pick<SettingsRuntime, 'h' | 't'>): SettingsUiKit {
               className: 'dsh-pet-cfg__foldClip',
               children: h('div', { className: 'dsh-pet-cfg__foldBody', children: options.body }),
             }),
+          }),
+        ],
+      }),
+    slider: (options) =>
+      h('div', {
+        className: 'dsh-pet-cfg__slider' + (options.disabled ? ' is-disabled' : ''),
+        children: [
+          h('input', {
+            key: 'r',
+            type: 'range',
+            className: 'dsh-pet-cfg__range',
+            min: options.min,
+            max: options.max,
+            step: options.step,
+            value: String(options.value),
+            disabled: options.disabled,
+            onChange: (e: ChangeEvent<HTMLInputElement>) => options.onCommit(Number(e.target.value)),
+          }),
+          h('span', {
+            key: 'v',
+            className: 'dsh-pet-cfg__rangeVal',
+            children: formatSliderValue(options.value, options.step),
           }),
         ],
       }),

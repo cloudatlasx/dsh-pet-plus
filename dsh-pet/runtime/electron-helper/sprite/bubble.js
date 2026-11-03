@@ -285,6 +285,7 @@ Object.assign(PetSprite.prototype, {
       const actions = this.bubbleEl('div', 'pet-bub-req__actions');
       actions.append(
         this.bubbleButton('允许一次', 'is-primary', 'approve'),
+        this.bubbleButton('本会话都允许', '', 'approve-session'),
         this.bubbleButton('拒绝', '', 'reject'),
         this.bubbleButton('去 DSH', 'is-ghost', 'delegate'),
       );
@@ -351,11 +352,11 @@ Object.assign(PetSprite.prototype, {
       return;
     }
     if (req.kind === 'approval') {
-      if (action !== 'approve' && action !== 'reject') return;
+      if (action !== 'approve' && action !== 'reject' && action !== 'approve-session') return;
       this.submitRequestAnswer({
         id: req.id,
         kind: 'approval',
-        outcome: action === 'approve' ? 'allowed-once' : 'rejected',
+        outcome: action === 'reject' ? 'rejected' : action === 'approve-session' ? 'allow-session' : 'allowed-once',
       });
       return;
     }

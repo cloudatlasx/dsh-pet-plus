@@ -177,6 +177,11 @@ export const pt: Record<Key, string> = {
   voiceVolumeLabel: 'Volume',
   voiceVolumeHint:
     'Volume de reprodução em decimal 0–1: 1 é o volume máximo (100%) e 0 silencia. Altera apenas a intensidade e não sintetiza o áudio de novo, então ajustá-lo não custa nada extra. É independente do interruptor geral acima: com ele desligado, não tem efeito.',
+  voicePreview: 'Ouvir',
+  voicePreviewSample: 'Olá, eu sou seu pet de desktop. Tenha um bom dia!',
+  voicePreviewHint: 'Reproduz uma frase com a voz escolhida: é exatamente o que você ouvirá depois de salvar. Deixe vazio para a frase padrão ou escreva a sua (máx. 500 caracteres).',
+  voicePreviewBusy: 'Sintetizando…',
+  voicePreviewFailed: 'Falha ao ouvir: {msg}',
   physicsTitle: 'Física (sensação de arrastar e arremessar)',
   physicsHint:
     'Padrão global, compartilhado por todos os pets (um pet pack pode sobrescrever no arquivo do próprio tipo); gravado na configuração do usuário ao "Salvar" (nunca na hora). No navegador vale na hora; no desktop vale quando o "Salvar" recarrega as janelas do pet.',

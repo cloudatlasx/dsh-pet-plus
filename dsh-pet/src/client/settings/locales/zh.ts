@@ -166,6 +166,11 @@ export const zh = {
   voiceVolumeLabel: '音量',
   voiceVolumeHint:
     '播报音量，0–1 的小数：1 是最大音量（100%），0 是静音。只改播放响度，不会重新合成音频，调它不额外花钱。与上面的总开关是两件事——总开关关着时它不起作用。',
+  voicePreview: '试听',
+  voicePreviewSample: '你好呀，我是你的桌宠，今天也要加油哦！',
+  voicePreviewHint: '用当前音色念一遍，听的就是保存后播报的效果；留空念默认这句，也可以改成自己的话（最多 500 字）。',
+  voicePreviewBusy: '合成中…',
+  voicePreviewFailed: '试听失败：{msg}',
   physicsTitle: '物理（拖拽抛掷手感）',
   physicsHint:
     '全局默认，所有宠物共用（pet pack 可在自己种类文件里单独覆盖）；随「保存」写入用户配置（不做即时写入）。浏览器保存后即时生效，桌面端由保存重载宠物窗口后生效。',

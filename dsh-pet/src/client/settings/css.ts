@@ -103,6 +103,17 @@ const SETTINGS_CSS = [
   '.dsh-pet-cfg__inp:focus{border-color:var(--dsw-alias-state-business-primary)}',
   '.dsh-pet-cfg__inp:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}',
 
+  // 滑条：轨道用主题的交互底色，滑块用主色；右侧数值固定宽度，拖动时数字不会把行宽顶来顶去。
+  '.dsh-pet-cfg__slider{display:flex;align-items:center;gap:10px;min-width:0;min-height:28px}',
+  '.dsh-pet-cfg__range{flex:1 1 auto;min-width:0;height:20px;margin:0;padding:0;background:transparent;accent-color:var(--dsw-alias-state-business-primary);cursor:pointer}',
+  '.dsh-pet-cfg__range:disabled{cursor:default;opacity:.5}',
+  '.dsh-pet-cfg__rangeVal{flex:none;min-width:44px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}',
+  '.dsh-pet-cfg__slider.is-disabled .dsh-pet-cfg__rangeVal{color:var(--dsw-alias-label-tertiary)}',
+
+  // 试听一行：输入框吃掉剩余宽度，按钮固定在右侧；竖排时按钮跟着换行。
+  '.dsh-pet-cfg__previewRow{display:flex;align-items:center;gap:8px;min-width:0}',
+  '.dsh-pet-cfg__previewRow>.dsh-pet-cfg__inp{flex:1 1 auto;min-width:0}',
+
   // 人设复用 __inp 的边框与字号，只补高度与纵向缩放；人设没有长度上限，右下角只显示字数、不阻断输入。
   '.dsh-pet-cfg__persona{display:flex;flex-direction:column;gap:2px;min-width:0}',
   '.dsh-pet-cfg__area{min-height:66px;resize:vertical;line-height:18px}',
@@ -144,7 +155,9 @@ const SETTINGS_CSS = [
   '.dsh-pet-cfg__tab.is-active{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-active)}',
   '.dsh-pet-cfg__tab.is-ghost{border-style:dashed;color:var(--dsw-alias-label-secondary)}',
 
-  '.dsh-pet-cfg__actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}',
+  // 顶栏：保存 / 同步 / 测试粘在设置页顶部，滚到任意位置都能直接点。
+  // 底色必须实心——半透明会让下面的卡片从按钮缝里透出来。
+  '.dsh-pet-cfg__actions{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;padding:8px 0;background:var(--dsw-alias-bg-base);border-bottom:1px solid var(--dsw-alias-border-l2)}',
   '.dsh-pet-cfg__msg{margin-left:4px;font-size:12px;color:var(--dsw-alias-state-success-primary)}',
   '.dsh-pet-cfg__msg.is-err{color:var(--dsw-alias-state-error-primary)}',
   '.dsh-pet-cfg__note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}',

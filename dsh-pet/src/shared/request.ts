@@ -11,8 +11,16 @@
  */
 import type { StateLeaf } from './state.ts';
 
-/** 审批结论（与 DSH ApprovalService 的结果词表一致，另加一个只在本插件内部使用的 delegate）。 */
+/** 审批结论（与 DSH ApprovalService 的结果词表一致，另加两个只在本插件内部使用的词）。 */
 export type ApprovalOutcome = 'allowed-once' | 'rejected' | 'delegate';
+
+/**
+ * 用户对审批气泡的选择。
+ *
+ * `allow-session` 不进 DSH 词表：它表示「这个会话后面别再问了」，由本插件自己记账，
+ * 后续同会话的审批直接以 `allowed-once` 放行，DSH 侧看不到这个中间态。
+ */
+export type ApprovalChoice = ApprovalOutcome | 'allow-session';
 
 /** 一个可选项。 */
 export interface QuestionOption {
@@ -72,7 +80,7 @@ export interface QuestionAnswer {
 
 /** 回答请求的请求体。 */
 export type RequestAnswerPayload =
-  | { id: string; kind: 'approval'; outcome: ApprovalOutcome }
+  | { id: string; kind: 'approval'; outcome: ApprovalChoice }
   | { id: string; kind: 'question'; answers: QuestionAnswer[] }
   | { id: string; kind: 'approval' | 'question'; cancel: true };
 

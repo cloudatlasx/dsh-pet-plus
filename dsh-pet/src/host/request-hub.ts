@@ -24,6 +24,13 @@ const APPROVAL_TIMEOUT_MS = 180 * 1000;
 const QUESTION_TIMEOUT_MS = 5 * 60 * 1000;
 /** 预览气泡的停留时长。 */
 const PREVIEW_TTL_MS = 15 * 1000;
+/**
+ * 「本会话都允许」的记账时长。
+ *
+ * 会话本身可能开好几天，但内存里的记账要有上限：插件重启、或隔夜回来第一批请求，
+ * 重新问一次比一直放行更安全。
+ */
+const SESSION_ALLOW_TTL_MS = 8 * 60 * 60 * 1000;
 
 /** 本条请求的结局。 */
 type Resolution =
@@ -75,11 +82,43 @@ interface Pending {
   resolve: (resolution: Resolution) => void;
   timer: ReturnType<typeof setTimeout> | null;
   detach: (() => void) | null;
+  /** 发起这次请求的会话键；「本会话都允许」据此记账。 */
+  sessionKey: string | null;
 }
 
 /** 从任意异常里取一句人读文案。 */
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** 没有稳定 id 的会话对象：给一个进程内唯一键，同一个对象复用同一个键。 */
+const weakSessionIds = new WeakMap<object, string>();
+let weakSessionSeq = 0;
+
+/**
+ * 从审批请求里取会话身份。
+ *
+ * DSH 的 `req.agent` 一般带 `session.id`；没有 id 时退回对象身份（WeakMap），
+ * 宁可按「同一个会话对象」记账，也不要把不同会话混成一条。
+ *
+ * @param agent - 审批请求里的 `agent`。
+ * @returns 记账用的会话键；完全取不到时 null（那就只能允许一次）。
+ */
+function sessionKeyOf(agent: unknown): string | null {
+  if (!agent || typeof agent !== 'object') return null;
+  const a = agent as { session?: unknown; id?: unknown };
+  const session = a.session;
+  if (session && typeof session === 'object') {
+    const id = (session as { id?: unknown }).id;
+    if (typeof id === 'string' && id !== '') return 'session:' + id;
+    const known = weakSessionIds.get(session);
+    if (known !== undefined) return known;
+    const made = 'object:' + (++weakSessionSeq).toString(36);
+    weakSessionIds.set(session, made);
+    return made;
+  }
+  if (typeof a.id === 'string' && a.id !== '') return 'agent:' + a.id;
+  return null;
 }
 
 /**
@@ -96,6 +135,8 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
   let previewTimer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
   let seq = 0;
+  /** 会话键 → 到期时刻：这批会话里的审批不再弹气泡，直接放行。 */
+  const sessionAllows = new Map<string, number>();
 
   /** 写一条请求信封；`data` 直接整体替换叶子。 */
   const write = (data: RequestEnvelope): void => {
@@ -132,10 +173,33 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
     return deps.hasClient() > 0;
   };
 
+  /**
+   * 这次审批能不能按「本会话都允许」直接放行。
+   *
+   * 不看 `hasClient`：授权过之后桌面宠物关掉、页面切走也照样放行，那才算「这个会话别再问」。
+   * 但仍受气泡开关约束——用户把插件的气泡关掉时，不该还替 DSH 做决定。
+   *
+   * @param sessionKey - 会话键。
+   * @returns true 表示直接以 allowed-once 放行。
+   */
+  const sessionAllowed = (sessionKey: string | null): boolean => {
+    if (sessionKey === null || !deps.enabled()) return false;
+    const until = sessionAllows.get(sessionKey);
+    if (until === undefined) return false;
+    if (until > now()) return true;
+    sessionAllows.delete(sessionKey);
+    return false;
+  };
+
   /** 开启一条待处理请求。 */
-  const begin = (envelope: RequestEnvelope, timeoutMs: number, signal: unknown): Promise<Resolution> =>
+  const begin = (
+    envelope: RequestEnvelope,
+    timeoutMs: number,
+    signal: unknown,
+    sessionKey: string | null,
+  ): Promise<Resolution> =>
     new Promise<Resolution>((resolve) => {
-      const entry: Pending = { envelope, resolve, timer: null, detach: null };
+      const entry: Pending = { envelope, resolve, timer: null, detach: null, sessionKey };
       pending = entry;
       write(envelope);
       entry.timer = setTimeout(() => {
@@ -158,10 +222,22 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
 
   return {
     async interceptApproval(request, next) {
-      if (!canIntercept()) return next();
-      const req = (request ?? {}) as { toolName?: unknown; reason?: unknown; displayReason?: unknown; signal?: unknown };
+      if (disposed) return next();
+      const req = (request ?? {}) as {
+        agent?: unknown;
+        toolName?: unknown;
+        reason?: unknown;
+        displayReason?: unknown;
+        signal?: unknown;
+      };
       const toolName = typeof req.toolName === 'string' ? req.toolName : '';
       if (toolName === '') return next();
+      const sessionKey = sessionKeyOf(req.agent);
+      if (sessionAllowed(sessionKey)) {
+        log.info('dsh-pet: approval auto-allowed by session grant tool=' + toolName);
+        return 'allowed-once';
+      }
+      if (!canIntercept()) return next();
       const reason =
         typeof req.displayReason === 'string'
           ? req.displayReason
@@ -177,7 +253,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         ...(reason === undefined ? {} : { reason }),
       };
       log.info('dsh-pet: approval/request intercepted tool=' + toolName);
-      const resolution = await begin(envelope, APPROVAL_TIMEOUT_MS, req.signal);
+      const resolution = await begin(envelope, APPROVAL_TIMEOUT_MS, req.signal, sessionKey);
       if (resolution.type === 'approval' && resolution.outcome !== 'delegate') return resolution.outcome;
       // delegate（超时 / 取消 / 用户点了「去 DSH」/ 客户端掉线）：交回 DSH 自己的面板。
       return next();
@@ -196,7 +272,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         questions,
       };
       log.info('dsh-pet: user-questions/request intercepted count=' + questions.length);
-      const resolution = await begin(envelope, QUESTION_TIMEOUT_MS, req.signal);
+      const resolution = await begin(envelope, QUESTION_TIMEOUT_MS, req.signal, null);
       if (resolution.type === 'answers') return { answers: resolution.answers };
       return next();
     },
@@ -223,8 +299,24 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       }
       if (entry.envelope.kind === 'approval') {
         const outcome = body.outcome;
-        if (outcome !== 'allowed-once' && outcome !== 'rejected' && outcome !== 'delegate') {
+        if (
+          outcome !== 'allowed-once' &&
+          outcome !== 'rejected' &&
+          outcome !== 'delegate' &&
+          outcome !== 'allow-session'
+        ) {
           return { ok: false, message: 'invalid outcome' };
+        }
+        // 「本会话都允许」先记账，再按「允许一次」结束这一条——DSH 的词表里没有会话级授权。
+        if (outcome === 'allow-session') {
+          if (entry.sessionKey === null) {
+            log.warn('dsh-pet: session grant ignored (no session id on request)');
+          } else {
+            sessionAllows.set(entry.sessionKey, now() + SESSION_ALLOW_TTL_MS);
+            log.info('dsh-pet: session grant recorded key=' + entry.sessionKey);
+          }
+          settle({ type: 'approval', outcome: 'allowed-once' });
+          return { ok: true };
         }
         settle({ type: 'approval', outcome });
         return { ok: true };
@@ -298,6 +390,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
 
     dispose() {
       disposed = true;
+      sessionAllows.clear();
       if (pending !== null) settle({ type: 'delegate' });
       if (previewTimer !== null) clearTimeout(previewTimer);
       previewTimer = null;

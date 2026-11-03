@@ -56,7 +56,10 @@ function postAnswer(body: unknown): void {
 }
 
 /**
- * 造审批气泡：允许一次 / 拒绝 / 去 DSH 面板。
+ * 造审批气泡：允许一次 / 本会话都允许 / 拒绝 / 去 DSH 面板。
+ *
+ * 「本会话都允许」只影响本插件这一层：记住当前会话后，同会话后续审批直接放行、不再弹气泡；
+ * DSH 自己的策略（policy=never 时连瀑布都不进）不受影响，所以它只对「会问人」的那些请求有效。
  *
  * @param rt - 注入的 react 能力。
  * @returns 审批气泡组件。
@@ -67,7 +70,7 @@ export function makeApprovalBubble(rt: RequestBubbleRuntime) {
 
   return function ApprovalBubble({ request, on }: ApprovalBubbleProps) {
     const preview = request.preview === true;
-    const answer = (outcome: 'allowed-once' | 'rejected' | 'delegate'): void => {
+    const answer = (outcome: 'allowed-once' | 'allow-session' | 'rejected' | 'delegate'): void => {
       if (preview) {
         // 预览不接真实请求：点一下只收起气泡（cancel 信封让宿主写 closed）。
         postAnswer({ id: request.id, kind: 'approval', cancel: true });
@@ -106,6 +109,14 @@ export function makeApprovalBubble(rt: RequestBubbleRuntime) {
               className: 'dsh-pet-request__btn is-primary',
               onClick: () => answer('allowed-once'),
               children: '允许一次',
+            }),
+            h('button', {
+              key: 'session',
+              type: 'button',
+              className: 'dsh-pet-request__btn',
+              title: '本会话内同类审批不再询问',
+              onClick: () => answer('allow-session'),
+              children: '本会话都允许',
             }),
             h('button', {
               key: 'reject',

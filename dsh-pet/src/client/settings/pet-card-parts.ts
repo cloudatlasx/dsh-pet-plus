@@ -10,7 +10,7 @@ import type { Corner, Pet, PetDisplay } from '../../shared/types.ts';
 import { PET_DISPLAYS } from '../../shared/config.ts';
 import { SIZE_PERCENT_DEFAULT, SIZE_PERCENT_MIN } from '../../shared/pet-size.ts';
 import type { SettingsRuntime } from './runtime.ts';
-import { INPUT_CLASS, makeUiKit, numberInputProps } from './ui.ts';
+import { INPUT_CLASS, makeUiKit } from './ui.ts';
 import { makeSelect } from './panel/select.ts';
 
 /** 宠物字段补丁：`position` 只带要改的子字段，其余字段走顶层。 */
@@ -99,16 +99,35 @@ export function makePetAvatarCell(rt: Pick<SettingsRuntime, 'h' | 't'>) {
  */
 export function makePetIdentityFields(rt: SettingsRuntime) {
   const { h, t } = rt;
-  const { field } = makeUiKit({ h, t });
+  const { field, slider } = makeUiKit({ h, t });
   const Select = makeSelect(rt);
 
-  /** 宠物数值输入（大小）；宽度交给栅格。 */
-  const sizeInput = (value: number, disabled: boolean, setter: (v: number) => void) =>
-    h('input', numberInputProps(value, setter, { step: '10', min: '120', disabled }));
+  /** 尺寸：滑条从 120 到 1024，一格 10px——肉眼分得出差别的量级。 */
+  const SIZE_MIN = 120;
+  const SIZE_MAX = 1024;
+  const SIZE_STEP = 10;
 
-  /** 百分比输入：默认 20；不设上限（超过 100 只在 size 也够大时才生效）。 */
-  const percentInput = (value: number, disabled: boolean, setter: (v: number) => void) =>
-    h('input', numberInputProps(value, setter, { min: String(SIZE_PERCENT_MIN), step: '1', disabled }));
+  /** 宠物大小：拖到想要的观感即可；历史配置超出范围时夹回区间显示。 */
+  const sizeSlider = (value: number, disabled: boolean, setter: (v: number) => void) =>
+    slider({
+      value: Math.min(Math.max(value, SIZE_MIN), SIZE_MAX),
+      min: SIZE_MIN,
+      max: SIZE_MAX,
+      step: SIZE_STEP,
+      disabled,
+      onCommit: setter,
+    });
+
+  /** 屏幕宽度百分比：默认 20；100 即「整屏宽」，再大没有意义。 */
+  const percentSlider = (value: number, disabled: boolean, setter: (v: number) => void) =>
+    slider({
+      value: Math.min(Math.max(value, SIZE_PERCENT_MIN), 100),
+      min: SIZE_PERCENT_MIN,
+      max: 100,
+      step: 1,
+      disabled,
+      onCommit: setter,
+    });
 
   /** 四格各自成函数：都只读 props，拼在一起才是组件。 */
   const cells = (props: PetFieldsProps) => {
@@ -128,12 +147,12 @@ export function makePetIdentityFields(rt: SettingsRuntime) {
       ),
       field(
         t('sizeLabel'),
-        sizeInput(pet.size, busy, (v) => onChange({ size: v })),
+        sizeSlider(pet.size, busy, (v) => onChange({ size: v })),
         t('sizeHint'),
       ),
       field(
         t('sizePercentLabel'),
-        percentInput(pet.sizePercent ?? SIZE_PERCENT_DEFAULT, busy, (v) => onChange({ sizePercent: v })),
+        percentSlider(pet.sizePercent ?? SIZE_PERCENT_DEFAULT, busy, (v) => onChange({ sizePercent: v })),
         t('sizePercentHint'),
       ),
       field(
@@ -163,12 +182,19 @@ export function makePetIdentityFields(rt: SettingsRuntime) {
  */
 export function makePetPositionFields(rt: SettingsRuntime) {
   const { h, t } = rt;
-  const { field } = makeUiKit({ h, t });
+  const { field, slider } = makeUiKit({ h, t });
   const Select = makeSelect(rt);
 
-  /** 偏移量输入：步长 1，不设上下限（可为任意数字）。 */
+  /** 偏移量：0 表示贴边，600px 基本能到屏幕另一侧的一半；一格 1px。 */
   const marginInput = (value: number, disabled: boolean, setter: (v: number) => void) =>
-    h('input', numberInputProps(value, setter, { step: '1', min: '', disabled }));
+    slider({
+      value: Math.min(Math.max(value, 0), 600),
+      min: 0,
+      max: 600,
+      step: 1,
+      disabled,
+      onCommit: setter,
+    });
 
   return function PetPositionFields(props: PetFieldsProps) {
     const { pet, busy, onChange } = props;
