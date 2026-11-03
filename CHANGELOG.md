@@ -22,6 +22,12 @@
 - 改名 `dsh-pet-plus` 后客户端 bundle 的 404 排查结论：`/plugins/<id>/client.js` 本身不该能直接访问，真实地址是带 `rev` 的组合资源；无需修复。
 - 宠物卡的契约测试跟上滑条实现（原用例仍在找数字输入框）。
 
+### 发布
+
+- 首个带 Release 产物的版本：`dsh-pet-plus-0.6.0.tgz` 可直接给 `dsh plugin add`。
+- 补齐 `openapi.yaml` 里 `/request/answer`、`/request/preview`、`/home` 三组契约，发布门禁（prettier / eslint / 运行时 no-undef / openapi 路由对齐）全绿。
+- 向 DSH 市场精选列表 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提交条目：PR #11659。
+
 ## [0.5.0] - 2026-11-03
 
 第一个公开发布的增强分支：基于 [dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 0.4.1。

@@ -48,9 +48,19 @@ dsh plugin --profile desktop add E:\path\to\dsh-pet-plus\dsh-pet
 
 装完**重开 DSH**，宠物默认出现在界面右下角。宿主半侧改动需要重开 DSH，浏览器半侧刷新页面即可。
 
-### 方式二：已有构建产物
+### 方式二：Release 产物（不用克隆）
 
-仓库的 Release 会附上 `dsh-pet-plus.zip`（含 `lib/`、`runtime/`、`assets/`、`cordis.patch.yml`），解压后按方式一最后一步 `dsh plugin add <解压目录>` 安装。
+每个 Release 都附一个打包好的 `.tgz`（含 `lib/`、`runtime/`、`assets/`、`cordis.patch.yml`），直接让 DSH 装它：
+
+```bash
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.6.0/dsh-pet-plus-0.6.0.tgz
+```
+
+也可以装 git 子目录（`dsh-pet/` 是包所在目录）：`dsh plugin --profile desktop add github:cloudatlasx/dsh-pet-plus#path:/dsh-pet`。
+
+### 方式三：DSH 市场
+
+已向精选列表 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提交条目（[PR #11659](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11659)），收录后即可在 DSH 市场（`dshmarket`）里直接搜 `dsh-pet-plus` 安装。
 
 ## 设置
 
