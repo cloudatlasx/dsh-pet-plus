@@ -184,7 +184,8 @@ export function readHistory(leaf: StateLeaf): HistorySnapshot | null {
       sessionId: typeof e.sessionId === 'string' && e.sessionId.trim() !== '' ? e.sessionId : undefined,
     });
   }
-  const count = typeof d.count === 'number' && Number.isFinite(d.count) && d.count >= 0 ? Math.floor(d.count) : entries.length;
+  const count =
+    typeof d.count === 'number' && Number.isFinite(d.count) && d.count >= 0 ? Math.floor(d.count) : entries.length;
   return { count, entries };
 }
 

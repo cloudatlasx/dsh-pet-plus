@@ -115,15 +115,7 @@ export function takeChanged(s: PollState, baseline: Record<string, number>): Sta
 
 /** `sections.<名>` 里会被消费端分发的那几个叶子。 */
 export type SectionLeafName =
-  | 'config'
-  | 'balance'
-  | 'workStatus'
-  | 'notify'
-  | 'menu'
-  | 'focusSession'
-  | 'request'
-  | 'reminder'
-  | 'history';
+  'config' | 'balance' | 'workStatus' | 'notify' | 'menu' | 'focusSession' | 'request' | 'reminder' | 'history';
 
 /** `pets.<id>.<名>` 里会被消费端分发的那几个叶子。 */
 export type PetLeafName = 'say' | 'anim' | 'position' | 'throw' | 'lock' | 'sleep';

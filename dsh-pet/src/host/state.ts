@@ -22,15 +22,7 @@ export interface StateLeaf {
  *  页面不是发起方，只能靠这个信号知道配置被别处改过；保存 / 同步配置的调用方自己拿到了成品聚合，
  *  所以不写。 */
 export type SectionName =
-  | 'balance'
-  | 'workStatus'
-  | 'notify'
-  | 'config'
-  | 'menu'
-  | 'focusSession'
-  | 'request'
-  | 'reminder'
-  | 'history';
+  'balance' | 'workStatus' | 'notify' | 'config' | 'menu' | 'focusSession' | 'request' | 'reminder' | 'history';
 
 /** 每宠物段（say = 要说的话；anim = 要播的动画名；position = 要挪到的位置；throw = 要给的初速度；
  *  lock = 占用锁状态；sleep = 睡觉状态）。

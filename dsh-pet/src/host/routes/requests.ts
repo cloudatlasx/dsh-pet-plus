@@ -288,7 +288,11 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
   if (rest === 'history') {
     if (method === 'GET') {
       const snap = deps.state.read().sections.history.data as { count?: unknown; entries?: unknown } | null;
-      return okResult({ ok: true, count: typeof snap?.count === 'number' ? snap.count : 0, entries: snap?.entries ?? [] });
+      return okResult({
+        ok: true,
+        count: typeof snap?.count === 'number' ? snap.count : 0,
+        entries: snap?.entries ?? [],
+      });
     }
     if (method !== 'POST') return methodNotAllowed();
     let parsed: Record<string, unknown> | null = null;
