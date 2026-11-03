@@ -362,7 +362,8 @@ Object.assign(PetSprite.prototype, {
         const chip = this.bubbleEl('button', 'pet-bub-rem__chip', action.label);
         chip.type = 'button';
         chip.dataset.reqAction = 'rem-quick';
-        chip.dataset.reqQid = String(index);
+        // 与 init.js 的 `btn.dataset.reqQ` 对齐：点击时分发给 onRequestAction(action, qid)。
+        chip.dataset.reqQ = String(index);
         row.appendChild(chip);
       });
       wrap.appendChild(row);
