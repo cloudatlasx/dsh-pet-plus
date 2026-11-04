@@ -5,8 +5,16 @@ const { decideWindowIgnore } = require('../pointer-target.js');
  * 渲染端到主进程的 ipc：窗口跟随、飞行状态、碰撞转发、穿透翻转、输入租约与菜单首项（打开软件 / 打开 AI 设置）。
  *
  * 唯一的窗口状态入口是 windows 模块导出的方法与 state；本模块不自己存任何状态。
+ * 例外是「躲起来」的计时器：它必须活在主进程（窗口隐藏后渲染进程的定时器会被节流），
+ * 跟着窗口 id 走，窗口销毁时自然失效。
  * @module dsh-pet/runtime/electron-helper/main/ipc
  */
+
+/** 窗口 id → 「到点叫回来」的计时器。 */
+const hideTimers = new Map();
+
+/** 躲起来的最长等待（毫秒）：宿主侧已夹到 1~5 分钟，这里只兜脏数据。 */
+const HIDE_MAX_WAIT_MS = 6 * 60 * 1000;
 
 /**
  * 注册全部 ipc 处理器。
@@ -114,6 +122,39 @@ function registerIpc({ ipcMain, petWindows, shell, openTarget, petRoute }) {
           )
         : !interactive;
     petWindows.setWindowIgnore(win, ignoring);
+  });
+
+  // 拍一拍「气到躲起来」：整窗 hide，等到 until（毫秒时间戳）再叫回来。
+  // 计时器放主进程是必须的：窗口一藏，渲染进程的 setTimeout 会被 Chromium 节流到一分钟级，
+  // 靠渲染端自己 show 会把「躲一会儿」拖成「躲好几分钟」。同一窗口只留一个计时器。
+  ipcMain.on('pet:set-visible', (event, payload) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
+    const pending = hideTimers.get(win.id);
+    if (pending) {
+      clearTimeout(pending);
+      hideTimers.delete(win.id);
+    }
+    if (!payload || payload.visible !== false) {
+      if (!win.isVisible()) win.showInactive();
+      return;
+    }
+    const until = Number(payload.until);
+    win.hide();
+    // 上限一分钟级的宽松保护：宿主算出的 until 已经夹过 1~5 分钟，这里只防脏数据（比如 NaN/天际值）
+    if (!Number.isFinite(until)) return;
+    const wait = Math.min(HIDE_MAX_WAIT_MS, Math.max(0, until - Date.now()));
+    if (wait <= 0) {
+      win.showInactive();
+      return;
+    }
+    hideTimers.set(
+      win.id,
+      setTimeout(() => {
+        hideTimers.delete(win.id);
+        if (!win.isDestroyed() && !win.isVisible()) win.showInactive();
+      }, wait),
+    );
   });
 
   // 拖拽持有完整输入租约；菜单/对话则由 petWindows.state.inputRegions 把交互限制在实际控件矩形内。

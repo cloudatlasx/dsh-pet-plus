@@ -118,7 +118,7 @@ export type SectionLeafName =
   'config' | 'balance' | 'workStatus' | 'notify' | 'menu' | 'focusSession' | 'request' | 'reminder' | 'history';
 
 /** `pets.<id>.<名>` 里会被消费端分发的那几个叶子。 */
-export type PetLeafName = 'say' | 'anim' | 'position' | 'throw' | 'lock' | 'sleep';
+export type PetLeafName = 'say' | 'anim' | 'position' | 'throw' | 'lock' | 'sleep' | 'hidden';
 
 /** 一次叶子分发的落点：分段叶子，或某只宠物的叶子。 */
 export type LeafTarget =
@@ -138,7 +138,7 @@ const SECTION_LEAF_NAMES = [
 ] as const;
 
 /** 宠物叶子名的全集；新增宠物叶子时与 {@link PetLeafName} 一起改。 */
-const PET_LEAF_NAMES = ['say', 'anim', 'position', 'throw', 'lock', 'sleep'] as const;
+const PET_LEAF_NAMES = ['say', 'anim', 'position', 'throw', 'lock', 'sleep', 'hidden'] as const;
 
 /** 把字符串收窄成分段叶子名。 */
 function isSectionLeafName(name: string): name is SectionLeafName {
@@ -311,6 +311,21 @@ export function readSleep(leaf: StateLeaf): SleepState | null {
     if (typeof name !== 'string' || name === '') return null;
   }
   return { sleeping: true, start: d.start as string, loop: d.loop as string, end: d.end as string };
+}
+
+/** 拍一拍躲起来的状态叶子 → `{ hidden, until }`（形状非法 → null，消费端跳过这一拍）。
+ *
+ *  状态不是指令：渲染端据此把自己藏起来/露出来，不往回写。`hidden: true` 时必须带一个
+ *  合法的解除时刻——缺了就是形状非法，宁可露着脸也不要把宠物永久藏掉（谁也不知道怎么找回来）。
+ *  `until` 到了而新叶子还没到，渲染端按过期自行复位，宿主那边也靠同一字段判。
+ */
+export function readHidden(leaf: StateLeaf): { hidden: boolean; until: number } | null {
+  if (!leaf.data || typeof leaf.data !== 'object') return null;
+  const d = leaf.data as { hidden?: unknown; until?: unknown };
+  if (d.hidden === false) return { hidden: false, until: 0 };
+  if (d.hidden !== true) return null;
+  if (typeof d.until !== 'number' || !Number.isFinite(d.until) || d.until <= 0) return null;
+  return { hidden: true, until: d.until };
 }
 
 /** 位置指令的运动模式（三选一）。与宿主半侧的同名联合体是两份，改动时两边要一起改。 */

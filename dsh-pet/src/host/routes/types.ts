@@ -18,6 +18,7 @@ import type { PlaybackStore } from '../playback.ts';
 import type { PoseStore } from '../pose.ts';
 import type { RequestHub } from '../request-hub.ts';
 import type { SleepStore } from '../sleep.ts';
+import type { PatStore } from '../pat.ts';
 import type { PollStateStore } from '../state.ts';
 import type { VoiceTarget } from '../surface.ts';
 import type { TodoStore } from '../todo/store.ts';
@@ -107,6 +108,8 @@ export interface PetRouteDeps {
   readonly lock: LockStore;
   /** 睡觉状态（进睡 / 醒来由 /sleep 与 /wake 驱动）。 */
   readonly sleep: SleepStore;
+  /** 拍一拍状态（连拍计数与「气够了躲起来」，由 /pat 驱动）。 */
+  readonly pat: PatStore;
   /** 睡觉闸门：在睡且未持锁时拒绝并弹拒绝台词；放行回 null。 */
   readonly sleepBlocked: (petId: string, params: URLSearchParams) => RouteResult | null;
   /** 插件日志出口（文件 + 终端）。 */

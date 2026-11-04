@@ -75,3 +75,65 @@ describe('handleInteractionRoutes —— /whisper 的指定配图', () => {
     assert.equal(body.reason, 'unknown-image', '调用方按 reason 分支，不能被归一化掉');
   });
 });
+
+/** 造一份只满足 /pat 分支的依赖：宠物定位恒命中，sleep/lock 状态由调用方给。 */
+function patHarness(state: { sleeping?: boolean; locked?: boolean } = {}) {
+  const decisions: unknown[] = [];
+  const deps = {
+    requirePet: () => ({ ok: true, petId: 'main', entry: 'main', conf: {}, pet: {} }),
+    sleep: { sleeping: () => state.sleeping === true },
+    lock: { locked: () => state.locked === true },
+    pat: {
+      pat: (petId: string) => {
+        decisions.push(petId);
+        return {
+          tier: 'shy',
+          count: 1,
+          plan: { shyUntil: 5, annoyedUntil: 10 },
+          text: '呀…！',
+          hideMs: 0,
+          ignored: false,
+        };
+      },
+    },
+  } as unknown as PetRouteDeps;
+  const call = (query: string, method = 'POST') =>
+    handleInteractionRoutes(deps, {
+      url: new URL('http://127.0.0.1/dsh-pet-7340/pat' + query),
+      rest: 'pat',
+      method,
+    } as RouteInput);
+  return { decisions, call };
+}
+
+describe('handleInteractionRoutes —— /pat（拍一拍）', () => {
+  test('正常一拍：把 pet 交给状态机，回执带档位与次数', async () => {
+    const { decisions, call } = patHarness();
+    const result = (await call('?pet=main')) as { obj: Record<string, unknown> };
+    assert.deepEqual(decisions, ['main']);
+    assert.equal(result.obj.ok, true);
+    assert.equal(result.obj.tier, 'shy');
+    assert.equal(result.obj.count, 1);
+    assert.equal(result.obj.hideMs, 0);
+  });
+
+  test('睡着时不参与：不推进计数，只回 sleeping', async () => {
+    const { decisions, call } = patHarness({ sleeping: true });
+    const result = (await call('?pet=main')) as { obj: Record<string, unknown> };
+    assert.deepEqual(decisions, [], '睡着不该被戳生气');
+    assert.equal(result.obj.sleeping, true);
+  });
+
+  test('持锁期间不参与：那只宠物归第三方管', async () => {
+    const { decisions, call } = patHarness({ locked: true });
+    const result = (await call('?pet=main')) as { obj: Record<string, unknown> };
+    assert.deepEqual(decisions, []);
+    assert.equal(result.obj.locked, true);
+  });
+
+  test('方法不对给 405，不碰状态机', async () => {
+    const { decisions, call } = patHarness();
+    await call('?pet=main', 'GET');
+    assert.deepEqual(decisions, []);
+  });
+});

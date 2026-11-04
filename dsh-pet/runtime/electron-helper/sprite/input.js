@@ -404,6 +404,9 @@ Object.assign(PetSprite.prototype, {
     }
     // 点击音效与浏览器同位置：放在「按下已触发积分」的早退之后、点击动画判断之前
     playClickSound();
+    // 拍一拍：上报给宿主分级（娇羞 → 不高兴 → 气到躲起来），画面与台词都由叶子回来驱动，
+    // 这里不等回执——点一下的手感不能被网络往返拖住。
+    this.postPat();
     if (!this.animations.clicks.length) return;
     this.pendingSquash = true; // 等新点击动画切到前台后 Q 弹（压新首帧，与浏览器一致）
     this.playOnce(S.pick(this.animations.clicks));

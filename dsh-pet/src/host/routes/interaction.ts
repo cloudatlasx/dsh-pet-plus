@@ -20,7 +20,7 @@ import { failResult, invalidJson, methodNotAllowed, okResult } from './result.ts
 
 /** 会话交互领域：未命中返回 undefined，命中返回应答。 */
 export async function handleInteractionRoutes(deps: PetRouteDeps, input: RouteInput): Promise<RouteResult | undefined> {
-  const { configPaths, lock, lockBlocked, memeDirsFor, publishWhisper, requirePet, sleep, state, surfaceBlocked } =
+  const { configPaths, lock, lockBlocked, memeDirsFor, pat, publishWhisper, requirePet, sleep, state, surfaceBlocked } =
     deps;
   const { body, method, rest, url } = input;
 
@@ -66,6 +66,31 @@ export async function handleInteractionRoutes(deps: PetRouteDeps, input: RouteIn
       return okResult({ ok: true, lockId: d.lockId, petId: d.petId, expiresAt: d.expiresAt });
     } catch (e) {
       // 配置读取失败等（安装损坏）→ 显式失败，不静默（与其他动作端点同一口径）
+      return failResult('generate-error', e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // 拍一拍：POST /pat?pet= —— 渲染端每被点一下就上报一次，分级反应与「气够了躲起来」都在宿主
+  // （阈值、台词、躲多久见 shared/pat；台词来自条目配置，代码里不写死任何一句）。
+  // 睡着或持锁时不参与：戳睡着的宠物不该把它气跑，持锁期间这只宠物归第三方管。
+  if (rest === 'pat') {
+    if (method !== 'POST') return methodNotAllowed();
+    try {
+      const who = requirePet(url.searchParams, () => readAllConfig(configPaths));
+      if (!who.ok) return who.res;
+      if (sleep.sleeping(who.petId)) return okResult({ ok: true, sleeping: true });
+      if (lock.locked(who.petId)) return okResult({ ok: true, locked: true });
+      const d = pat.pat(who.petId);
+      // hideMs 只在真躲起来时非 0；ignored = 正躲着时的迟到上报（受理但不反应）。
+      return okResult({
+        ok: true,
+        tier: d.tier,
+        count: d.count,
+        plan: d.plan,
+        hideMs: d.hideMs,
+        ignored: d.ignored,
+      });
+    } catch (e) {
       return failResult('generate-error', e instanceof Error ? e.message : String(e));
     }
   }

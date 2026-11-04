@@ -12,6 +12,8 @@ import { type RouteResult } from '../http.ts';
 import { failResult } from '../routes/result.ts';
 import { findPetInstance, readAllConfig } from '../config.ts';
 import { pickSleepText, SleepStore, sleepTextsOf } from '../sleep.ts';
+import { PatStore } from '../pat.ts';
+import { patTextsOf } from '../../shared/pat.ts';
 import type { HostSetup } from './setup.ts';
 
 /** 宠物定位与访问守卫的输入：装配期对象与更早的工厂。 */
@@ -50,6 +52,20 @@ export function createPetLookup(deps: PetLookupInput) {
       return undefined; // 配置不可读（安装损坏）：拒绝照做，只是没有台词
     }
   };
+
+  // 拍一拍状态：连拍计数、分级阈值、气够了躲起来的计时器。状态同步进 `pets.<id>.hidden`，
+  // 台词写进 `say`（与睡觉拒绝台词同一个出口）。台词同样只来自条目配置——人设怎么写它就怎么气。
+  const pat = new PatStore({
+    textsOf: (petId) => {
+      try {
+        return patTextsOf(findPetInstance(readAllConfig(configPaths), petId)?.conf ?? {});
+      } catch {
+        return patTextsOf({}); // 配置不可读：没有台词，但该躲还是会躲
+      }
+    },
+    onChange: (petId, data) => state.writePet(petId, 'hidden', data),
+    onSay: (petId, text, duration) => state.writePet(petId, 'say', { text, anim: false, duration }),
+  });
 
   /**
    * 睡觉闸门（手动触发与第三方调用共用）：在睡 → 弹一句拒绝台词并返回 `sleeping`；否则放行回 null。
@@ -156,7 +172,17 @@ export function createPetLookup(deps: PetLookupInput) {
     if (g.ok) return null;
     return failResult(g.reason, g.message, g.reason === 'lock-lost' ? { cause: g.cause } : undefined);
   };
-  return { lock, pose, sleep, sleepBlocked, sleepRefusalText: refuseText, surfaceBlocked, requirePet, lockBlocked };
+  return {
+    lock,
+    pose,
+    sleep,
+    sleepBlocked,
+    sleepRefusalText: refuseText,
+    pat,
+    surfaceBlocked,
+    requirePet,
+    lockBlocked,
+  };
 }
 /** 宠物定位与访问守卫的产出（供下游工厂按需 Pick）。 */
 export type PetLookup = ReturnType<typeof createPetLookup>;

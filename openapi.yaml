@@ -1183,6 +1183,42 @@ paths:
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
 
+  /dsh-pet-7340/pat:
+    post:
+      tags: [Action]
+      operationId: patPet
+      summary: 拍一拍（连点多了会生气躲起来，过一会儿自己回来）
+      description: |
+        渲染端每被用户点一下就调一次。分级反应全在宿主：**阈值每一轮重新抽**（娇羞上界 4~6、
+        生气点 9~12，且生气点至少比娇羞大 3），台词取该条目的 `patShyTexts` / `patAnnoyedTexts` /
+        `patAngryTexts` / `patBackTexts`，代码里不写死任何一句——人设怎么写它就怎么气。
+
+        生气时她**躲起来**：宿主写 `pets.<id>.hidden = { hidden: true, until }`，桌面端把整个宠物窗口
+        藏起来、网页端不渲染那张卡片；躲的时长每次重抽（1~5 分钟，分布偏向短），到点她写
+        `{ hidden: false }` 并补一句回来的台词，计数同时清零（消气了，下次被戳重新害羞）。
+
+        **不参与的情形**：睡着（回 `sleeping: true`）、被第三方持锁（回 `locked: true`）——
+        戳睡着的宠物不该把它气跑，持锁期间这只宠物归第三方管。正躲着时的迟到上报照常 200 但
+        `ignored: true`，不重复说话也不重写叶子。
+
+        **连拍计数会过期**：安静 3 分钟没有新的一拍，计数清零、阈值重抽，所以「第几次生气」并不固定。
+      parameters:
+        - $ref: "#/components/parameters/PetIdQuery"
+      responses:
+        "200":
+          description: |
+            恒为 200（除 405）。成功带 `tier`（`shy` / `annoyed` / `angry`）、本次计数 `count`、
+            这一轮的阈值 `plan`、躲起来多久 `hideMs`（没躲是 0）、以及 `ignored`。
+            睡着/持锁时回 `ok: true` 加 `sleeping: true` / `locked: true`，不推进计数。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
   /dsh-pet-7340/sleep:
     post:
       tags: [Action]
@@ -4237,7 +4273,7 @@ components:
           description: 每只宠物各自一份；键是宠物 id（**可含点号，勿切分**）
           additionalProperties:
             type: object
-            required: [say, anim, position, throw, lock, sleep]
+            required: [say, anim, position, throw, lock, sleep, hidden]
             properties:
               say:
                 $ref: "#/components/schemas/SayLeaf"
@@ -4251,6 +4287,8 @@ components:
                 $ref: "#/components/schemas/LockLeaf"
               sleep:
                 $ref: "#/components/schemas/SleepLeaf"
+              hidden:
+                $ref: "#/components/schemas/HiddenLeaf"
       examples:
         typical:
           summary: 一只有余额与碎碎念的宠物
@@ -4805,6 +4843,49 @@ components:
             - $ref: "#/components/schemas/Say"
             - $ref: "#/components/schemas/SayClear"
             - type: "null"
+
+    HiddenLeaf:
+      type: object
+      required: [counter, data]
+      properties:
+        counter:
+          $ref: "#/components/schemas/Counter"
+        data:
+          description: |
+            该宠物的**躲起来**状态；`null` = 从未写过（视为在场）。由 `POST /pat` 与宿主计时器写入。
+
+            「拍一拍」连点太多次会让她生气躲起来：宿主写 `{ hidden: true, until }`，渲染端据此把自己
+            藏起来（桌面端 hide 整个窗口、网页端不渲染那张卡片），到 `until` 由宿主写
+            `{ hidden: false }` 再露面并补一句台词。
+
+            **这是状态不是指令**：渲染端只读不写；`until` 是毫秒时间戳，两边都可以据此判过期，
+            所以计时器丢了也不会把宠物永久藏掉。`hidden: true` 缺合法 `until` = 形状非法，消费端跳过。
+          oneOf:
+            - $ref: "#/components/schemas/HiddenState"
+            - type: "null"
+
+    HiddenState:
+      description: 躲起来状态的两种形态，由 `hidden` 字段区分。
+      oneOf:
+        - type: object
+          required: [hidden, until]
+          description: 躲起来了：`until` 到了就该露面。
+          properties:
+            hidden:
+              type: boolean
+              const: true
+            until:
+              type: integer
+              format: int64
+              description: 解除时刻（毫秒时间戳）。
+              example: 1755000300000
+        - type: object
+          required: [hidden]
+          description: 已经回来（正面朝上）。
+          properties:
+            hidden:
+              type: boolean
+              const: false
 
     SleepLeaf:
       type: object

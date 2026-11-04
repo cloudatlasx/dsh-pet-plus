@@ -340,6 +340,9 @@ export function createCardRuntime(rt: PetRuntime) {
         }
         // 入睡过渡里被点：这次入睡作废，按普通点击处理（挤压 + 音效 + 点击回应），不再播「起来」
         if (phase === 'start') void postAction(ROUTE_PATH + '/wake?pet=' + encodeURIComponent(cfg.id));
+        // 拍一拍：上报给宿主分级（娇羞 → 不高兴 → 气到躲起来）。台词与「藏多久」都由叶子回来驱动，
+        // 这里不等回执——点一下的手感不能被网络往返拖住；失败也不打断用户（最多这次不生气）。
+        void postAction(ROUTE_PATH + '/pat?pet=' + encodeURIComponent(cfg.id)).catch(() => undefined);
         drag.onClick();
       },
       onContextMenu: entry.handleContextMenu,

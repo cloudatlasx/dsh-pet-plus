@@ -126,6 +126,14 @@ export interface Pet {
   sleepStartTexts?: string[];
   /** 条目级：醒来时弹的台词（播「起来」时随机挑一句）。 */
   sleepEndTexts?: string[];
+  /** 条目级：拍一拍第一次到娇羞档时说的台词（随机挑一句，不会连着重复）。 */
+  patShyTexts?: string[];
+  /** 条目级：拍一拍到不高兴档时说的台词。 */
+  patAnnoyedTexts?: string[];
+  /** 条目级：拍一拍到生气档（这就躲起来了）时说的台词。 */
+  patAngryTexts?: string[];
+  /** 条目级：拍完生气躲起来、过一阵自己回来时说的台词。 */
+  patBackTexts?: string[];
   /** 条目级：工作状态气泡文案（外层索引 = 档位 0..5，内层每档可多句随机抽）。
    *  整字段缺失 = 不弹工作状态文本，只播动画。 */
   workStatusTexts?: string[][];

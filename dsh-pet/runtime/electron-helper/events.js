@@ -431,6 +431,21 @@ function applySleepLeaf(petId, leaf) {
   }
 }
 
+/** 拍一拍躲起来的状态叶子：气到躲一会儿就真的把窗口藏起来。
+ *  藏/叫回来都交给主进程（`pet:set-visible`）：窗口一旦隐藏，渲染进程的定时器会被 Chromium 节流，
+ *  靠这边自己 show 会把「躲 90 秒」拖成好几分钟。until 由宿主给，主进程到点自己叫回来。 */
+function applyHiddenLeaf(petId, leaf) {
+  const hit = S.readHidden(leaf);
+  if (!hit) return;
+  const bridge = window.petBridge;
+  if (!bridge || typeof bridge.setVisible !== 'function') return;
+  for (const s of sprites) {
+    if (s.pet.id !== petId) continue;
+    bridge.setVisible(!hit.hidden, hit.until);
+    break;
+  }
+}
+
 /** 第三方菜单快照叶子 → 灌进各宠物（右键菜单据此拼「更多」）。它是当前状态、不是事件，
  *  注册与覆盖时写一次，所有窗口共用同一份快照。 */
 function applyMenuLeaf(leaf) {
@@ -511,6 +526,8 @@ async function pollStateOnce() {
       // 否则渲染端显示醒着，而宿主因「已在睡」不回写叶子，只能等宿主重启才恢复。
       for (const [petId, entry] of Object.entries((s && s.pets) || {})) {
         if (entry && entry.sleep && entry.sleep.data !== null) applySleepLeaf(petId, entry.sleep);
+        // 躲起来同样是状态：重载/重启时窗口若还藏着，这里要补一次（到点由主进程叫回来）
+        if (entry && entry.hidden && entry.hidden.data !== null) applyHiddenLeaf(petId, entry.hidden);
       }
       return true;
     }
@@ -539,6 +556,9 @@ async function pollStateOnce() {
       } else if (change.path.startsWith('pets.') && change.path.endsWith('.sleep')) {
         // 睡觉：同上切片。它是状态而不是指令（见 applySleepLeaf）
         applySleepLeaf(change.path.slice('pets.'.length, -'.sleep'.length), change.leaf);
+      } else if (change.path.startsWith('pets.') && change.path.endsWith('.hidden')) {
+        // 拍一拍躲起来：同上切片。状态而不是指令（见 applyHiddenLeaf）
+        applyHiddenLeaf(change.path.slice('pets.'.length, -'.hidden'.length), change.leaf);
       }
     }
     return true;

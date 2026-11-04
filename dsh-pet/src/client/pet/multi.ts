@@ -20,6 +20,7 @@ import {
   readPosition,
   readSay,
   readSleep,
+  readHidden,
   readThrow,
   readWorkStatus,
   resolveLeafPath,
@@ -204,6 +205,10 @@ export function createPetMulti(
     // 睡觉同样是状态：三段名字由宿主挑定，卡片据此播开始→循环→起来。
     const [sleepTick, setSleepTick] = useState(0);
     const sleepRef = useRef<Record<string, SleepState>>({});
+    // 拍一拍躲起来：值是「到什么时候回来」（毫秒时间戳）。躲着的宠物整块不渲染——
+    // 网页里它没法「游走」，藏起来就是真的看不见，到点由下面的计时器叫回来。
+    const hiddenRef = useRef<Record<string, number>>({});
+    const [hiddenTick, setHiddenTick] = useState(0);
     // 第三方菜单项只在打开右键菜单时读一次，不参与渲染。
     const menuItemsRef = useRef<MenuMoreItem[]>([]);
     /** 已处理过的跳会话时刻：首拉补跳与后续增量可能指向同一条信号，靠它只跳一次。 */
@@ -330,6 +335,16 @@ export function createPetMulti(
             setLockTick((t) => t + 1);
             return;
           }
+          case 'hidden': {
+            // 拍一拍气到躲起来：藏起来/露出来都是状态。到点即使叶子没来也要复位（下面那个计时器），
+            // 免得宿主计时器丢了、宠物永久消失。
+            const hit = readHidden(leaf);
+            if (!hit) return;
+            if (hit.hidden) hiddenRef.current[petId] = hit.until;
+            else delete hiddenRef.current[petId];
+            setHiddenTick((t) => t + 1);
+            return;
+          }
           case 'sleep': {
             // 睡觉也是状态：卡片按三段名字播「开始→循环→起来」，醒来后回随机链。
             const hit = readSleep(leaf);
@@ -363,6 +378,9 @@ export function createPetMulti(
           for (const [petId, entry] of Object.entries(s.pets)) {
             const hit = entry?.sleep?.data == null ? null : readSleep(entry.sleep);
             if (hit) sleepRef.current[petId] = hit;
+            // 躲起来也是状态：刷新页面时若还藏着，首拉要接着藏（到点自己回来）
+            const hid = entry?.hidden?.data == null ? null : readHidden(entry.hidden);
+            if (hid?.hidden) hiddenRef.current[petId] = hid.until;
           }
           setSleepTick((t) => t + 1);
           return;
@@ -393,8 +411,30 @@ export function createPetMulti(
       };
     }, [ready]);
 
+    // 躲起来的宠物到点自己回来：即使宿主那次叶子没写下来（计时器丢了），页面也不能把它永久藏掉。
+    // 只盯着最近的那个到期时刻，一次只挂一个计时器。
+    useEffect(() => {
+      const pending = Object.values(hiddenRef.current).filter((until) => Number.isFinite(until));
+      if (pending.length === 0) return;
+      const soonest = Math.min(...pending);
+      const timer = setTimeout(
+        () => {
+          const now = Date.now();
+          for (const [petId, until] of Object.entries(hiddenRef.current)) {
+            if (until <= now) delete hiddenRef.current[petId];
+          }
+          setHiddenTick((t) => t + 1);
+        },
+        Math.max(0, soonest - Date.now()) + 50,
+      );
+      return () => clearTimeout(timer);
+    }, [hiddenTick]);
+
+    // 躲着的整块不渲染（网页里没法游走，藏就是真藏）；到点后 hiddenRef 被清掉，下一次渲染自己回来。
+    const shownPets = visiblePets.filter((p) => !(hiddenRef.current[p.id] > Date.now()));
+
     return ready
-      ? visiblePets.map((p) =>
+      ? shownPets.map((p) =>
           h(Card, {
             key: p.id,
             cfg: p as RuntimePet,

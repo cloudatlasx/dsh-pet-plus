@@ -62,7 +62,7 @@ export function apply(ctx: any): void {
   });
   const { reportDownload, stopDownloadSlotTimer } = downloadReport;
   const petLookup = createPetLookup({ state, configPaths });
-  const { lock, sleep, sleepRefusalText } = petLookup;
+  const { lock, pat, sleep, sleepRefusalText } = petLookup;
   const sessionNotify = createSessionNotify({ ctx, publishWorkStatus, state, workStatus });
   const {
     pushNotifyFrame,
@@ -145,6 +145,15 @@ export function apply(ctx: any): void {
       offQuestions();
     };
   }, 'dsh-pet: user requests');
+
+  // 拍一拍的「过一会儿自己回来」是计时器：插件卸载/重载时必须停掉，否则旧实例还会往叶子写
+  // 「我回来了」，表现成宠物刚露面又被谁按回去。与请求拦截同一个出口。
+  ctx.effect(
+    () => () => {
+      pat.dispose();
+    },
+    'dsh-pet: pat timers',
+  );
 
   const deps: PetRouteDeps = {
     ...setup,

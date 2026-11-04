@@ -52,6 +52,11 @@ export default defineConfig([
   {
     ...shared,
     // 宿主半侧保持 ESM（由 DSH 的 Loader import），绝不能包 IIFE。
+    // target 必须是 es2022：本包 engines 已要求 Node ≥ 22.12，而 es2020 会把 class field
+    // 降级成 `_defineProperty(...)`，把 `@oxc-project/runtime` 拖成一条裸 import——那个包不在
+    // 依赖里，装好的用户一加载就 ERR_MODULE_NOT_FOUND（standalone 那份已因此提到 es2022，
+    // 原因见下面第三份配置的注释）。宿主代码现在用到了 class 字段（PatStore 的 deps 等）。
+    target: 'es2022',
     entry: {
       index: 'src/host/index.ts',
     },

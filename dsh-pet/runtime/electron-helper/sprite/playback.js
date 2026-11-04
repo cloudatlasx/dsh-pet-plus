@@ -234,6 +234,17 @@ Object.assign(PetSprite.prototype, {
     });
   },
 
+  /**
+   * 上报一次拍一拍：宿主负责分级、台词与「气到躲起来」，渲染端只管把窗口藏/露（hidden 叶子）。
+   *
+   * 失败只记日志：点一下宠物不该因为宿主没响应就弹框，最多是这次不生气。
+   */
+  postPat() {
+    S.postAction(BASE + '/pat?pet=' + encodeURIComponent(this.pet.id)).then((ok) => {
+      if (!ok) console.error('[dsh-pet] 拍一拍上报未成功 pet=' + this.pet.id);
+    });
+  },
+
   // 动画链（纯逻辑在 shared）
   playIdle() {
     // 占用锁：锁生效时不掷骰。这里是随机链的唯一入口（动画播完才会走到），一句判断就把随机动画、

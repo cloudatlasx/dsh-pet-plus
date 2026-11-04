@@ -34,6 +34,11 @@ contextBridge.exposeInMainWorld('petBridge', {
   setInteractive(interactive) {
     ipcRenderer.send('pet:set-interactive', !!interactive);
   },
+  // 拍一拍「气到躲起来」：把整个窗口藏起来，until（毫秒时间戳）到了由主进程叫回来。
+  // 计时必须在主进程：窗口一藏，渲染进程的定时器会被 Chromium 节流，自己 show 会晚很多。
+  setVisible(visible, until) {
+    ipcRenderer.send('pet:set-visible', { visible: !!visible, until: Number(until) });
+  },
   // 我正在用这个窗口的鼠标输入（拖拽中/菜单开/弹窗开）。主进程光看光标与窗口位移分不清
   // 拖拽跟手与漫游/抛掷，而渲染端知道；busy 期间兜底通道绝不翻回穿透，否则输入链会断。
   // 只在状态翻转时发一次，不逐帧。

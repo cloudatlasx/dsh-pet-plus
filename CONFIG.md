@@ -49,6 +49,10 @@ DSH 设置 → 「桌宠配置」：
 | `sleepStartTexts`      | **入睡台词**（条目级，随机挑一句；播「开始」时弹气泡）                                                         | 非空字符串数组             |
 | `sleepEndTexts`        | **醒来台词**（条目级，随机挑一句；播「起来」时弹气泡）                                                         | 非空字符串数组             |
 | `sleepRefuseTexts`     | **睡着被打扰时的拒绝台词**（条目级，随机挑一句）                                                               | 非空字符串数组             |
+| `patShyTexts`         | **拍一拍的娇羞台词**（条目级，连点前几次随机挑一句；不会连着重复同一句）                                       | 非空字符串数组             |
+| `patAnnoyedTexts`     | **拍一拍的不高兴台词**（条目级，越过娇羞上界后随机挑一句）                                                     | 非空字符串数组             |
+| `patAngryTexts`       | **拍一拍的生气台词**（条目级，说这句的同时她就躲起来了）                                                       | 非空字符串数组             |
+| `patBackTexts`        | **生气回来时的台词**（条目级，躲了一阵自己露面时随机挑一句）                                                   | 非空字符串数组             |
 | `notificationsEnabled` | 系统通知总开关（布尔）                                                                                         | 同 `notificationsEnabled`  |
 | `chatAnimationEnabled` | **对话动作联动**：开启后对话时把 `animations.categories` 下的动作清单交给模型，由它按语境挑一个当场表演（布尔，默认 true） | 布尔，默认即可             |
 
