@@ -849,6 +849,20 @@ paths:
                     太久，让宠物游到屏幕中央催一下」用；用户在归位前按住拖走，归位自动取消。
                     负数 / `NaN` / `Infinity` / 非数字 → `bad-request`。
                   example: 8000
+                frame:
+                  type: string
+                  enum: [view, anchor]
+                  description: |
+                    可选：`x` / `y` 的归一化参照系。缺省 `view`。
+
+                    - `view`（默认）：**全部显示器工作区的外接矩形**。双屏横排时 `0.5/0.5` 正好
+                      落在两块屏的接缝上——「去中间」用它会停在屏缝，看着像掉进黑洞。
+                    - `anchor`：**DSH 所在那块屏**（浏览器上报的锚定屏；没上报则回落主屏），
+                      与「角落定位 / 回到初始位置」同一口径。落点只在那一块屏内夹取。
+
+                    想要「宠物游到屏幕中间」，请用 `frame: anchor` 配 `x: 0.5, y: 0.5`。
+                    不是 `view` / `anchor`（含大小写不符、空白、非字符串）→ `bad-request`。
+                  example: anchor
               examples:
                 instant:
                   summary: 立即跳到左下角
@@ -891,6 +905,10 @@ paths:
                           y:
                             type: number
                             description: 实际生效的纵向坐标（夹取后）
+                          frame:
+                            type: string
+                            enum: [view, anchor]
+                            description: 实际生效的归一化参照系（缺省 `view`）
                   - $ref: "#/components/schemas/FailureResponse"
         "400":
           description: '请求体不是合法 JSON（`{ "error": "invalid JSON body" }`）'

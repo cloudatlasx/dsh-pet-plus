@@ -92,6 +92,7 @@ export async function handleMotionRoutes(deps: PetRouteDeps, input: RouteInput):
           mode: o.mode,
           duration: o.duration,
           returnAfter: o.returnAfter,
+          frame: o.frame,
         });
         if (!d.ok) return failResult(d.reason, d.message);
         const noSurface = surfaceBlocked(cfg, d.petId, url.searchParams);
@@ -101,7 +102,7 @@ export async function handleMotionRoutes(deps: PetRouteDeps, input: RouteInput):
         // 叶子按模式收敛成最小形状：非 line 模式不带 duration（见 positionLeafData）
         state.writePet(d.petId, 'position', positionLeafData(d));
         // 回夹取后的实际生效值：调用方不必自己算边界，也不会误以为越界值被照单全收
-        return okResult({ ok: true, x: d.x, y: d.y });
+        return okResult({ ok: true, x: d.x, y: d.y, frame: d.frame });
       }
       const d = decideThrow({ cfg, requested, angle: o.angle, power: o.power });
       if (!d.ok) return failResult(d.reason, d.message);

@@ -22,6 +22,19 @@ export type PositionMode = 'instant' | 'spring' | 'line';
 /** 合法模式集合：校验与错误信息共用一份。 */
 export const POSITION_MODES: readonly PositionMode[] = ['instant', 'spring', 'line'];
 
+/**
+ * 归一化坐标的参照系（决定 0.5/0.5 到底是哪块屏的中间）。
+ *
+ * - `view`（默认）：全部显示器工作区的外接矩形。双屏横排时 0.5 正好落在两块屏的接缝上，
+ *   「去中间」用它会停在屏缝，看着像掉进黑洞。
+ * - `anchor`：浏览器上报的 DSH 所在屏（没上报则回落主屏）。「去中间」应该用它——
+ *   与角落里摆宠物的口径一致（都是「DSH 用的那块屏」）。
+ */
+export type PositionFrame = 'view' | 'anchor';
+
+/** 合法参照系集合。 */
+export const POSITION_FRAMES: readonly PositionFrame[] = ['view', 'anchor'];
+
 /** 位置决策结论：通过则给出最终要写进 S 的内容（`duration` 为 `null` = 该模式不用时间）。 */
 export type PositionDecision =
   | {
@@ -33,6 +46,8 @@ export type PositionDecision =
       duration: number | null;
       /** 到了之后停多久再游回原位（`null` = 不归位）。 */
       returnAfter: number | null;
+      /** 归一化坐标的参照系：`view` 并集外接矩形、`anchor` DSH 所在屏。 */
+      frame: PositionFrame;
     }
   | { ok: false; reason: MotionFailure; message: string };
 
@@ -49,6 +64,13 @@ const finite = (v: unknown): number | null => (typeof v === 'number' && Number.i
 /** 模式收窄：只认三个字面量（大小写、空白、非字符串一律不算），不认识返回 `null`。 */
 const positionMode = (v: unknown): PositionMode | null =>
   typeof v === 'string' && (POSITION_MODES as readonly string[]).includes(v) ? (v as PositionMode) : null;
+
+/** 参照系收窄：缺省（`undefined` / `null`）按 `view`，写了就必须是那两个之一。 */
+const positionFrame = (v: unknown): PositionFrame | null => {
+  if (v === undefined || v === null) return 'view';
+  if (typeof v !== 'string' || !(POSITION_FRAMES as readonly string[]).includes(v)) return null;
+  return v as PositionFrame;
+};
 
 /**
  * 目标宠物解析（与 ./anim、./broadcast 同一口径）：`?pet=` 必填且必须真实存在。
@@ -93,6 +115,13 @@ export function decidePosition(args: {
    * 上限 60 秒——这是「过去催一下」的辅助动作，不是让宠物长期漂在别处。
    */
   returnAfter?: unknown;
+  /**
+   * 可选：归一化坐标的参照系。
+   *
+   * `view`（缺省）按全部显示器工作区的外接矩形换算；`anchor` 按 DSH 所在屏（没上报则主屏）。
+   * 「去屏幕中间」必须用 `anchor`：双屏横排时并集中心就在屏缝上。
+   */
+  frame?: unknown;
 }): PositionDecision {
   const x = finite(args.x);
   if (x === null) return { ok: false, reason: 'bad-request', message: 'x 必须是有限数字' };
@@ -124,7 +153,12 @@ export function decidePosition(args: {
   const pet = resolvePet(args.cfg, args.requested);
   if (!pet.ok) return pet;
 
-  return { ok: true, petId: pet.petId, x: clamp01(x), y: clamp01(y), mode, duration, returnAfter };
+  const frame = positionFrame(args.frame);
+  if (frame === null) {
+    return { ok: false, reason: 'bad-request', message: 'frame 必须是 view / anchor' };
+  }
+
+  return { ok: true, petId: pet.petId, x: clamp01(x), y: clamp01(y), mode, duration, returnAfter, frame };
 }
 
 /**
@@ -137,11 +171,14 @@ export const positionLeafData = (d: {
   mode: PositionMode;
   duration: number | null;
   returnAfter?: number | null;
+  frame?: PositionFrame | null;
 }): Record<string, unknown> => {
   const base: Record<string, unknown> = { x: d.x, y: d.y, mode: d.mode };
   if (d.duration !== null) base.duration = d.duration;
   // 归位是附加值：没有就不写这个键，叶子形状和以前一字不差（老消费端读不懂也不会因此判非法）
   if (typeof d.returnAfter === 'number' && d.returnAfter > 0) base.returnAfter = d.returnAfter;
+  // 参照系同理：只有显式要 anchor 才写，默认的 view 不占叶子字段
+  if (d.frame === 'anchor') base.frame = 'anchor';
   return base;
 };
 

@@ -126,7 +126,17 @@ export function apply(ctx: any): void {
       if (pet === null) return;
       const display = String(pets.find((row) => String(row.id ?? '') === pet)?.display ?? '');
       if (display !== 'desktop') return;
-      state.writePet(pet, 'position', { x: 0.5, y: 0.5, mode: 'line', duration: 900, returnAfter: 8000 });
+      // `frame: 'anchor'` 是关键：宿主不知道显示器怎么排，`view` 的 0.5/0.5 是「所有屏幕并集的
+      // 中心」——双屏横排时正好落在两块屏的接缝上。`anchor` 让渲染端按 DSH 所在那块屏换算，
+      // 与「角落定位 / 回到初始位置」同一口径（用户口径：「中间的逻辑应该参考起始位置的逻辑」）。
+      state.writePet(pet, 'position', {
+        x: 0.5,
+        y: 0.5,
+        mode: 'line',
+        duration: 1400,
+        returnAfter: 8000,
+        frame: 'anchor',
+      });
     },
   });
   ctx.effect(() => {

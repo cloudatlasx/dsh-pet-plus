@@ -194,6 +194,17 @@ Object.assign(PetSprite.prototype, {
       cancelAnimationFrame(this.posFollow);
       this.posFollow = null;
     }
+    // 被接管时也要收掉行进动画，否则它会一直轻轻晃着停在原地
+    this.stopGlide();
+  },
+
+  /** 行进中的轻微浮动（CSS 动画，reduce-motion 时由样式表自己关掉）。 */
+  startGlide() {
+    if (this.el) this.el.classList.add('is-gliding');
+  },
+
+  stopGlide() {
+    if (this.el) this.el.classList.remove('is-gliding');
   },
 
   /**
@@ -208,12 +219,15 @@ Object.assign(PetSprite.prototype, {
    * @param mode - 运动模式，通常传 `line`。
    * @param duration - 去程时长（ms）。
    * @param returnAfter - 去程结束后停留多久再归位（ms）；`<= 0` 表示不归位。
+   * @param frame - 归一化参照系：`anchor` = DSH 所在那块屏（去程），归位腿固定按并集比例。
    */
-  moveToCenterAndReturn(rx, ry, mode, duration, returnAfter) {
+  moveToCenterAndReturn(rx, ry, mode, duration, returnAfter, frame) {
     if (this.dragState.active) return;
     const home = { rx: this.currentCenterX() / VIEW.w, ry: this.currentCenterY() / VIEW.h };
     this.cancelReturnHome();
-    this.moveToCenter(rx, ry, mode, duration);
+    this.moveToCenter(rx, ry, mode, duration, frame);
+    // 落地的同一拍再闪一次气泡：走过去要 1 秒多，起点就闪的话等它到了动画早放完了
+    this.pulseOnArrive = true;
     if (!(returnAfter > 0)) return;
     const token = ++this.returnSeq;
     this.returnHomeToken = token;
@@ -222,8 +236,9 @@ Object.assign(PetSprite.prototype, {
       // 期间被新的位置指令 / 用户拖拽接管，就不归位了
       if (this.returnHomeToken !== token) return;
       if (this.dragState.active) return;
-      // 用 instant 会瞬间闪回去，这里固定走一段直线，肉眼能看出「它自己溜回去了」
-      this.moveToCenter(home.rx, home.ry, 'line', 900);
+      // 用 instant 会瞬间闪回去，这里固定走一段直线，肉眼能看出「它自己溜回去了」。
+      // 归位目标是出发点的并集比例，所以这里必须按 view 解释，不能继承去程的 anchor。
+      this.moveToCenter(home.rx, home.ry, 'line', 900, 'view');
     }, duration + returnAfter);
     this.returnTimer.unref?.();
   },
@@ -239,18 +254,24 @@ Object.assign(PetSprite.prototype, {
    * 位置指令：把宠物中心挪到归一化坐标 (rx, ry)，与 customPos 同一套语义。
    * mode 三选一：instant 一帧到位；spring 走过阻尼弹簧；line 在 duration 毫秒里直线走完
    * （duration <= 0 等同 instant）。用户正按着宠物时整拍静默丢弃——手指底下的东西不该跑。
-   * 归一化空间是工作区并集的外接矩形，落点会被夹到 AREAS 并集（空洞不可达）。
+   * 归一化空间默认是工作区并集的外接矩形，落点会被夹到 AREAS 并集（空洞不可达）；
+   * `frame: 'anchor'` 时改为按 DSH 所在那块屏换算、也只在那块屏内夹取——双屏横排时并集的
+   * 0.5/0.5 正好落在两块屏的接缝上，「去屏幕中间」必须用 anchor 才是「DSH 那块屏的中间」。
    */
-  moveToCenter(rx, ry, mode, duration) {
+  moveToCenter(rx, ry, mode, duration, frame) {
     if (this.dragState.active) return; // 用户交互优先
     // 任何新的位置指令都作废未执行的归位：否则宠物可能先照新指令走，过一秒又自己溜回老地方
     this.cancelReturnHome();
     this.stopThrow(); // 先显式接管：停掉飞行与走路（stopMove 顺带停掉上一次的位置跟随）
     this.stopMove();
+    // 参照系：并集外接矩形（默认）或 DSH 所在屏（anchor，未上报时退回主屏）
+    const area = frame === 'anchor' ? anchorAreaLocal() || PRIMARY_AREA : null;
     // 归一化空间是外接矩形，不规则布局里含大片空洞；position() 的 customPos 分支零夹取，
     // 不夹的话落进空洞的坐标会把宠物放进看不见的地方。鼠标拖拽到不了那里不是因为代码在拦，
-    // 而是光标物理上出不去屏幕——位置接口必须自己补这道守卫：把身体中心夹到 AREAS 并集。
-    const c = S.clampPointToRegion(AREAS, rx * VIEW.w, ry * VIEW.h);
+    // 而是光标物理上出不去屏幕——位置接口必须自己补这道守卫：把身体中心夹到可达区域内。
+    const targetX = area === null ? rx * VIEW.w : area.x + rx * area.width;
+    const targetY = area === null ? ry * VIEW.h : area.y + ry * area.height;
+    const c = S.clampPointToRegion(area === null ? AREAS : [area], targetX, targetY);
     // 夹取后的比例才是要写进 customPos 的值：position() 会按它重算窗口位置。
     const fx = c.x / VIEW.w;
     const fy = c.y / VIEW.h;
@@ -267,6 +288,8 @@ Object.assign(PetSprite.prototype, {
       const fromX = this.pos.x;
       const fromY = this.pos.y;
       const t0 = performance.now();
+      // 起身与落地都要有过渡：光是一条匀速直线看着像被瞬移改造过，两头加缓动才像「游过去」
+      this.startGlide();
       const step = () => {
         if (this.posFollowToken !== token) return;
         const p = Math.min((performance.now() - t0) / duration, 1);
@@ -275,9 +298,19 @@ Object.assign(PetSprite.prototype, {
           this.posFollow = null;
           this.sendBounds(px, py);
           this.customPos = { rx: fx, ry: fy };
+          this.stopGlide();
+          // 落地轻压一下：有「停住」的重感，又不至于像被拍扁（点击是 0.55 = S.SQ_SQUASH）
+          this.startSquash(this.front === 0 ? this.videoA : this.videoB, 0.22);
+          // 「游过来催一下」的那次，落地这一拍才让气泡再闪一遍
+          if (this.pulseOnArrive) {
+            this.pulseOnArrive = false;
+            if (this.requestEnvelope) this.pulseBubble(this.requestEnvelope.id + ':esc');
+          }
           return;
         }
-        this.sendBounds(fromX + (px - fromX) * p, fromY + (py - fromY) * p);
+        // ease-in-out（cubic）：起步慢、中途快、收尾慢
+        const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        this.sendBounds(fromX + (px - fromX) * e, fromY + (py - fromY) * e);
         this.posFollow = requestAnimationFrame(step);
       };
       this.posFollow = requestAnimationFrame(step);

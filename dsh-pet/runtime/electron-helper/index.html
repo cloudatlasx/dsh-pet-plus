@@ -40,6 +40,21 @@
         height: calc(var(--pet-size, 462px) * 9 / 16);
         pointer-events: none;
       }
+      /* 行进动画：位置指令走直线时宠物在「游」而不是被平移，配上 motion.js 的 ease-in-out，
+         起步/收尾都不生硬。只挂在整个 sprite 上（.pet-stage 上有内联 translateY，动它会顶掉）。 */
+      @media (prefers-reduced-motion: no-preference) {
+        .pet-sprite.is-gliding {
+          animation: pet-glide 760ms ease-in-out infinite alternate;
+        }
+        @keyframes pet-glide {
+          from {
+            transform: translateY(0) rotate(-0.6deg);
+          }
+          to {
+            transform: translateY(calc(var(--pet-size, 462px) * -0.012)) rotate(0.6deg);
+          }
+        }
+      }
       video.pet-video {
         position: absolute;
         inset: 0;

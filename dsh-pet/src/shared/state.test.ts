@@ -391,6 +391,7 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
       mode: 'instant',
       duration: 0,
       returnAfter: 0,
+      frame: 'view',
     });
     assert.deepEqual(readPosition({ counter: 1, data: { x: 0.5, y: 0.35, mode: 'spring' } }), {
       x: 0.5,
@@ -398,6 +399,7 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
       mode: 'spring',
       duration: 0,
       returnAfter: 0,
+      frame: 'view',
     });
   });
 
@@ -408,6 +410,7 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
       mode: 'line',
       duration: 1200,
       returnAfter: 0,
+      frame: 'view',
     });
     assert.equal(readPosition({ counter: 1, data: { x: 0.5, y: 0.35, mode: 'line', duration: 0 } })?.duration, 0);
   });
@@ -424,6 +427,17 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
     }
   });
 
+  test('frame：anchor 原样带出；缺省或不认识的一律按并集 view（老叶子不带这个键）', () => {
+    assert.equal(
+      readPosition({ counter: 1, data: { x: 0.5, y: 0.5, mode: 'line', duration: 900, frame: 'anchor' } })?.frame,
+      'anchor',
+    );
+    for (const frame of [undefined, null, 'view', 'Anchor', 1, {}]) {
+      const hit = readPosition({ counter: 1, data: { x: 0.5, y: 0.5, mode: 'line', duration: 900, frame } });
+      assert.equal(hit?.frame, 'view', `frame=${String(frame)}`);
+    }
+  });
+
   test('边界值 0 与 1 合法（中心可到屏幕边缘）', () => {
     assert.deepEqual(readPosition({ counter: 1, data: { x: 0, y: 1, mode: 'spring' } }), {
       x: 0,
@@ -431,6 +445,7 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
       mode: 'spring',
       duration: 0,
       returnAfter: 0,
+      frame: 'view',
     });
   });
 

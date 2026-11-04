@@ -36,14 +36,33 @@ describe('decidePosition —— 参数校验、模式与夹取', () => {
       mode: 'spring',
       duration: null,
       returnAfter: null,
+      frame: 'view',
     });
   });
 
   test('越界夹到 0~1（夹取而不是拒绝）', () => {
     const hi = decidePosition({ cfg, requested: 'main', x: 1.8, y: 99, mode: 'instant' });
-    assert.deepEqual(hi, { ok: true, petId: 'main', x: 1, y: 1, mode: 'instant', duration: null, returnAfter: null });
+    assert.deepEqual(hi, {
+      ok: true,
+      petId: 'main',
+      x: 1,
+      y: 1,
+      mode: 'instant',
+      duration: null,
+      returnAfter: null,
+      frame: 'view',
+    });
     const lo = decidePosition({ cfg, requested: 'main', x: -3, y: -0.01, mode: 'instant' });
-    assert.deepEqual(lo, { ok: true, petId: 'main', x: 0, y: 0, mode: 'instant', duration: null, returnAfter: null });
+    assert.deepEqual(lo, {
+      ok: true,
+      petId: 'main',
+      x: 0,
+      y: 0,
+      mode: 'instant',
+      duration: null,
+      returnAfter: null,
+      frame: 'view',
+    });
   });
 
   test('边界值 0 与 1 原样保留（中心可到屏幕边缘，允许半个身体出屏）', () => {
@@ -69,7 +88,16 @@ describe('decidePosition —— 参数校验、模式与夹取', () => {
       duration: 1200,
       returnAfter: null,
     });
-    assert.deepEqual(ok, { ok: true, petId: 'main', x: 0.5, y: 0.5, mode: 'line', duration: 1200, returnAfter: null });
+    assert.deepEqual(ok, {
+      ok: true,
+      petId: 'main',
+      x: 0.5,
+      y: 0.5,
+      mode: 'line',
+      duration: 1200,
+      returnAfter: null,
+      frame: 'view',
+    });
     const zero = decidePosition({
       cfg,
       requested: 'main',
@@ -89,7 +117,16 @@ describe('decidePosition —— 参数校验、模式与夹取', () => {
   test('instant / spring 给了 duration 也**不看**（调用方复用 body 模板时不必删字段）', () => {
     for (const mode of ['instant', 'spring'] as const) {
       const d = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode, duration: 9999 });
-      assert.deepEqual(d, { ok: true, petId: 'main', x: 0.5, y: 0.5, mode, duration: null, returnAfter: null });
+      assert.deepEqual(d, {
+        ok: true,
+        petId: 'main',
+        x: 0.5,
+        y: 0.5,
+        mode,
+        duration: null,
+        returnAfter: null,
+        frame: 'view',
+      });
     }
     // 连非法值都不看：这两个模式压根不用时间
     const junk = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode: 'spring', duration: -1 });
@@ -194,6 +231,52 @@ describe('decidePosition —— returnAfter（游过去再游回来）', () => {
       });
       assert.equal(reasonOf(d), 'bad-request', `returnAfter=${String(bad)}`);
     }
+  });
+});
+
+describe('decidePosition —— frame（0.5/0.5 是哪块屏的中间）', () => {
+  test('缺省 / null 按并集（view）；显式 anchor 原样带出', () => {
+    const omitted = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode: 'line', duration: 900 });
+    assert.equal(omitted.ok, true);
+    const view = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode: 'line', duration: 900, frame: 'view' });
+    assert.equal(view.ok && view.frame, 'view');
+    const anchor = decidePosition({
+      cfg,
+      requested: 'main',
+      x: 0.5,
+      y: 0.5,
+      mode: 'line',
+      duration: 900,
+      frame: 'anchor',
+    });
+    assert.equal(anchor.ok && anchor.frame, 'anchor');
+  });
+
+  test('只认 view / anchor（大小写、空白、非字符串一律 bad-request）', () => {
+    for (const bad of ['Anchor', 'anchor ', '', 1, true, {}]) {
+      const d = decidePosition({
+        cfg,
+        requested: 'main',
+        x: 0.5,
+        y: 0.5,
+        mode: 'line',
+        duration: 900,
+        frame: bad,
+      });
+      assert.equal(reasonOf(d), 'bad-request', `frame=${String(bad)}`);
+    }
+  });
+
+  test('叶子只在 anchor 时写 frame，默认 view 不占字段', () => {
+    assert.equal('frame' in positionLeafData({ x: 0.5, y: 0.5, mode: 'line', duration: 900, frame: 'view' }), false);
+    assert.equal('frame' in positionLeafData({ x: 0.5, y: 0.5, mode: 'line', duration: 900 }), false);
+    assert.deepEqual(positionLeafData({ x: 0.5, y: 0.5, mode: 'line', duration: 900, frame: 'anchor' }), {
+      x: 0.5,
+      y: 0.5,
+      mode: 'line',
+      duration: 900,
+      frame: 'anchor',
+    });
   });
 });
 
