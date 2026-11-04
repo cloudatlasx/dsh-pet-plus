@@ -78,7 +78,9 @@
         /* 钉死 content-box：本文件全局设了 border-box，那会让 min/max-width 把内边距也算进去，
            内容可用宽度被悄悄缩掉一圈（表现为「明明还有空位却折行」）。与浏览器 bubble.ts 同一口径 */
         box-sizing: content-box;
-        min-width: calc(var(--f) * 5.7143);
+        /* 宽度下限只到「放得下尾巴 + 一点内边距」（与 bubble.ts 同一口径）：早先给到 5.7143em，
+           短句会被撑成一条长条，看起来空一半。宽度交给 width:max-content，长文本才由 max-width 收口 */
+        min-width: calc(var(--f) * 2);
         max-width: min(calc(var(--f) * 19), 100%);
         padding: calc(var(--f) * 0.75) calc(var(--f) * 0.8);
         border-radius: calc(var(--f) * 0.7692);
@@ -147,11 +149,11 @@
           animation: none;
         }
       }
-      /* 碎碎念变体：与浏览器 overlay 一致 —— 字号缩到余额气泡的 0.75、宽度下限更窄（0.10 → 2.1978），
+      /* 碎碎念变体：与浏览器 overlay 一致 —— 字号缩到余额气泡的 0.75、宽度下限只留住尾巴（1.6em），
          上限与余额气泡相同；宽度取宽/折行规则继承 .pet-bubble，高度随行数自然增长 */
       .pet-bubble.is-whisper {
         font-size: calc(var(--f) * 0.7473);
-        min-width: calc(var(--f) * 2.1978);
+        min-width: calc(var(--f) * 1.6);
         max-width: min(calc(var(--f) * 10.989), 100%);
       }
       .pet-bub-row {
@@ -353,9 +355,12 @@
       }
       /* ---- 请求气泡（审批 / 提问）与定时提醒：与网页端 request-bubble.ts 同一套视觉 ----
          请求气泡必须可点：窗口级穿透由主进程按控件矩形翻转，类名 is-clickable 是渲染端登记矩形的唯一入口 */
+      /* 请求气泡按内容取宽：早先这里钉死 width:20em（380px 宠物约 346px），一句话的提醒也被撑成满条，
+         正是「文字没那么长、泡泡挺长」的来源。宽度回到 max-content，只保留 20em 的上限，
+         长正文/按钮行仍会被收口折行 */
       .pet-bubble.is-request {
-        width: min(calc(var(--f) * 20), 100%);
-        max-width: 100%;
+        width: max-content;
+        max-width: min(calc(var(--f) * 20), 100%);
         pointer-events: auto;
       }
       .pet-bub-req {

@@ -35,7 +35,10 @@ const bubbleCss = [
   `@font-face{font-family:"ShangshouSoftCandy";src:url("${ROUTE_PATH}/font/上首软糖体.ttf") format("truetype");font-display:swap;font-weight:400}`,
   '.dsh-pet-bubble{position:absolute;left:50%;transform:translateX(-50%);' +
     'bottom:calc(100% - var(--dsh-pet-size)*0.108);' +
-    'width:max-content;min-width:calc(var(--f)*5.7143);max-width:min(calc(var(--f)*19),100%);' +
+    // 宽度下限只到「放得下尾巴三角 + 一点内边距」：早先给到 5.7143em（380px 的宠物约 99px），
+    // 于是「好的」这类两三个字的气泡也被撑成同一条长条，用户报「文字没那么长，泡泡还是挺长的」。
+    // 现在下限压到 2em，宽度完全由内容决定，长文本仍由 max-width 收口换行。
+    'width:max-content;min-width:calc(var(--f)*2);max-width:min(calc(var(--f)*19),100%);' +
     // 钉死 content-box：宿主可能全局设了 border-box，让 min/max-width 把内边距算进去，
     // 表现为「明明还有空位却折行」；桌面端同样钉死，两端一致。
     'box-sizing:content-box;' +
@@ -66,8 +69,9 @@ const bubbleCss = [
   // 用户要求减少动效时只留淡入，不做位移与缩放。
   '@media (prefers-reduced-motion:reduce){.dsh-pet-bubble.is-on{animation:dsh-pet-bubble-in .12s linear both}}',
   // 碎碎念变体：字号缩到余额气泡的 0.75，宽度下限更窄，上限与折行规则相同。
+  // 字号缩到 0.75 后内边距也跟着缩，宽度下限只需留住尾巴；上限仍按内容收口。
   '.dsh-pet-bubble.dsh-pet-whisper{font-size:calc(var(--f)*0.7473);' +
-    'min-width:calc(var(--f)*2.1978);max-width:min(calc(var(--f)*10.989),100%)}',
+    'min-width:calc(var(--f)*1.6);max-width:min(calc(var(--f)*10.989),100%)}',
   // 工作气泡的第二行（第 N 步 · 已用 X 分钟）：小一号、灰一点，不跟正文抢注意力。
   '.dsh-pet-whisper__meta{display:block;margin-top:calc(var(--f)*0.14);font-size:calc(var(--f)*0.58);' +
     'line-height:1.3;color:rgba(43,43,43,.55);font-variant-numeric:tabular-nums}',
