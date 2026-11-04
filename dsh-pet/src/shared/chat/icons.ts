@@ -54,6 +54,18 @@ export function micIcon(size = 16): SVGElement {
   return svg;
 }
 
+/** 记录图标：一叠横线（对话列表），左上角留一个标题点。 */
+export function logIcon(size = 16): SVGElement {
+  const svg = svgNode('svg', {
+    viewBox: '0 0 24 24',
+    width: String(size),
+    height: String(size),
+    ...ICON_ATTRS,
+  });
+  svg.append(svgNode('path', { d: 'M4 6h16' }), svgNode('path', { d: 'M4 12h16' }), svgNode('path', { d: 'M4 18h10' }));
+  return svg;
+}
+
 /** 相机图标：机身 + 镜头。 */
 export function cameraIcon(size = 16): SVGElement {
   const svg = svgNode('svg', {

@@ -146,6 +146,8 @@ const bubbleCss = [
     'border-radius:calc(var(--f)*0.3);padding:calc(var(--f)*0.06) calc(var(--f)*0.34);letter-spacing:.02em}',
   '.dsh-pet-request__badge.is-reminder{background:#3f6ea8}',
   '.dsh-pet-request__badge.is-announce{background:#2e9e4f}',
+  // 对话里约好的提醒：紫色，与调度器的蓝、会话推送的绿都分开
+  '.dsh-pet-request__badge.is-chat{background:#7c5cd6}',
   '.dsh-pet-request__tool{font-size:calc(var(--f)*0.64);color:rgba(43,43,43,.62);overflow:hidden;' +
     'text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}',
   // 正文限高滚动：方案全文、报错堆栈这类长内容不再被截成一句，而是整段可读、可滚。

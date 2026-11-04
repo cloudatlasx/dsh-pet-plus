@@ -15,6 +15,7 @@ import { registerSessionWatch } from './plugin/session-watch.ts';
 import { createDesktopHelper } from './plugin/desktop-helper.ts';
 import { createBalancePoll } from './plugin/balance-poll.ts';
 import { createChatMemory } from './plugin/chat-memory.ts';
+import { createPetReminderStore } from './plugin/pet-reminders.ts';
 import { createSessionNotify } from './plugin/session-notify.ts';
 import { createPetLookup } from './plugin/pet-lookup.ts';
 import { createDownloadReport } from './plugin/download-report.ts';
@@ -76,7 +77,38 @@ export function apply(ctx: any): void {
     notifyActivityTimers,
     scheduleCompletionNotify,
   } = sessionNotify;
-  const chatMemory = createChatMemory({ ctx, configPaths, log, memeDirsFor, playback, state, userRoot });
+  // 对话提醒：聊天里答应的「两分钟后提醒我」由这套自己记的闹钟兑现。落盘在插件数据根，
+  // 插件重载 / DSH 重启后待发的提醒还在；到点仍走 sections.reminder 那条气泡链路（含声音）。
+  const petReminders = createPetReminderStore({
+    state,
+    log,
+    userRoot,
+    hasClient: () => state.waiterCount() > 0,
+  });
+  void petReminders.load();
+  // 计时器随插件生命周期释放：旧实例留着会往叶子写「到点了」，表现成提醒重复弹。
+  ctx.effect(
+    () => () => {
+      petReminders.dispose();
+    },
+    'dsh-pet: chat reminders',
+  );
+
+  const chatMemory = createChatMemory({
+    ctx,
+    configPaths,
+    log,
+    memeDirsFor,
+    playback,
+    state,
+    userRoot,
+    // 对话里答应的「几分钟后提醒我」：排进宠物自己的闹钟（落盘 + 到点弹气泡），
+    // 不走 DSH 的 schedule（那是往会话里塞提示词，会惊动 agent）。
+    scheduleReminder: (petId, reminder) => {
+      const item = petReminders.schedule(petId, reminder.title, reminder.seconds);
+      return { id: item.id, dueAt: item.dueAt };
+    },
+  });
   const { lastWhisperAt, publishWhisper, publishSleepTalk, chatWithPet, getActivePetId, setActivePetId } = chatMemory;
 
   const balancePoll = createBalancePoll({ ctx, configPaths, getActivePetId, log, state, standaloneAiBalance });

@@ -274,6 +274,9 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
     const hint = reminder.hint ?? '';
     const text = reminder.prompt ?? '';
     const announce = reminder.kind === 'announce';
+    // 对话里约好的提醒（kind = 'chat'）：徽标与定时任务分开，用户一眼能认出「这个是刚才聊天时答应我的」。
+    const chat = reminder.kind === 'chat';
+    const badgeText = announce ? '宠物消息' : chat ? '聊天提醒' : '定时任务';
     const actions = reminder.actions ?? [];
     const sessionId = reminder.sessionId;
     const [sending, setSending] = rt.useState('');
@@ -320,8 +323,8 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
           children: [
             h('span', {
               key: 'kind',
-              className: 'dsh-pet-request__badge is-reminder' + (announce ? ' is-announce' : ''),
-              children: announce ? '宠物消息' : '定时任务',
+              className: 'dsh-pet-request__badge is-reminder' + (announce ? ' is-announce' : chat ? ' is-chat' : ''),
+              children: badgeText,
             }),
             Number.isFinite(planned)
               ? h('span', { key: 'time', className: 'dsh-pet-request__tool', children: clockText(planned) })

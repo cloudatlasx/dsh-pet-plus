@@ -372,12 +372,16 @@ describe('createChatMemory —— 提示词注入（配图 / 动作各自独立�
     }
   });
 
-  test('两个开关都关：user 正文只有用户原话', async () => {
+  test('两个开关都关：user 正文只有用户原话 + 提醒指令（配图/动作两段不出现）', async () => {
     const ws = tempWorkspace({ chatImageEnabled: false, chatAnimationEnabled: false });
     const captured: Record<string, unknown>[] = [];
     try {
       await createMemory('在的', ws, undefined, undefined, captured).chatWithPet('main', '在吗');
-      assert.equal(userTextOf(captured[0]), '在吗');
+      const text = userTextOf(captured[0]);
+      assert.ok(text.startsWith('在吗'), `实际：${JSON.stringify(text)}`);
+      // 提醒指令总是注入（对话里「两分钟后提醒我」要靠它）；配图/动作两段仍受开关控制。
+      assert.ok(text.includes('[提醒]'), '提醒指令应始终注入');
+      assert.ok(!text.includes('[图片]') && !text.includes('[动作]'), '关掉的开关不该注入指令');
     } finally {
       rmSync(ws.dir, { recursive: true, force: true });
     }

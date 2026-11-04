@@ -88,13 +88,14 @@ export type RequestAnswerPayload =
  * 一条到点的定时任务提醒，或一段会话主动推给宠物的内容。
  *
  * `kind` 只影响徽标与默认停留时长：`schedule` 是调度器到点，`announce` 是会话里的 agent
- * 用 `POST /announce` 推过来的结论（日报、待办清单之类）。
+ * 用 `POST /announce` 推过来的结论（日报、待办清单之类），`chat` 是对话里答应了
+ * 「两分钟后提醒我」由宠物自己的闹钟弹出来的。
  */
 export interface ReminderEnvelope {
   /** 提醒 id（由任务 id + 计划时刻拼成，同一条任务的不同次提醒不同）。 */
   id: string;
-  /** 来源：`schedule` = 调度器到点；`announce` = 会话主动推送。 */
-  kind: 'schedule' | 'announce';
+  /** 来源：`schedule` = 调度器到点；`announce` = 会话主动推送；`chat` = 对话里约好的提醒。 */
+  kind: 'schedule' | 'announce' | 'chat';
   /** 写入时刻（ms）。 */
   ts: number;
   /** 任务标题。 */
@@ -140,7 +141,7 @@ export interface HistoryEntry {
   /** 原始提醒 id。 */
   id: string;
   /** 来源。 */
-  kind: 'schedule' | 'announce';
+  kind: 'schedule' | 'announce' | 'chat';
   /** 弹出时刻（ms）。 */
   ts: number;
   /** 标题。 */
@@ -171,7 +172,7 @@ export function readHistory(leaf: StateLeaf): HistorySnapshot | null {
     if (!item || typeof item !== 'object') continue;
     const e = item as Record<string, unknown>;
     if (typeof e.id !== 'string' || e.id === '') continue;
-    if (e.kind !== 'schedule' && e.kind !== 'announce') continue;
+    if (e.kind !== 'schedule' && e.kind !== 'announce' && e.kind !== 'chat') continue;
     if (typeof e.title !== 'string' || e.title.trim() === '') continue;
     const lines = labelsOf(e.lines);
     entries.push({
@@ -259,7 +260,7 @@ export function readReminder(leaf: StateLeaf): ReminderEnvelope | null {
   const d = leaf.data as Record<string, unknown>;
   if (d.closed === true) return null;
   if (typeof d.id !== 'string' || d.id === '') return null;
-  if (d.kind !== 'schedule' && d.kind !== 'announce') return null;
+  if (d.kind !== 'schedule' && d.kind !== 'announce' && d.kind !== 'chat') return null;
   if (typeof d.title !== 'string' || d.title.trim() === '') return null;
   const lines = labelsOf(d.lines);
   const actions = actionsOf(d.actions);

@@ -6,7 +6,7 @@
 import { type EncodedImage, encodeImageFile } from './encode.ts';
 import { createHearControl } from './hear-control.ts';
 import { IMAGE_ACCEPT, firstImageFromClipboard, isImageFile } from './image-pick.ts';
-import { cameraIcon, micIcon, pictureIcon } from './icons.ts';
+import { cameraIcon, logIcon, micIcon, pictureIcon } from './icons.ts';
 import type { ChatAttachment } from './send.ts';
 import { CHAT_H_PAD, CHAT_MAX_W, CHAT_MIN_W } from './styles.ts';
 
@@ -19,6 +19,8 @@ export interface ChatDom {
   readonly input: HTMLTextAreaElement;
   readonly err: HTMLDivElement;
   readonly shotBtn: HTMLButtonElement;
+  /** 「对话记录」按钮：行为在 dialog 里（面板要插到输入框上方，归挂载方管）。 */
+  readonly logBtn: HTMLButtonElement;
   /** 输入框与根宽度随文本自适应；挂到文档后调用一次，输入时自动重算。 */
   readonly resizeInput: () => void;
   /** 清掉待发送图片（含 file input 的值）。 */
@@ -112,6 +114,9 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
 
   const pickBtn = iconButton('上传图片', pictureIcon());
   const shotBtn = iconButton('截取当前屏幕', cameraIcon());
+  // 对话记录：展开后把「我和她说过什么」就地显示在输入框上方（见 ./log）。
+  // 放在最左：它是「看历史」而不是「往这条消息里加东西」，与后面三枚动作按钮不是一回事。
+  const logBtn = iconButton('对话记录', logIcon());
   const hearUrl = typeof opts.hearUrl === 'string' ? opts.hearUrl : '';
   const micBtn = iconButton('按住说话', micIcon());
   const fileInput = document.createElement('input');
@@ -134,7 +139,7 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
 
   const actions = document.createElement('div');
   actions.className = 'dsh-pet-chat-actions';
-  actions.append(pickBtn, shotBtn, micBtn, fileInput, attach);
+  actions.append(logBtn, pickBtn, shotBtn, micBtn, fileInput, attach);
 
   root.append(input, actions, hint, err);
   document.body.appendChild(root);
@@ -225,6 +230,7 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
     input,
     err,
     shotBtn,
+    logBtn,
     resizeInput,
     clearAttach,
     setImageFile,

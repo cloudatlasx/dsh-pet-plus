@@ -5,7 +5,10 @@
  * 依赖（PetRouteDeps）显式传入，模块内不读全局、不建状态。
  * @module dsh-pet/src/host/routes/chat
  */
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { readAllConfig, sliceMemoryRounds } from '../config.ts';
+import type { ChatMemoryMessage } from '../chat.ts';
 import { parseImageAttachment, type PetImageRef, type PetImageSink } from '../image-attachment.ts';
 import type { PetRouteDeps, RouteInput } from './types.ts';
 import type { RouteResult } from '../http.ts';
@@ -88,7 +91,77 @@ export async function handleChatRoutes(deps: PetRouteDeps, input: RouteInput): P
     }
   }
 
+  // 对话记录单独保存：POST /chat/export 把整条历史导成一份 Markdown 落到插件数据根，
+  // 记忆本身不动、也不截断——「单独保存」就是给用户一个能拿走的文件。
+  if (rest === 'chat/export') {
+    if (method !== 'POST') return methodNotAllowed();
+    try {
+      const who = requirePet(url.searchParams, () => readAllConfig(configPaths), { surface: false });
+      if (!who.ok) return who.res;
+      const mem = await readMemory();
+      const rawMessages = mem[who.entry]?.[who.petId]?.messages;
+      const list = Array.isArray(rawMessages) ? rawMessages.filter((m) => m && typeof m.content === 'string') : [];
+      return okResult(await exportChat(deps, who.petId, list));
+    } catch (e) {
+      return failResult('generate-error', e instanceof Error ? e.message : String(e));
+    }
+  }
+
   return undefined;
+}
+
+/** 导出文件里的角色标题。 */
+const ROLE_LABEL = { user: '我', assistant: '她' } as const;
+
+/** 把一条时间戳写成 `YYYY-MM-DD HH:mm`（本地时区，与用户看到的一致）。 */
+function stampOf(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 文件名里只留安全字符：宠物 id 是用户可编辑的，可能带路径分隔符。 */
+function safeName(raw: string): string {
+  return raw.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40);
+}
+
+/**
+ * 把对话历史写成 Markdown 文件。
+ *
+ * @param deps - 路由依赖（`userRoot` 决定落盘位置）。
+ * @param petId - 已校验存在的宠物 id。
+ * @param messages - 整条历史（不截轮）。
+ * @returns 文件绝对路径与条数——前端把它显示出来，用户自己去打开或另存。
+ */
+async function exportChat(
+  deps: PetRouteDeps,
+  petId: string,
+  messages: readonly ChatMemoryMessage[],
+): Promise<{ ok: true; path: string; count: number }> {
+  const now = new Date();
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const dir = join(deps.userRoot, 'exports');
+  const file = join(dir, `dsh-pet-chat-${safeName(petId)}-${stamp}.md`);
+  const lines: string[] = [
+    `# 和 ${petId} 的对话记录`,
+    '',
+    `- 导出时间：${stampOf(now.getTime())}`,
+    `- 条数：${messages.length}`,
+    '',
+  ];
+  for (const m of messages) {
+    const label = m.role === 'user' ? ROLE_LABEL.user : ROLE_LABEL.assistant;
+    lines.push(`## ${stampOf(m.ts)} ${label}`, '', m.content.trim() === '' ? '（空）' : m.content, '');
+    if (m.image !== undefined) lines.push(`> 附图：${m.image.width}×${m.image.height}`, '');
+    if (m.meme !== undefined) lines.push(`> 配图：${m.meme}`, '');
+    if (m.action !== undefined) lines.push(`> 动作：${m.action}`, '');
+    if (m.remind !== undefined) lines.push(`> 提醒：${m.remind.title}（${stampOf(m.remind.dueAt)}）`, '');
+  }
+  await mkdir(dir, { recursive: true });
+  await writeFile(file, lines.join('\n'), 'utf8');
+  deps.log.info(`[dsh-pet] 对话记录已导出 pet=${petId}，${messages.length} 条 → ${file}`);
+  return { ok: true, path: file, count: messages.length };
 }
 
 /**

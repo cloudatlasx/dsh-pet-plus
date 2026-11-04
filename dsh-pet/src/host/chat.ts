@@ -12,6 +12,7 @@
 
 import { BlockAssembler, createAssistantMessage, createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { actionInstruction, extractChatAction } from './chat-action.ts';
+import { extractChatReminder, reminderInstruction, type ChatReminder } from './chat-reminder.ts';
 import type { PetImageRef } from './image-attachment.ts';
 import { PET_CALL_IDENTITY, noTextReason } from './llm-call.ts';
 import { supportsReasoningOff } from './llm-reasoning.ts';
@@ -22,7 +23,7 @@ import { historyStampOf } from './time-context.ts';
 
 /** 生成失败原因（与 shared/whisper.ts 的 WhisperState 失败分支同构）。 */
 export type ChatGenerateResult =
-  | { ok: true; text: string; image?: string; action?: string }
+  | { ok: true; text: string; image?: string; action?: string; reminder?: ChatReminder }
   | { ok: false; reason: 'provider-missing' | 'generate-error'; message?: string };
 
 /** 记忆中的一条消息：GET /chat 返回的窗口条目就是它。 */
@@ -36,6 +37,8 @@ export interface ChatMemoryMessage {
   meme?: string;
   /** 该轮 AI 表演的动作名（animations.categories 内的名字）；回放历史时以 `[动作:名称]` 回填。 */
   action?: string;
+  /** 这一轮答应下来的提醒（对话里说「X 分钟后提醒我」时由 ./plugin/pet-reminders 真的挂上）。 */
+  remind?: { id: string; title: string; dueAt: number };
 }
 
 /** 单次生成超时（ms）：对话等 LLM 回复，60s 足够。 */
@@ -190,11 +193,15 @@ async function generateWith(ctx: { llm?: unknown }, once: GenerateOnce): Promise
   // 无 reasoning 元数据的模型显式传 off 会被 dsh-llm 判为 UNSUPPORTED_REASONING_EFFORT，
   // 折叠成空流（表现为「模型未返回文本」）。
   const supportsOff = await supportsReasoningOff(ctx, sel.provider, sel.model);
-  // 配图 / 动作：各自的清单非空才把指令附进 user 正文（空 = 该功能关闭）。
-  // 顺序固定「配图在前、动作在后」：配图是既有行为，新增的动作排在它后面，不改既有提示词的位置。
+  // 配图 / 动作 / 提醒：各自的指令都附在 user 正文之后（空池 / 空名单 = 该功能关闭）。
+  // 顺序固定「配图 → 动作 → 提醒」：前两项是既有行为，新增的排在后面，不改既有提示词的位置。
+  // 提醒指令总是注入：它不依赖任何清单，是模型把「几分钟后提醒我」落到实处的唯一途径。
   const wantImage = pool.length > 0;
   const wantAction = actions.length > 0;
-  const instruction = (wantImage ? imageInstruction(pool) : '') + (wantAction ? actionInstruction(actions) : '');
+  const instruction =
+    (wantImage ? imageInstruction(pool) : '') +
+    (wantAction ? actionInstruction(actions) : '') +
+    reminderInstruction(new Date(nowMs));
   const content: Record<string, unknown>[] = [
     { type: 'text', text: instruction === '' ? userText : userText + instruction },
   ];
@@ -242,16 +249,18 @@ async function generateWith(ctx: { llm?: unknown }, once: GenerateOnce): Promise
     .join('')
     .trim();
   if (!text) return { ok: false, reason: 'generate-error', message: noTextReason(assembler.finish) };
-  if (!wantImage && !wantAction) return { ok: true, text };
-  // 先剥动作再剥配图：两种标记互不依赖，顺序不影响结果；动作的无效名称也会被剥（见 extractChatAction）。
+  // 先剥动作、再剥配图、最后剥提醒：三种标记互不依赖，顺序不影响结果。
+  // 动作的无效名称也会被剥（见 extractChatAction）；提醒同理（见 extractChatReminder）。
   const acted: { text: string; action?: string } = wantAction ? extractChatAction(text, actions) : { text };
   const picked: { text: string; image?: string } = wantImage
     ? extractChatImage(acted.text, pool)
     : { text: acted.text };
+  const reminded: { text: string; reminder?: ChatReminder } = extractChatReminder(picked.text);
   return {
     ok: true,
-    text: picked.text,
+    text: reminded.text,
     ...(picked.image ? { image: picked.image } : {}),
     ...(acted.action ? { action: acted.action } : {}),
+    ...(reminded.reminder ? { reminder: reminded.reminder } : {}),
   };
 }

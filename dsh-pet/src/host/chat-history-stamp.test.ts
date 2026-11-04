@@ -81,7 +81,11 @@ describe('generateChat —— 历史消息的时间前缀', () => {
     const oldTs = Date.now() - 50 * 60 * 60 * 1000;
     const sent = await send([{ role: 'assistant', content: '晚安', ts: oldTs }]);
     const messages = sent.messages as { content: { text?: string }[] }[];
-    assert.equal(textOf(sent, messages.length - 1), '鲸鲸，你今天干了什么？');
+    const text = textOf(sent, messages.length - 1);
+    // 只钉「不加时间前缀」：正文之后允许跟指令段（配图 / 动作 / 提醒），
+    // 那些是能力说明，不是历史时间戳。
+    assert.ok(text.startsWith('鲸鲸，你今天干了什么？'), `实际：${JSON.stringify(text)}`);
+    assert.ok(!/^\[\d{4}年\d{1,2}月\d{1,2}日 |^\[\d{1,2}:\d{2}\] /.test(text), '本轮输入不该带历史前缀');
   });
 
   test('跨年的历史 → 前缀带年份', async () => {

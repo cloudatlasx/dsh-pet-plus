@@ -1907,6 +1907,45 @@ paths:
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
 
+  /dsh-pet-7340/chat/export:
+    post:
+      tags: [Action]
+      operationId: exportChatLog
+      summary: 把整条对话历史导出成 Markdown 文件
+      description: |
+        把该宠物在 `memory.json` 里的**全部**历史（不受 `chatMemoryRounds` 与 `/chat?rounds=` 的
+        截断影响）写成一份 Markdown，按「时间 + 我/她」分段，附图/配图/动作/提醒各占一行引用。
+
+        文件落在用户数据根的 `exports/` 下，文件名形如
+        `dsh-pet-chat-<petId>-<YYYYMMDD-HHmmss>.md`（`petId` 里的非法文件名字符换成 `_`），
+        响应带回**绝对路径**，由用户自己去打开或另存——插件不提供下载接口，也不复制到临时目录。
+      parameters:
+        - $ref: "#/components/parameters/PetIdQuery"
+      responses:
+        "200":
+          description: |
+            恒为 200。成功 `{ ok: true, path, count }`（`count` 是写入的条数）；
+            失败 `{ ok: false, reason }`：`pet-required` / `unknown-pet` / `generate-error`（读记忆或写文件失败）。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [ok, path, count]
+                    properties:
+                      ok:
+                        type: boolean
+                        const: true
+                      path:
+                        type: string
+                        description: 导出的 Markdown 文件绝对路径
+                      count:
+                        type: integer
+                        description: 写进文件的对话条数（一问一答算两条）
+                  - $ref: "#/components/schemas/FailureResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
   /dsh-pet-7340/config:
     get:
       tags: [Config]

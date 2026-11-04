@@ -9,6 +9,7 @@ import { ROUTE_PATH } from '../constants.ts';
 import { createChatDom } from './dom.ts';
 import { createCompositionWatch, decideEnter } from './enter.ts';
 import type { EncodedImage } from './encode.ts';
+import { createChatLog } from './log.ts';
 import { sendChat, type ChatAttachment } from './send.ts';
 import { injectChatCss } from './styles.ts';
 
@@ -164,6 +165,11 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   const dom = createChatDom({ capture: opts.capture, hearUrl: opts.hearUrl ?? hearUrlOf(baseUrl) });
   const { root, input, err } = dom;
 
+  // 对话记录面板：展开时插在输入框上方（就地回看），收起时整个移除视野外。
+  // 只读宿主已有的记忆，不另存一份；「保存」把整条历史导出成 Markdown。
+  const log = createChatLog({ petId, baseUrl });
+  root.insertBefore(log.root, input);
+
   /** 以 (x,y) 落点，超出 clamp 矩形夹回。 */
   const place = (): void => {
     const r = root.getBoundingClientRect();
@@ -177,18 +183,37 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
     if (closed) return;
     closed = true;
     unbindDismiss();
+    log.dispose();
     dom.dispose();
     dom.clearAttach();
     root.remove();
     if (onClose) onClose();
   };
   unbindDismiss = bindDismiss(root, () => closed, close);
+  // 记录按钮：展开/收起。展开后弹窗会变高变宽，重新夹回可视区，贴边时也不会跑出屏幕。
+  dom.logBtn.addEventListener('click', () => {
+    log.toggle();
+    root.dataset.log = log.isOpen() ? '1' : '0';
+    dom.logBtn.dataset.on = root.dataset.log;
+    place();
+    if (log.isOpen()) input.focus();
+  });
   bindSend({
     input,
     err,
     url: withPet,
     isClosed: () => closed,
     onOk: () => {
+      // 记录面板开着 = 用户正在「边聊边看」：留在弹窗里，把这一轮追加进列表；
+      // 没开就照旧关掉，回复走气泡（与加入记录前逐字一致）。
+      if (log.isOpen()) {
+        input.value = '';
+        dom.clearAttach();
+        dom.resizeInput();
+        log.refresh();
+        if (onSent) onSent();
+        return;
+      }
       close();
       if (onSent) onSent();
     },

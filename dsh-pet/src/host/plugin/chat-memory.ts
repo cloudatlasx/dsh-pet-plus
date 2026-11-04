@@ -8,6 +8,7 @@
 import { join } from 'node:path';
 import { generateChat, type ChatMemoryMessage } from '../chat.ts';
 import { chatActionNames } from '../chat-action.ts';
+import type { ChatReminder } from '../chat-reminder.ts';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { composeSystemPrompt, petPersona } from '../persona.ts';
 import { findPetInstance, readAllConfig, removeRoundsByTs, sliceMemoryRounds } from '../config.ts';
@@ -30,6 +31,12 @@ function voiceTargetFor(pet: Record<string, unknown>): VoiceTarget | undefined {
 export type ChatMemoryInput = {
   /** 宿主上下文（apply 收到的那一个）。 */
   ctx: HostContext;
+  /**
+   * 把对话里答应下来的提醒真的挂上（见 ./pet-reminders）。
+   * 返回 `undefined` = 没能排上（id 非法 / 宠物已删），这时记忆里也不记 `remind`，
+   * 免得历史里留一条「答应了却没发生」的提醒。
+   */
+  scheduleReminder?: (petId: string, reminder: ChatReminder) => { id: string; dueAt: number } | undefined;
 } & Pick<HostSetup, 'configPaths'> &
   Pick<HostSetup, 'log'> &
   Pick<HostSetup, 'memeDirsFor'> &
@@ -41,7 +48,7 @@ export type ChatMemoryInput = {
  * 创建对话与记忆。
  */
 export function createChatMemory(deps: ChatMemoryInput) {
-  const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot } = deps;
+  const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot, scheduleReminder } = deps;
   // 命令「当前桌宠」（/pet 选择、/chat 使用）：全局单值不分会话；进程内内存，重启回默认第一只
   let activePetId = '';
 
@@ -225,7 +232,7 @@ export function createChatMemory(deps: ChatMemoryInput) {
     text: string,
     image?: PetImageRef,
   ): Promise<
-    | { ok: true; text: string; image?: string }
+    | { ok: true; text: string; image?: string; remind?: { id: string; title: string; dueAt: number } }
     | { ok: false; reason: 'provider-missing' | 'generate-error' | 'unknown-pet'; message?: string }
   > =>
     withMemoryLock(async () => {
@@ -281,6 +288,15 @@ export function createChatMemory(deps: ChatMemoryInput) {
       });
       if (!generated.ok) return generated;
       const now = Date.now();
+      // 答应下来的提醒：这句回复里带了 [提醒:…] 就立刻落成真闹钟（见 ./pet-reminders）。
+      // 排不上（例如宠物在这一瞬被删）就当没答应过——历史里也不写 remind，
+      // 免得以后翻记录看到一条根本没发生的提醒。
+      const remind = generated.reminder === undefined ? undefined : scheduleReminder?.(petId, generated.reminder);
+      if (remind !== undefined) {
+        log.info(
+          `[dsh-pet] 对话里排上一条提醒 pet=${petId}，${generated.reminder?.seconds ?? 0}s 后：${generated.reminder?.title ?? ''}`,
+        );
+      }
       // 用户上传的图只存不送：记忆要能还原「这一轮带过图」（聊天记录存档），但不把图本体重发给模型；
       // AI 配的图只回填名称标记（见 chat.ts 的 historyMarkersOf），同样不带图本体。
       entry.messages.push({ role: 'user', content: text, ts: now, ...(image ? { image } : {}) });
@@ -292,6 +308,8 @@ export function createChatMemory(deps: ChatMemoryInput) {
         // 动作名与配图名同类：落盘只存名字，回放历史时由 chat.ts 以 [动作:名] 回填——
         // 否则模型记不得自己演过什么，用户说「换一个」它无从判断
         ...(generated.action ? { action: generated.action } : {}),
+        // 提醒同样只存名字与到点时刻：气泡由宿主到点重弹，历史回放不重放提醒
+        ...(remind ? { remind: { ...remind, title: generated.reminder?.title ?? '' } } : {}),
       });
       await writeMemory(mem);
       // 动作先写：与 POST /anim 同一条写回链路（记录 + anim 叶子），渲染端据此播放并回报执。
@@ -313,7 +331,12 @@ export function createChatMemory(deps: ChatMemoryInput) {
         });
       }
       // 同一份文本随返回值带出（叶子照写，不是二选一）
-      return { ok: true as const, text: generated.text, ...(generated.image ? { image: generated.image } : {}) };
+      return {
+        ok: true as const,
+        text: generated.text,
+        ...(generated.image ? { image: generated.image } : {}),
+        ...(remind ? { remind: { ...remind, title: generated.reminder?.title ?? '' } } : {}),
+      };
     });
 
   /** 删除某只宠物的对话记忆：`ts` 缺省 = 清空全部，给了 ts = 只删命中的轮（一轮两条共享 ts，成对删）。

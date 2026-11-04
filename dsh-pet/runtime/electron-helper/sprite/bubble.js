@@ -382,6 +382,8 @@ Object.assign(PetSprite.prototype, {
   renderReminderBubble() {
     const rem = this.reminderEnvelope;
     const announce = rem.kind === 'announce';
+    // 对话里约好的提醒：徽标、配色调色板都与调度器的到点提醒区分开
+    const chat = rem.kind === 'chat';
     this.bubble.classList.remove('is-whisper', 'is-expanded', S.MEME_BUBBLE_CLASS);
     // is-request 只借用它的宽度与 pointer-events（主进程按控件矩形翻转穿透）。
     this.bubble.classList.add('is-on', 'is-clickable', 'is-request', 'is-reminder');
@@ -392,8 +394,8 @@ Object.assign(PetSprite.prototype, {
     head.appendChild(
       this.bubbleEl(
         'span',
-        'pet-bub-req__badge' + (announce ? ' is-announce' : ''),
-        announce ? '宠物消息' : '定时任务',
+        'pet-bub-req__badge' + (announce ? ' is-announce' : chat ? ' is-chat' : ''),
+        announce ? '宠物消息' : chat ? '聊天提醒' : '定时任务',
       ),
     );
     wrap.appendChild(head);
