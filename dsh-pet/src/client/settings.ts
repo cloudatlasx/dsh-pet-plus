@@ -9,7 +9,7 @@ import { ROUTE_PATH } from '../shared/constants.ts';
 import { avatarUrl } from '../shared/avatar.ts';
 import { DEFAULT_FONT } from '../shared/fonts.ts';
 import { DEFAULT_PHYSICS } from '../shared/physics.ts';
-import type { FontConfig, ModelSelection, PhysicsParams } from '../shared/types.ts';
+import type { FontConfig, ModelSelection, PhysicsParams, VoiceEngineName } from '../shared/types.ts';
 import type { FunctionComponent } from 'react';
 import { requestNotificationPermission } from './notify.ts';
 import { injectSettingsCss } from './settings/css.ts';
@@ -166,6 +166,36 @@ export function makePetConfigSection(
     // 语音的两个细分开关（周期碎碎念 / 待办提醒）：与总开关同一套语义，初值 false 是内置默认。
     const [voiceWhisperEnabled, setVoiceWhisperEnabled] = useState(false);
     const [voiceTodoEnabled, setVoiceTodoEnabled] = useState(false);
+    // 语音引擎（全局默认）：edge 内置微软语音、breeze 用用户自带 Key 的在线语音。
+    // 只决定「用谁的嗓子」，念不念仍看上面三个开关；随「保存」整包写入。
+    const [voiceEngine, setVoiceEngine] = useState<VoiceEngineName>('edge');
+    const [breezeKey, setBreezeKey] = useState('');
+    const [breezeVoice, setBreezeVoice] = useState('');
+    const [breezeSpeed, setBreezeSpeed] = useState(1);
+    // Breeze 音色列表与最近一次拉取的结果：拉音色要在本地连一次上游，所以只在保存成功后拉一次，
+    // 失败降级成空列表（下拉只显示当前值），不挡住整页。
+    const [breezeVoices, setBreezeVoices] = useState<VoiceOption[]>([]);
+    const [breezeNote, setBreezeNote] = useState<'ok' | 'bad-key' | 'list-failed' | 'no-key'>('no-key');
+
+    /**
+     * 拉一次「当前引擎 + Breeze 音色列表」。
+     *
+     * 只在配置就绪或刚保存成功之后调：拉音色要拿用户填的 Key 连一次上游，顺便就成了「Key 对不对」的探针。
+     * 失败只降级成提示行，不抛错——语音是旁路能力，配置页不能因为上游挂了就打不开。
+     */
+    const loadBreeze = useCallback(() => {
+      void fetch(ROUTE_PATH + '/voice/engine')
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body: { voices?: VoiceOption[]; error?: 'bad-key' | 'list-failed'; hasKey?: boolean } | null) => {
+          if (!body) {
+            setBreezeNote('list-failed');
+            return;
+          }
+          setBreezeVoices(Array.isArray(body.voices) ? body.voices : []);
+          setBreezeNote(body.error ?? (body.hasKey ? 'ok' : 'no-key'));
+        })
+        .catch(() => setBreezeNote('list-failed'));
+    }, []);
     // 可选音色：来自宿主 /voice/voices，拉不到就留空——下拉只显示当前值，绝不硬编码音色 id。
     const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
     // 物理参数（全局）：只改本地状态，随「保存」整包写入；初值仅占位，成品加载成功后才允许编辑与保存。
@@ -208,6 +238,12 @@ export function makePetConfigSection(
         if (patch.voiceVolume !== undefined) setVoiceVolume(patch.voiceVolume);
         if (patch.voiceWhisperEnabled !== undefined) setVoiceWhisperEnabled(patch.voiceWhisperEnabled);
         if (patch.voiceTodoEnabled !== undefined) setVoiceTodoEnabled(patch.voiceTodoEnabled);
+        if (patch.voiceEngine !== undefined) setVoiceEngine(patch.voiceEngine);
+        if (patch.breezeApiKey !== undefined) setBreezeKey(patch.breezeApiKey);
+        if (patch.breezeVoice !== undefined) setBreezeVoice(patch.breezeVoice);
+        if (patch.breezeSpeed !== undefined) setBreezeSpeed(patch.breezeSpeed);
+        // 引擎是 breeze 时才值得连一次上游拉音色：edge 下这个列表用不上，白花一次请求
+        if (patch.voiceEngine === 'breeze') loadBreeze();
         if (patch.physics !== undefined) setPhysics(patch.physics);
         if (patch.font !== undefined) setFont(patch.font);
         if (patch.whisperModel !== undefined) setWhisperModel(patch.whisperModel);
@@ -215,7 +251,7 @@ export function makePetConfigSection(
         if (patch.chatMemoryRounds !== undefined) setChatMemory(patch.chatMemoryRounds);
         if (patch.chatImageLimit !== undefined) setChatImageLimit(patch.chatImageLimit);
       },
-      [replace],
+      [replace, loadBreeze],
     );
 
     // 配置没就绪（加载中 / 失败）时整页只读，避免在占位值上编辑再保存回去。
@@ -325,6 +361,10 @@ export function makePetConfigSection(
         voiceVolume,
         voiceWhisperEnabled,
         voiceTodoEnabled,
+        voiceEngine,
+        breezeApiKey: breezeKey,
+        breezeVoice,
+        breezeSpeed,
         physics,
         whisperModel,
         chatModel,
@@ -429,11 +469,22 @@ export function makePetConfigSection(
           voices: voiceOptions,
           whisperEnabled: voiceWhisperEnabled,
           todoEnabled: voiceTodoEnabled,
+          engine: voiceEngine,
+          breezeKey,
+          breezeVoice,
+          breezeSpeed,
+          breezeVoices,
+          breezeNote,
           onToggle: setVoiceEnabled,
           onVoiceChange: setVoiceName,
           onVolumeChange: setVoiceVolume,
           onWhisperToggle: setVoiceWhisperEnabled,
           onTodoToggle: setVoiceTodoEnabled,
+          onEngineChange: setVoiceEngine,
+          onBreezeKeyChange: setBreezeKey,
+          onBreezeVoiceChange: setBreezeVoice,
+          onBreezeSpeedChange: setBreezeSpeed,
+          onBreezeRefresh: loadBreeze,
         }),
         h(FontCard, { busy, font, onChange: patchFont }),
         h(ModelCard, {

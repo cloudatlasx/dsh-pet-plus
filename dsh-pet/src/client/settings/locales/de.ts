@@ -184,6 +184,30 @@ export const de: Record<Key, string> = {
   voiceTodoEnabled: 'To-do-Erinnerungen sprechen',
   voiceTodoEnabledHint:
     'Spricht eine fällige To-do-Erinnerung (die Blase erscheint weiterhin; dieser Schalter entscheidet nur, ob gesprochen wird). Unterliegt dem Hauptschalter oben. Standardmäßig aus.',
+  voiceEngineLabel: 'Sprachausgabe-Engine',
+  voiceEngineHint:
+    'Welche Stimme spricht. Edge ist die eingebaute Microsoft-Stimme: kostenlos und sofort nutzbar. Breeze nutzt deinen eigenen Breeze-API-Key (Modell breeze-tts-2); Stimmen lassen sich anlegen oder klonen und werden über dein Konto abgerechnet. Das legt nur die Stimme fest – ob überhaupt gesprochen wird, bestimmen weiterhin die drei Schalter oben.',
+  voiceEngineEdge: 'Integriert (Edge)',
+  voiceEngineBreeze: 'Breeze online',
+  breezeKeyLabel: 'Breeze-API-Key',
+  breezeKeyHint:
+    'Beginnt mit brz_; kopiere ihn von der Seite „API Keys“ im Breeze-Dashboard. Er liegt nur in deiner lokalen Nutzerkonfiguration und wird beim Speichern geschrieben – nie in ein öffentliches Repository oder einen Screenshot einfügen.',
+  breezeVoiceLabel: 'Breeze-Stimme',
+  breezeVoiceAuto: 'Automatisch (erste Stimme)',
+  breezeVoiceHint:
+    'Stimmen deines Kontos; „Automatisch“ nimmt die erste. Nach einem Key-Wechsel erscheint die neue Liste erst nach dem Speichern.',
+  breezeSpeedLabel: 'Breeze-Tempo',
+  breezeSpeedHint:
+    '0,5–2×, 1 ist normal. Gilt für Vorschau und Ansage; die integrierte Engine ignoriert es (sie spricht prozentual).',
+  breezeStatusLabel: 'Verbindung',
+  breezeStatusHint:
+    '„Erneut prüfen“ holt die Stimmliste mit dem gespeicherten Key von Breeze: Kommt sie zurück, funktioniert der Key. Ungespeicherte Änderungen sieht er nicht.',
+  breezeRefresh: 'Erneut prüfen',
+  breezeNoKey: 'Noch kein Key – eintragen, speichern, dann „Erneut prüfen“.',
+  breezeBadKey: 'Der Key ist ungültig oder wurde zurückgesetzt. Kopiere einen neuen aus Breeze.',
+  breezeListFailed:
+    'Breeze ist nicht erreichbar (Netzwerk- oder Dienstproblem); der Key kann trotzdem in Ordnung sein.',
+  breezeReady: 'Key funktioniert, Stimmliste geladen.',
   voiceNameLabel: 'Stimme',
   voiceVolumeLabel: 'Lautstärke',
   voiceVolumeHint:

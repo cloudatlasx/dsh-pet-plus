@@ -185,6 +185,29 @@ export const fr: Record<Key, string> = {
   voiceTodoEnabled: 'Lire les rappels de tâches',
   voiceTodoEnabledHint:
     "Lit un rappel de tâche à son échéance (la bulle s'affiche toujours ; cet interrupteur décide seulement s'il est lu). Soumis à l'interrupteur principal ci-dessus. Désactivé par défaut.",
+  voiceEngineLabel: 'Moteur vocal',
+  voiceEngineHint:
+    'Quelle voix parle. Edge est la voix Microsoft intégrée : gratuite et prête à l’emploi. Breeze utilise votre propre clé d’API Breeze (modèle breeze-tts-2) ; les voix peuvent être créées ou clonées et sont facturées à votre compte. Cela ne choisit que la voix ; le fait de parler reste réglé par les trois interrupteurs ci-dessus.',
+  voiceEngineEdge: 'Intégré (Edge)',
+  voiceEngineBreeze: 'Breeze en ligne',
+  breezeKeyLabel: 'Clé d’API Breeze',
+  breezeKeyHint:
+    'Commence par brz_ ; copiez-la depuis la page « API Keys » du tableau de bord Breeze. Elle n’est stockée que dans votre configuration locale et écrite à l’enregistrement — ne la collez jamais dans un dépôt public ou une capture.',
+  breezeVoiceLabel: 'Voix Breeze',
+  breezeVoiceAuto: 'Automatique (première voix)',
+  breezeVoiceHint:
+    'Voix disponibles sur votre compte ; « Automatique » prend la première. Après un changement de clé, la nouvelle liste n’apparaît qu’après l’enregistrement.',
+  breezeSpeedLabel: 'Vitesse Breeze',
+  breezeSpeedHint:
+    '0,5–2×, 1 = normale. Partagée par l’écoute et l’annonce ; le moteur intégré l’ignore (il parle en pourcentage).',
+  breezeStatusLabel: 'Connexion',
+  breezeStatusHint:
+    '« Revérifier » demande la liste des voix à Breeze avec la clé enregistrée : si elle revient, la clé fonctionne. Les modifications non enregistrées ne sont pas vues.',
+  breezeRefresh: 'Revérifier',
+  breezeNoKey: 'Pas encore de clé — collez-la, enregistrez, puis « Revérifier ».',
+  breezeBadKey: 'La clé est invalide ou a été réinitialisée. Copiez-en une nouvelle depuis Breeze.',
+  breezeListFailed: 'Impossible de joindre Breeze (réseau ou service) ; la clé est peut-être valide.',
+  breezeReady: 'Clé valide, liste des voix chargée.',
   voiceNameLabel: 'Voix',
   voiceVolumeLabel: 'Volume',
   voiceVolumeHint:

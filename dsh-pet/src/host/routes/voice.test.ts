@@ -3,6 +3,9 @@
  * 只断言协议层：方法判定、JSON 判定，以及把语音服务的结论映射成应答；不发真实请求。
  */
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import type { PetRouteDeps } from './types.ts';
 import { handleVoiceRoutes } from './voice.ts';
@@ -139,3 +142,64 @@ test('不相干的路径：交回 undefined，让下一个处理器接手', asyn
   );
   assert.equal(result, undefined);
 });
+
+/** 造一对临时配置并跑断言；`extra` 是用户层内容。 */
+function withEngineConfig(extra: Record<string, unknown>, run: (deps: PetRouteDeps) => Promise<void>): Promise<void> {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-pet-voice-route-'));
+  const configPaths = {
+    defaultFile: join(dir, 'default.jsonc'),
+    userFile: join(dir, 'main-config.jsonc'),
+    petDir: join(dir, 'pet'),
+  };
+  // 合并只透传默认里有的键，所以默认文件必须写全这四个字段
+  writeFileSync(
+    configPaths.defaultFile,
+    JSON.stringify({ pets: [], voiceEngine: 'edge', breezeApiKey: '', breezeVoice: '', breezeSpeed: 1 }),
+  );
+  writeFileSync(configPaths.userFile, JSON.stringify(extra));
+  const deps = { ...makeDeps(async () => ({ ok: true, file: '/x' })), configPaths } as unknown as PetRouteDeps;
+  return run(deps).finally(() => rmSync(dir, { recursive: true, force: true }));
+}
+
+test('GET /voice/engine：没配 Key 时回 edge，不碰网络', () =>
+  withEngineConfig({}, async (deps) => {
+    const result = await handleVoiceRoutes(deps, input('voice/engine', 'GET'));
+    assert.equal(result?.kind, 'json');
+    if (result?.kind !== 'json') return;
+    assert.equal(result.status, 200);
+    // 没有 Key 就不该发请求：这里没有任何 fetch 替身，真发出去会联网并失败
+    assert.deepEqual(result.obj, {
+      ok: true,
+      engine: 'edge',
+      hasKey: false,
+      voice: '',
+      speed: 1,
+      voices: [],
+    });
+  }));
+
+test('GET /voice/engine：Key 被上游拒绝时回 bad-key，仍 200', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (() => Promise.resolve(new Response('nope', { status: 401 }))) as typeof fetch;
+  try {
+    await withEngineConfig({ voiceEngine: 'breeze', breezeApiKey: 'brz_bad' }, async (deps) => {
+      const result = await handleVoiceRoutes(deps, input('voice/engine', 'GET'));
+      assert.equal(result?.kind, 'json');
+      if (result?.kind !== 'json') return;
+      assert.equal(result.status, 200);
+      const obj = result.obj as { engine: string; hasKey: boolean; error?: string; voices: unknown[] };
+      assert.equal(obj.engine, 'breeze');
+      assert.equal(obj.hasKey, true);
+      assert.equal(obj.error, 'bad-key');
+      assert.deepEqual(obj.voices, []);
+    });
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('POST /voice/engine：405', () =>
+  withEngineConfig({}, async (deps) => {
+    const result = await handleVoiceRoutes(deps, input('voice/engine', 'POST'));
+    assert.equal(result?.kind === 'json' ? result.status : 0, 405);
+  }));

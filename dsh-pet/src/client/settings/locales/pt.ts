@@ -184,6 +184,29 @@ export const pt: Record<Key, string> = {
   voiceTodoEnabled: 'Falar lembretes de tarefas',
   voiceTodoEnabledHint:
     'Fala o lembrete quando uma tarefa vence (o balão continua aparecendo; isto só decide se fala). Dependente do interruptor mestre acima. Desligado por padrão.',
+  voiceEngineLabel: 'Motor de voz',
+  voiceEngineHint:
+    'Qual voz falar. Edge é a voz integrada da Microsoft: grátis e pronta a usar. Breeze usa a tua própria chave de API da Breeze (modelo breeze-tts-2); as vozes podem ser criadas ou clonadas e são cobradas à tua conta. Isto só escolhe a voz; falar ou não continua a ser decidido pelos três interruptores acima.',
+  voiceEngineEdge: 'Integrado (Edge)',
+  voiceEngineBreeze: 'Breeze online',
+  breezeKeyLabel: 'Chave de API da Breeze',
+  breezeKeyHint:
+    'Começa por brz_; copia-a da página «API Keys» do painel da Breeze. Fica apenas na tua configuração local e é escrita ao Guardar — nunca a coloques num repositório público ou numa captura.',
+  breezeVoiceLabel: 'Voz da Breeze',
+  breezeVoiceAuto: 'Automática (primeira voz)',
+  breezeVoiceHint:
+    'Vozes disponíveis na tua conta; «Automática» escolhe a primeira. Se mudares a chave, a nova lista só aparece depois de guardar.',
+  breezeSpeedLabel: 'Velocidade da Breeze',
+  breezeSpeedHint:
+    '0,5–2×, 1 é normal. Partilhada pela pré-escuta e pelo anúncio; o motor integrado ignora-a (fala em percentagem).',
+  breezeStatusLabel: 'Ligação',
+  breezeStatusHint:
+    '«Verificar de novo» pede a lista de vozes à Breeze com a chave guardada: se vier, a chave funciona. Alterações não guardadas não são vistas.',
+  breezeRefresh: 'Verificar de novo',
+  breezeNoKey: 'Ainda sem chave — cola-a, guarda e carrega em «Verificar de novo».',
+  breezeBadKey: 'A chave é inválida ou foi reposta. Copia uma nova da Breeze.',
+  breezeListFailed: 'Não foi possível contactar a Breeze (rede ou serviço); a chave pode estar bem.',
+  breezeReady: 'Chave válida, lista de vozes carregada.',
   voiceNameLabel: 'Voz',
   voiceVolumeLabel: 'Volume',
   voiceVolumeHint:

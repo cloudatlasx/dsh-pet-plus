@@ -233,6 +233,10 @@ describe('buildSaveBody —— 请求体字段', () => {
       requestBubbleEnabled: true,
       scheduleRemindersEnabled: true,
       voiceEnabled: true,
+      voiceEngine: 'edge',
+      breezeApiKey: '',
+      breezeVoice: '',
+      breezeSpeed: 1,
       voiceName: 'zh-CN-XiaoyiNeural',
       physics: {},
       whisperModel: { provider: '', model: '' },
@@ -244,6 +248,9 @@ describe('buildSaveBody —— 请求体字段', () => {
       menuHidden: [],
     } as unknown as SaveFields;
     assert.deepEqual(Object.keys(buildSaveBody(fields)).sort(), [
+      'breezeApiKey',
+      'breezeSpeed',
+      'breezeVoice',
       'chatAnimationEnabled',
       'chatImageEnabled',
       'chatImageLimit',
@@ -261,6 +268,7 @@ describe('buildSaveBody —— 请求体字段', () => {
       'scheduleRemindersEnabled',
       'trayEnabled',
       'voiceEnabled',
+      'voiceEngine',
       'voiceName',
       'voiceTodoEnabled',
       'voiceVolume',

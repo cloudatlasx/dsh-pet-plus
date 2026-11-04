@@ -187,6 +187,29 @@ export const es: Record<Key, string> = {
   voiceTodoEnabled: 'Locutar recordatorios de tareas',
   voiceTodoEnabledHint:
     'Locuta el recordatorio de una tarea cuando vence (el globo sigue apareciendo; esto solo decide si se locuta). Depende del interruptor maestro de arriba. Desactivado por defecto.',
+  voiceEngineLabel: 'Motor de voz',
+  voiceEngineHint:
+    'Con qué voz hablar. Edge es la voz integrada de Microsoft: gratis y lista para usar. Breeze usa tu propia clave de API de Breeze (modelo breeze-tts-2); las voces se pueden crear o clonar y se facturan a tu cuenta. Solo elige la voz: si se habla o no lo siguen decidiendo los tres interruptores de arriba.',
+  voiceEngineEdge: 'Integrado (Edge)',
+  voiceEngineBreeze: 'Breeze en línea',
+  breezeKeyLabel: 'Clave de API de Breeze',
+  breezeKeyHint:
+    'Empieza por brz_; cópiala de la página «API Keys» del panel de Breeze. Solo se guarda en tu configuración local de usuario y se escribe al Guardar: no la pegues en un repositorio público ni en una captura.',
+  breezeVoiceLabel: 'Voz de Breeze',
+  breezeVoiceAuto: 'Automática (primera voz)',
+  breezeVoiceHint:
+    'Voces disponibles en tu cuenta; «Automática» usa la primera. Si cambias la clave, la lista nueva aparece solo tras guardar.',
+  breezeSpeedLabel: 'Velocidad de Breeze',
+  breezeSpeedHint:
+    '0,5–2×, 1 es normal. La comparten la prueba y el aviso; el motor integrado la ignora (habla por porcentaje).',
+  breezeStatusLabel: 'Conexión',
+  breezeStatusHint:
+    '«Comprobar de nuevo» pide a Breeze la lista de voces con la clave guardada: si llega, la clave sirve. Los cambios sin guardar no se ven.',
+  breezeRefresh: 'Comprobar de nuevo',
+  breezeNoKey: 'Aún no hay clave: pégala, guarda y pulsa «Comprobar de nuevo».',
+  breezeBadKey: 'La clave no es válida o se ha restablecido. Copia una nueva de Breeze.',
+  breezeListFailed: 'No se pudo conectar con Breeze (red o servicio); puede que la clave esté bien.',
+  breezeReady: 'La clave funciona, lista de voces cargada.',
   voiceNameLabel: 'Voz',
   voiceVolumeLabel: 'Volumen',
   voiceVolumeHint:

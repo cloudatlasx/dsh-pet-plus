@@ -57,6 +57,12 @@ export const GLOBAL_DEFAULT_KEYS = [
   'voiceVolume',
   'voiceWhisperEnabled',
   'voiceTodoEnabled',
+  // 语音引擎与 Breeze 在线语音的凭据 / 音色 / 语速：同样是用户级偏好，改一次对所有宠物生效。
+  // 引擎只决定「用谁的嗓子」，念不念仍由 voiceEnabled 三个开关决定。
+  'voiceEngine',
+  'breezeApiKey',
+  'breezeVoice',
+  'breezeSpeed',
   'whisperImageEnabled',
   'chatImageEnabled',
   'chatAnimationEnabled',

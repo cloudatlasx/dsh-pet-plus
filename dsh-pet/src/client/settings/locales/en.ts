@@ -184,6 +184,29 @@ export const en: Record<Key, string> = {
   voiceTodoEnabled: 'Speak todo reminders',
   voiceTodoEnabledHint:
     'Speaks a todo reminder when it comes due (the bubble still appears; this only decides whether it is spoken). Gated by the master switch above. Off by default.',
+  voiceEngineLabel: 'Speech engine',
+  voiceEngineHint:
+    'Whose voice to use. Edge is the built-in Microsoft voice: free and ready to go. Breeze uses your own Breeze API key (breeze-tts-2 model); voices can be created or cloned and are billed to your account. This only picks the voice — whether to speak at all is still up to the three switches above.',
+  voiceEngineEdge: 'Built-in (Edge)',
+  voiceEngineBreeze: 'Breeze online',
+  breezeKeyLabel: 'Breeze API key',
+  breezeKeyHint:
+    'Starts with brz_; copy it from the API Keys page in the Breeze dashboard. It is stored only in your local user config and written on Save — never paste it into a public repo or a screenshot.',
+  breezeVoiceLabel: 'Breeze voice',
+  breezeVoiceAuto: 'Auto (first voice)',
+  breezeVoiceHint:
+    'Voices available to your account; Auto picks the first one. After changing the key, the new list appears only once you save.',
+  breezeSpeedLabel: 'Breeze speed',
+  breezeSpeedHint:
+    '0.5–2×, 1 is normal. Shared by preview and speech; the built-in engine ignores it (it speaks by percentage).',
+  breezeStatusLabel: 'Connection',
+  breezeStatusHint:
+    'Check again fetches the voice list from Breeze using the saved key: if it comes back, the key works. Unsaved edits are not visible to it.',
+  breezeRefresh: 'Check again',
+  breezeNoKey: 'No key yet — paste one, save, then press Check again.',
+  breezeBadKey: 'The key is invalid or was reset. Copy a new one from Breeze.',
+  breezeListFailed: 'Could not reach Breeze (network or service issue); the key may still be fine.',
+  breezeReady: 'Key works, voice list loaded.',
   voiceNameLabel: 'Voice',
   voiceVolumeLabel: 'Volume',
   voiceVolumeHint:

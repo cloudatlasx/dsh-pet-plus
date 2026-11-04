@@ -172,6 +172,8 @@ const SETTINGS_CSS = [
   '.dsh-pet-cfg__menuToggle{width:64px;justify-content:center;padding:0;white-space:nowrap}',
   '.dsh-pet-cfg__actionsRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}',
   '.dsh-pet-cfg__note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}',
+  // Key 被拒是最该被看见的一种失败：用错误色，但仍只占一行，不弹窗打断填表
+  '.dsh-pet-cfg__note.is-bad{color:var(--dsw-alias-state-error-primary)}',
   '.dsh-pet-cfg__path{font-size:12px;line-height:18px;word-break:break-all;user-select:text;color:var(--dsw-alias-label-secondary)}',
   '.dsh-pet-cfg__path b{color:var(--dsw-alias-label-primary);font-weight:400}',
   '.dsh-pet-cfg__cmd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;font-size:12px;line-height:18px;word-break:break-all;user-select:text;padding:6px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-interactive-bg-active);color:var(--dsw-alias-label-primary)}',

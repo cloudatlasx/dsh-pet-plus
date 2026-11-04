@@ -5,7 +5,7 @@
  * @module dsh-pet/src/client/settings/config/http
  */
 import { ROUTE_PATH } from '../../../shared/constants.ts';
-import type { FontConfig, ModelSelection, Pet, PhysicsParams } from '../../../shared/types.ts';
+import type { FontConfig, ModelSelection, Pet, PhysicsParams, VoiceEngineName } from '../../../shared/types.ts';
 import type { ModelCatalogGroup } from '../picker/index.ts';
 import type { MergedConfig } from './read.ts';
 
@@ -59,6 +59,14 @@ export interface SaveFields {
   voiceWhisperEnabled: boolean;
   /** 待办提醒要不要念出来。 */
   voiceTodoEnabled: boolean;
+  /** 用谁的嗓子念：`edge` 内置、`breeze` 在线（自带 Key）。 */
+  voiceEngine: VoiceEngineName;
+  /** Breeze API Key；空串 = 没配，宿主会把引擎回落成 edge。 */
+  breezeApiKey: string;
+  /** Breeze 音色 id；空串 = 账号里第一个音色。 */
+  breezeVoice: string;
+  /** Breeze 语速倍率 0.5–2。 */
+  breezeSpeed: number;
   physics: PhysicsParams;
   whisperModel: ModelSelection;
   chatModel: ModelSelection;
@@ -101,6 +109,11 @@ export function buildSaveBody(fields: SaveFields): Record<string, unknown> {
     voiceVolume: fields.voiceVolume,
     voiceWhisperEnabled: fields.voiceWhisperEnabled,
     voiceTodoEnabled: fields.voiceTodoEnabled,
+    // Key 只在保存时整包上送，平时留在本地表单里；宿主按 string(≤200) 校验，不认识的键会整包拒绝
+    voiceEngine: fields.voiceEngine,
+    breezeApiKey: fields.breezeApiKey,
+    breezeVoice: fields.breezeVoice,
+    breezeSpeed: fields.breezeSpeed,
     physics: fields.physics,
     whisperModel: fields.whisperModel,
     chatModel: fields.chatModel,

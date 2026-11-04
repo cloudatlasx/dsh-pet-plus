@@ -33,6 +33,7 @@
 | **设置项可拖动**        | 物理参数（重力 / 弹性 / 摩擦 / 抛掷力）、音量、宠物大小与桌面占比、对话记忆条数都换成了滑条，拖动就能看到数值，不用再凭数字猜；字号这类精细项仍是数字输入。                                                                                                                                                    |
 | **语音试听**            | 挑音色时先点「试听」：默认一句问候，也可以自己输入文字试播（≤500 字），播放音量就是当前设置里的音量。                                                                                                                                                                                                          |
 | **语音播报互斥**        | 总开关关掉时，「碎碎念播报」「待办播报」两个子开关自动禁用，避免配出「没开语音却仍要播报」的矛盾状态。                                                                                                                                                                                                         |
+| **语音引擎可切换**      | 内置 Edge 之外可切到 **Breeze TTS 2** 在线合成（`brz_` Key，模型 `breeze-tts-2`，`language_code: zh`）：填 Key 后音色列表直接从 Breeze 拉，语速 0.5×–2× 与朗读语速相乘，试听也走当前引擎；Key 被拒会在状态行标红而不是静默退回 Edge。四个配置项 `voiceEngine` / `breezeApiKey` / `breezeVoice` / `breezeSpeed` 也能直接写进 `main-config.jsonc`。 |
 | **操作按钮置顶**        | 保存 / 同步 / 测试通知挪到设置页顶部并吸附在页面顶端，长表单改完不用再滚到底部找保存。                                                                                                                                                                                                                         |
 
 除此之外的行为与上游 0.4.x 一致：100+ 段透明动画、多开与宠物种类、拖拽甩抛物理、碎碎念与对话、语音说/听、余额展示、工作状态联动、待办、睡觉、系统通知、右键菜单等。功能细节见上游文档 [FEATURES.md](FEATURES.md)、[CONFIG.md](CONFIG.md)、[API.md](API.md)。
@@ -61,7 +62,7 @@ dsh plugin --profile desktop add E:\path\to\dsh-pet-plus\dsh-pet
 每个 Release 都附一个打包好的 `.tgz`（含 `lib/`、`runtime/`、`assets/`、`cordis.patch.yml`），直接让 DSH 装它：
 
 ```bash
-dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.11.3/dsh-pet-plus-0.11.3.tgz
+dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.12.0/dsh-pet-plus-0.12.0.tgz
 ```
 
 也可以装 git 子目录（`dsh-pet/` 是包所在目录）：`dsh plugin --profile desktop add github:cloudatlasx/dsh-pet-plus#path:/dsh-pet`。
@@ -76,7 +77,7 @@ dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/rel
   - 顶部吸附栏：**保存**（`Ctrl/⌘+S`）、**同步**、**测试通知**。
   - **审批/提问气泡**：关闭后请求交回 DSH 内置面板。
   - **定时提醒**：关闭后不再跟随 `schedule` 服务弹提醒。
-  - **语音**：总开关控制下方「碎碎念播报」「待办播报」；音色可选并**试听**，音量用滑条。
+  - **语音**：总开关控制下方「碎碎念播报」「待办播报」；**语音引擎**可选内置 Edge 或 Breeze 在线（填 `brz_` Key 后音色列表从 Breeze 拉、另有语速滑条），音色可选并**试听**（试听走当前引擎），音量用滑条。
   - **落盘位置**：查看并修改数据根目录（需重启 DSH 生效）。
 - 位置与大小：`position.corner`（默认 `bottom-right`）、`marginX` / `marginY`；桌面模式跟随 DSH 窗口所在屏幕，浏览器模式自动上报当前屏。
 

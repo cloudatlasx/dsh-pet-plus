@@ -23,6 +23,7 @@ import { registerTodoReminders } from './plugin/todo-reminders.ts';
 import { registerScheduleReminders } from './plugin/schedule-reminders.ts';
 import { createRequestHub } from './request-hub.ts';
 import { createVoiceService } from './voice/speak.ts';
+import { resolveVoiceEngine } from './voice/engine.ts';
 import { createHearService } from './voice/hear.ts';
 import { TODO_FILE_NAME, TodoStore } from './todo/store.ts';
 import { join } from 'node:path';
@@ -133,8 +134,9 @@ export function apply(ctx: any): void {
     ctx,
     todos,
     requests,
-    // 语音合成：缓存落 userRoot，失败只留日志，不打断宿主
-    voice: createVoiceService({ userRoot, log }),
+    // 语音合成：缓存落 userRoot，失败只留日志，不打断宿主。
+    // 每次合成现查引擎配置：设置页改完就生效，不必重载插件
+    voice: createVoiceService({ userRoot, log, resolveEngine: () => resolveVoiceEngine(configPaths) }),
     // 语音识别：能力来自宿主（DSH 的 speechToText），没启用时服务自己在调用时回 unsupported
     speech: createHearService({ speechToText: () => setup.optionalService('speechToText') }),
   };

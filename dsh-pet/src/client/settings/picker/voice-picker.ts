@@ -45,7 +45,11 @@ export function makeVoicePicker(
     return h(Select, {
       label: props.label,
       value: props.value,
-      options: props.options.map((option) => ({ id: option.id, label: `${option.name}（${option.tag}）` })),
+      // tag 为空的选项（内置的「自动」项、Breeze 没给 description 的音色）不加空括号
+      options: props.options.map((option) => ({
+        id: option.id,
+        label: option.tag ? `${option.name}（${option.tag}）` : option.name,
+      })),
       disabled: props.disabled,
       onChange: props.onChange,
     });

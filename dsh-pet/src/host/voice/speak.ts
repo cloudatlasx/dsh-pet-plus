@@ -10,6 +10,8 @@ import { stat, writeFile } from 'node:fs/promises';
 import { cacheKey, cachePath, ensureCacheDir, pruneCache } from './cache.ts';
 import { VoiceSynthError, synthesize, type SynthInput } from './edge.ts';
 import { BUILTIN_VOICE_ID, activeVoiceProvider, type VoiceProvider } from './registry.ts';
+import { synthesizeBreeze } from './breeze.ts';
+import type { ResolvedVoiceEngine } from './engine.ts';
 import { DEFAULT_VOICE, VOICES, isKnownVoice, type VoiceInfo } from './voices.ts';
 
 /** 单次请求允许的最大文本长度（字符，按 UTF-16 计）。 */
@@ -81,6 +83,22 @@ function dropped(): SpeakResult {
 }
 
 /**
+ * 把 `+10%` / `-20%` 形式的语速表达式换算成倍率（1.1 / 0.8）。
+ *
+ * 内置 edge 直接吃百分比表达式，Breeze 吃倍数，所以只在需要喂 Breeze 的地方换算；
+ * 溢出到 0.5–2.0 之外时夹到边界——上游对这个区间之外的行为没有承诺，别赌。
+ * @param rate - 已通过 {@link parseSpeakInput} 校验的表达式。
+ * @returns 倍率。
+ */
+export function rateToSpeed(rate: string): number {
+  // 必须连符号一起解析：`slice(1, -1)` 会把 `-10%` 读成 `10`，慢速被念成快速
+  const match = /^([+-])([0-9]{1,3})%$/.exec(rate);
+  if (!match) return 1;
+  const percent = Number(match[2]) * (match[1] === '-' ? -1 : 1);
+  return Math.min(2, Math.max(0.5, 1 + percent / 100));
+}
+
+/**
  * 这一条排队等得太久了吗。
  *
  * 等得比一次合成允许的时长还久，客户端那边早已超时放弃：再合成只是白烧上游，
@@ -104,6 +122,11 @@ export function createVoiceService(options: {
   log?: { info?(message: string): void; warn?(message: string): void };
   /** 合成实现；测试注入替身，缺省走 edge 的真实实现。 */
   synthesize?: (input: SynthInput) => Promise<void>;
+  /**
+   * 每次请求现查一次「用谁的嗓子」：返回 breeze 时走在线 Breeze，其余走 edge / 第三方注册表。
+   * 现查而不是启动快照——设置页改完引擎不该要求重启插件。
+   */
+  resolveEngine?: () => ResolvedVoiceEngine;
   /** 容许的最长排队时间（ms）；缺省 {@link STALE_WAIT_MS}，测试用它把丢弃分支逼出来。 */
   staleWaitMs?: number;
 }): VoiceService {
@@ -145,9 +168,17 @@ export function createVoiceService(options: {
     const { text, voice, rate } = parsed.value;
     // 每次请求现查一次：第三方可能运行中才注册、也可能被卸载，启动快照会漏掉这两种
     const provider = activeVoiceProvider();
-    const source = provider ? provider.id : BUILTIN_VOICE_ID;
+    // 引擎同理现查：设置页改完 voiceEngine 立刻生效，不需要重载插件
+    const resolved = provider ? undefined : options.resolveEngine?.();
+    const breeze = resolved?.engine === 'breeze' ? resolved.breeze : undefined;
+    const source = provider
+      ? provider.id
+      : breeze
+        ? // 音色与语速都进来源：换了嗓子必须换缓存键，否则会念出上一个音色的旧音频
+          `breeze:${breeze.voice || '-'}:${breeze.speed}`
+        : BUILTIN_VOICE_ID;
     // 第三方没有音色概念，缓存键里把 voice 置空；来源进键，换实现不会命中旧音频
-    const target = cachePath(userRoot, cacheKey(source, provider ? '' : voice, rate, text));
+    const target = cachePath(userRoot, cacheKey(source, provider || breeze ? '' : voice, rate, text));
     const startedMs = Date.now();
     const cached = await findCached(target);
     if (cached) {
@@ -168,7 +199,16 @@ export function createVoiceService(options: {
         }
         const dir = await ensureCacheDir(userRoot);
         if (provider) await synthesizeWithProvider(provider, { text, voice, rate, target });
-        else await synthesizeImpl({ signal: AbortSignal.timeout(BUILTIN_TIMEOUT_MS), target, text, voice, rate });
+        else if (breeze) {
+          // Breeze 自带语速量纲：把 `+10%` 表达式换算成 1.1 倍，再乘上配置里的语速倍率
+          const bytes = await synthesizeBreeze({
+            apiKey: breeze.apiKey,
+            voice: breeze.voice,
+            speed: Math.min(2, Math.max(0.5, rateToSpeed(rate) * breeze.speed)),
+            text,
+          });
+          await writeFile(target, bytes);
+        } else await synthesizeImpl({ signal: AbortSignal.timeout(BUILTIN_TIMEOUT_MS), target, text, voice, rate });
         // 淘汰放在成功之后：失败时不该为腾地方而删掉还能用的缓存
         await pruneCache(dir);
       });

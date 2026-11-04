@@ -117,6 +117,16 @@ export function saveUserConfig(
   if (vwe !== undefined && !topFieldValid('voiceWhisperEnabled', vwe)) return null;
   const vte = o.voiceTodoEnabled;
   if (vte !== undefined && !topFieldValid('voiceTodoEnabled', vte)) return null;
+  // 语音引擎与 Breeze 在线语音（全局）：引擎是枚举，Key / 音色是形状校验，语速是区间；
+  // 四者都复用读取侧的 topFieldValid，读写同一份规则。
+  const veng = o.voiceEngine;
+  if (veng !== undefined && !topFieldValid('voiceEngine', veng)) return null;
+  const bak = o.breezeApiKey;
+  if (bak !== undefined && !topFieldValid('breezeApiKey', bak)) return null;
+  const bvo = o.breezeVoice;
+  if (bvo !== undefined && !topFieldValid('breezeVoice', bvo)) return null;
+  const bsp = o.breezeSpeed;
+  if (bsp !== undefined && !topFieldValid('breezeSpeed', bsp)) return null;
   // 系统托盘开关（全局，仅桌面模式）：与上面几个全局布尔同语义——传了必须是布尔，没传走透传保留。
   const te = o.trayEnabled;
   if (te !== undefined && typeof te !== 'boolean') return null;
@@ -175,6 +185,11 @@ export function saveUserConfig(
   if (vv !== undefined) outConfig.voiceVolume = vv;
   if (vwe !== undefined) outConfig.voiceWhisperEnabled = vwe;
   if (vte !== undefined) outConfig.voiceTodoEnabled = vte;
+  if (veng !== undefined) outConfig.voiceEngine = veng;
+  // Key 落盘前 trim：粘贴时常带首尾空格；空串照写（= 用户主动清空，回落到 edge）
+  if (bak !== undefined) outConfig.breezeApiKey = String(bak).trim();
+  if (bvo !== undefined) outConfig.breezeVoice = String(bvo).trim();
+  if (bsp !== undefined) outConfig.breezeSpeed = Number(bsp);
   if (te !== undefined) outConfig.trayEnabled = te;
   if (rbe !== undefined) outConfig.requestBubbleEnabled = rbe;
   if (sre !== undefined) outConfig.scheduleRemindersEnabled = sre;
@@ -204,6 +219,10 @@ export function saveUserConfig(
   if (vv !== undefined) bodyOwned.add('voiceVolume');
   if (vwe !== undefined) bodyOwned.add('voiceWhisperEnabled');
   if (vte !== undefined) bodyOwned.add('voiceTodoEnabled');
+  if (veng !== undefined) bodyOwned.add('voiceEngine');
+  if (bak !== undefined) bodyOwned.add('breezeApiKey');
+  if (bvo !== undefined) bodyOwned.add('breezeVoice');
+  if (bsp !== undefined) bodyOwned.add('breezeSpeed');
   if (te !== undefined) bodyOwned.add('trayEnabled');
   if (rbe !== undefined) bodyOwned.add('requestBubbleEnabled');
   if (sre !== undefined) bodyOwned.add('scheduleRemindersEnabled');

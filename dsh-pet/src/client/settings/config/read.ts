@@ -6,7 +6,7 @@
  */
 import { DEFAULT_FONT } from '../../../shared/fonts.ts';
 import { DEFAULT_PHYSICS } from '../../../shared/physics.ts';
-import type { FontConfig, ModelSelection, Pet, PhysicsParams } from '../../../shared/types.ts';
+import type { FontConfig, ModelSelection, Pet, PhysicsParams, VoiceEngineName } from '../../../shared/types.ts';
 
 /** 宿主返回的成品聚合：`main` 是大配置条目，其余键是文件定义的其他宠物条目。 */
 export type MergedConfig = Record<string, Record<string, unknown>>;
@@ -39,6 +39,14 @@ export interface MainConfigPatch {
   voiceWhisperEnabled?: boolean;
   /** 待办提醒的语音开关；缺省表示这次响应里没有可信值。 */
   voiceTodoEnabled?: boolean;
+  /** 用谁的嗓子念：`edge` 内置微软语音、`breeze` 用户自带 Key 的在线语音。 */
+  voiceEngine?: VoiceEngineName;
+  /** Breeze API Key（宿主已校验形状，客户端原样展示、不打印）。 */
+  breezeApiKey?: string;
+  /** Breeze 音色 id；空串表示「用账号里第一个音色」。 */
+  breezeVoice?: string;
+  /** Breeze 语速倍率 0.5–2。 */
+  breezeSpeed?: number;
   /** 物理参数：成品已按「内置默认 ← 用户层」填满，缺子键再用内置默认兜底一次。 */
   physics?: PhysicsParams;
   /** 字体：同物理参数。 */
@@ -108,6 +116,12 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   if (typeof main.voiceName === 'string') patch.voiceName = main.voiceName;
   if (typeof main.voiceWhisperEnabled === 'boolean') patch.voiceWhisperEnabled = main.voiceWhisperEnabled;
   if (typeof main.voiceTodoEnabled === 'boolean') patch.voiceTodoEnabled = main.voiceTodoEnabled;
+  // 引擎三项只认已知形状：写错一个键不该把整页读成默认值，所以逐项判类型各自落值
+  if (main.voiceEngine === 'edge' || main.voiceEngine === 'breeze') patch.voiceEngine = main.voiceEngine;
+  if (typeof main.breezeApiKey === 'string') patch.breezeApiKey = main.breezeApiKey;
+  if (typeof main.breezeVoice === 'string') patch.breezeVoice = main.breezeVoice;
+  const breezeSpeed = Number(main.breezeSpeed);
+  if (Number.isFinite(breezeSpeed) && breezeSpeed >= 0.5 && breezeSpeed <= 2) patch.breezeSpeed = breezeSpeed;
   if (main.physics && typeof main.physics === 'object') {
     patch.physics = { ...DEFAULT_PHYSICS, ...(main.physics as PhysicsParams) };
   }

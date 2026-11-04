@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.11.3
+  version: 0.12.0
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -2483,11 +2483,15 @@ paths:
       description: |
         把一段中文文本合成为 mp3，成功时直接返回文件本体。
 
+        - **合成源按配置分流**：配置 `voiceEngine` 为 `breeze` 且填了 `breezeApiKey` 时走
+          Breeze 在线语音（`breeze-tts-2` 模型，音色来自 Breeze 账号，`/voice/engine` 可读）；
+          否则走内置实现。第三方经 `petApi7340.voice.register` 注册的实现优先级最高。
         - **合成源可被第三方覆盖**：宿主插件可经 Cordis 服务 `petApi7340.voice.register`
           注册自己的实现；注册后本端点改走该实现，未注册时走内置实现。两边返回的都是 mp3，
           调用方无需区分。
         - 覆盖期间 `voice` 参数不生效（音色由第三方实现自己决定），但校验口径不变：
-          非法值仍按 `bad-request` 拒绝。
+          非法值仍按 `bad-request` 拒绝。走 Breeze 时 `voice` 同样不生效（音色取配置），
+          `rate` 会折算成倍率与 `breezeSpeed` 相乘。
         - 第三方实现必须返回 mp3 字节；返回其它格式浏览器播不出来，空字节按 `generate-error` 处理。
         - 同一「来源 + 音色 + 语速 + 文本」只会合成一次，命中缓存时不再联网；来源即内置实现
           或第三方 id，因此切换实现后不会命中旧音频。
@@ -2573,6 +2577,66 @@ paths:
                           type: string
                         default:
                           type: boolean
+        "405":
+          description: 方法不是 GET。
+
+  /dsh-pet-7340/voice/engine:
+    get:
+      tags: [Voice]
+      operationId: getVoiceEngine
+      summary: 读当前语音引擎与 Breeze 音色
+      description: |
+        设置页用它一次拿到「现在用谁的嗓子」与「Breeze 账号里有哪些音色」。
+
+        - 引擎取配置里的 `voiceEngine`；写成 `breeze` 但 `breezeApiKey` 为空（或全空白）时
+          按 `edge` 返回——空 Key 不可能合成成功，不把用户留在必然失败的分支里。
+        - 引擎是 `breeze` 且有 Key 时，顺带用这个 Key 拉一次上游音色列表；这也兼作
+          「Key 还有效吗」的探针：拉得到就说明能用。设置页只在保存成功后才调它，
+          所以看到的一定是已落盘的那份 Key。
+        - 拉音色失败不改变接口成功与否：`ok` 恒为 true，失败细节放在 `error` 里
+          （`bad-key` 是 Key 被拒，`list-failed` 是网络/服务问题），`voices` 退化成空数组。
+        - 内置引擎的四个音色不在这里列，见 `/voice/voices`。
+      responses:
+        "200":
+          description: 当前引擎与 Breeze 音色列表。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, engine, hasKey, voice, speed, voices]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  engine:
+                    type: string
+                    enum: [edge, breeze]
+                  hasKey:
+                    type: boolean
+                    description: 配置里是否有非空的 Breeze Key（不是「Key 有效」——有效性看 `error`）。
+                  voice:
+                    type: string
+                    description: 配置的 Breeze 音色 id；空串表示用账号里第一个音色。
+                  speed:
+                    type: number
+                    description: 配置的 Breeze 语速倍率 0.5–2。
+                  voices:
+                    type: array
+                    description: 上游音色；引擎是 edge、没有 Key 或拉取失败时是空数组。
+                    items:
+                      type: object
+                      required: [id, name, tag]
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        tag:
+                          type: string
+                  error:
+                    type: string
+                    enum: [bad-key, list-failed]
+                    description: 只在拉音色失败时出现。
         "405":
           description: 方法不是 GET。
 
@@ -5035,6 +5099,33 @@ components:
           description: |
             待办提醒要不要念出来（全局默认）。同样受 `voiceEnabled` 总开关约束。
             设置页「语音播报」卡里的「待办播报」开关写的就是它。缺失默认 `false`。
+        voiceEngine:
+          type: string
+          enum: [edge, breeze]
+          description: |
+            语音合成引擎（全局默认）：`edge` = 内置微软语音（免费、免配置）；
+            `breeze` = 用户自带 Breeze API Key 的在线语音（`breeze-tts-2` 模型）。
+            只是「用谁的嗓子」，念不念仍由 `voiceEnabled` / `voiceWhisperEnabled` / `voiceTodoEnabled` 决定。
+            缺失默认 `edge`；写成 `breeze` 但 Key 为空时运行时按 `edge` 处理。
+        breezeApiKey:
+          type: string
+          maxLength: 200
+          description: |
+            Breeze API Key（`brz_` 开头），只存在本机用户配置文件里。设置页从 `GET /config` 读回它继续编辑，
+            `PUT /config` 整包写回；`/voice/engine` 只额外告诉调用方「有没有填」（`hasKey`）。
+            不含换行/制表符，长度上限 200。缺失默认空串。
+        breezeVoice:
+          type: string
+          maxLength: 100
+          description: |
+            Breeze 音色 id，来自 `/voice/engine` 的 `voices`。空串 = 用账号里第一个音色。缺失默认空串。
+        breezeSpeed:
+          type: number
+          minimum: 0.5
+          maximum: 2
+          description: |
+            Breeze 语速倍率：1 是原速。与 `/voice/speak` 的 `rate`（百分比）相乘后夹到 0.5–2。
+            内置引擎不看它（内置按 `rate` 百分比念）。缺失默认 1。
         chatMemoryRounds:
           type: integer
           minimum: 0

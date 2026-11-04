@@ -183,6 +183,20 @@ export function topFieldValid(key: string, value: unknown): boolean {
     case 'voiceTodoEnabled':
       // 待办提醒的语音开关（全局布尔）：同上
       return typeof value === 'boolean';
+    case 'voiceEngine':
+      // 语音引擎（全局枚举）：edge = 内置微软语音，breeze = 用户自己的 Breeze 在线 Key。
+      // 只认这两个值——写错即非法，读取侧回落到 edge 并告警（宁可念不出，也不乱连第三方）。
+      return value === 'edge' || value === 'breeze';
+    case 'breezeApiKey':
+      // Breeze API Key（`brz_` 开头）：空串合法（= 还没填，引擎回落到 edge）；
+      // 上限 200 字符，防止把整段文本误贴进这个字段。
+      return typeof value === 'string' && value.length <= 200 && !/[\r\n\t]/.test(value);
+    case 'breezeVoice':
+      // Breeze 音色 id：由账号决定，不能做白名单，只验形状；空串合法（= 还没选，读取侧取列表第一个）。
+      return typeof value === 'string' && value.length <= 100 && !/[\r\n\t]/.test(value);
+    case 'breezeSpeed':
+      // Breeze 语速倍率：0.5–2.0，与设置页滑条同量纲；越界即非法，读取侧回落 1.0。
+      return typeof value === 'number' && Number.isFinite(value) && value >= 0.5 && value <= 2;
     case 'chatImageEnabled':
       return typeof value === 'boolean';
     case 'chatAnimationEnabled':

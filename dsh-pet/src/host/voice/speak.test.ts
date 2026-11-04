@@ -3,13 +3,13 @@
  * 合成实现由用例注入：默认套件不联网，只有边界与编排逻辑被钉住。
  */
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { VoiceSynthError, type SynthInput } from './edge.ts';
 import { registerVoiceProvider } from './registry.ts';
-import { MAX_TEXT_CHARS, createVoiceService, isQueueStale, type VoiceService } from './speak.ts';
+import { MAX_TEXT_CHARS, createVoiceService, isQueueStale, rateToSpeed, type VoiceService } from './speak.ts';
 
 /** 造一个隔离的语音服务；`synthesize` 缺省写一个假 mp3。 */
 async function withService(
@@ -210,6 +210,98 @@ test('第三方返回空字节：判 generate-error，不留下 0 字节文件',
     assert.equal(result.ok === false ? result.reason : '', 'generate-error');
   } finally {
     dispose();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('rateToSpeed：百分比折算成倍率并夹到 0.5–2', () => {
+  assert.equal(rateToSpeed('+0%'), 1);
+  assert.equal(rateToSpeed('+10%'), 1.1);
+  assert.equal(rateToSpeed('-50%'), 0.5);
+  assert.equal(rateToSpeed('+100%'), 2);
+  // 不合法表达式按原速，不抛错（参数校验在 parseRequest 里已拦过一遍）
+  assert.equal(rateToSpeed('fast'), 1);
+});
+
+/** 把全局 fetch 换成返回 mp3 字节的替身，结束后还原。 */
+async function withAudioFetch(
+  run: (calls: string[]) => Promise<void>,
+  body = new Uint8Array([1, 2, 3]),
+): Promise<void> {
+  const original = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = ((url: string) => {
+    calls.push(url);
+    return Promise.resolve(new Response(body, { status: 200 }));
+  }) as typeof fetch;
+  try {
+    await run(calls);
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+
+test('引擎是 breeze：走 Breeze 合成，内置实现一次都不调', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-pet-voice-breeze-'));
+  let edgeCalls = 0;
+  try {
+    await withAudioFetch(async (calls) => {
+      const voice = createVoiceService({
+        userRoot: root,
+        synthesize: async () => {
+          edgeCalls += 1;
+        },
+        resolveEngine: () => ({ engine: 'breeze', breeze: { apiKey: 'brz_k', voice: 'v1', speed: 1 } }),
+      });
+      const result = await voice.speak({ text: '你好' });
+      assert.equal(result.ok, true);
+      assert.equal(edgeCalls, 0, '配置成 breeze 时不该再调内置');
+      assert.equal(calls.length, 1);
+      assert.match(calls[0], /\/v1\/text-to-speech\/v1$/);
+      if (result.ok) {
+        const bytes = await readFile(result.file);
+        assert.deepEqual([...bytes], [1, 2, 3]);
+      }
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('引擎是 breeze 且 Key 被拒：判 generate-error，不留下空文件', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-pet-voice-breeze-bad-'));
+  const original = globalThis.fetch;
+  globalThis.fetch = (() => Promise.resolve(new Response('nope', { status: 401 }))) as typeof fetch;
+  try {
+    const voice = createVoiceService({
+      userRoot: root,
+      synthesize: async () => undefined,
+      resolveEngine: () => ({ engine: 'breeze', breeze: { apiKey: 'bad', voice: '', speed: 1 } }),
+    });
+    const result = await voice.speak({ text: '你好' });
+    assert.equal(result.ok, false);
+    assert.equal(result.ok === false ? result.reason : '', 'generate-error');
+  } finally {
+    globalThis.fetch = original;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('没配 engine 回调：仍走内置实现（默认路径不被 Breeze 影响）', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-pet-voice-default-'));
+  try {
+    let edgeCalls = 0;
+    const voice = createVoiceService({
+      userRoot: root,
+      synthesize: async (input) => {
+        edgeCalls += 1;
+        await writeFile(input.target, Buffer.from('mp3'));
+      },
+    });
+    const result = await voice.speak({ text: '你好' });
+    assert.equal(result.ok, true);
+    assert.equal(edgeCalls, 1);
+  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });

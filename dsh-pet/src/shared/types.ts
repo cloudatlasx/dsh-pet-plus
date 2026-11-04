@@ -162,6 +162,11 @@ export interface ModelSelection {
   model: string;
 }
 
+/** 语音合成引擎：`edge` = 内置微软语音（免费、无需配置）；`breeze` = 用户自带 Key 的 Breeze 在线语音。
+ *  只是「用谁的嗓子」，念不念仍由 voiceEnabled / voiceWhisperEnabled / voiceTodoEnabled 决定。
+ *  两半（宿主与客户端）共用同一份字面量，避免两边字符串各写一遍对不上。 */
+export type VoiceEngineName = 'edge' | 'breeze';
+
 /** config.jsonc 的 physics 段：拖拽抛掷手感参数（全局，所有宠物共用）。
  *  默认值见 {@link DEFAULT_PHYSICS}，内置配置与代码两侧保持一致。 */
 export interface PhysicsParams {

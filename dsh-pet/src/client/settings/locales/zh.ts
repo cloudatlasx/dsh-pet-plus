@@ -172,6 +172,27 @@ export const zh = {
     '所有碎碎念——周期生成的、右键点的、命令触发的——都按本项决定念不念。受上面的总开关约束：总开关关掉时本项不起作用。默认关闭——碎碎念是背景旁白，不该默认出声。',
   voiceTodoEnabled: '待办播报',
   voiceTodoEnabledHint: '到点的待办提醒念出来（同一句照样弹气泡，本项只决定念不念）。受上面的总开关约束。默认关闭。',
+  voiceEngineLabel: '声音引擎',
+  voiceEngineHint:
+    '用谁的嗓子念。edge 是内置的微软语音，免费、开箱即用；breeze 用你自己的 Breeze API Key（breeze-tts-2 模型），音色可自建或克隆，按你账号的额度计费。只决定「用谁的嗓子」，念不念仍看上面三个开关。',
+  voiceEngineEdge: '内置（Edge）',
+  voiceEngineBreeze: 'Breeze 在线',
+  breezeKeyLabel: 'Breeze API Key',
+  breezeKeyHint:
+    'brz_ 开头，在 Breeze 后台的 API Keys 页复制。只存在本机用户配置里，随「保存」写入；别把它贴到公开仓库或截图里。',
+  breezeVoiceLabel: 'Breeze 音色',
+  breezeVoiceAuto: '自动（第一个音色）',
+  breezeVoiceHint: '你账号里能用的音色；选「自动」就用列表第一个。改了 Key 要保存之后才会拉到新列表。',
+  breezeSpeedLabel: 'Breeze 语速',
+  breezeSpeedHint: '0.5–2 倍，1 是原速。与试听、播报共用同一个倍率；内置引擎不受它影响（内置按百分比念）。',
+  breezeStatusLabel: '连接状态',
+  breezeStatusHint:
+    '「重新检测」会拿已保存的 Key 去 Breeze 拉一次音色列表：拉得到就说明 Key 可用。没保存的改动它看不到。',
+  breezeRefresh: '重新检测',
+  breezeNoKey: '还没填 Key——填上并保存后再点「重新检测」。',
+  breezeBadKey: 'Key 无效或已被重置，请到 Breeze 后台复制新的。',
+  breezeListFailed: '连不上 Breeze（网络或服务异常），Key 未必有问题。',
+  breezeReady: 'Key 可用，音色列表已就绪。',
   voiceNameLabel: '音色',
   voiceVolumeLabel: '音量',
   voiceVolumeHint:

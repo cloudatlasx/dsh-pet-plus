@@ -182,6 +182,28 @@ export const ja: Record<Key, string> = {
   voiceTodoEnabled: 'ToDo の読み上げ',
   voiceTodoEnabledHint:
     '期限が来た ToDo リマインダーを読み上げます（同じ文言でバブルも表示され、この項目は読み上げるかどうかだけを決めます）。上のマスタースイッチに従います。デフォルトはオフです。',
+  voiceEngineLabel: '音声エンジン',
+  voiceEngineHint:
+    'どちらの声で話すか。edge は内蔵の Microsoft 音声で、無料ですぐ使えます。breeze は自分の Breeze API キー（breeze-tts-2 モデル）を使い、音声は作成・クローンでき、料金はアカウントに課金されます。決めるのは「どの声か」だけで、読み上げるかどうかは上の 3 つのスイッチ次第です。',
+  voiceEngineEdge: '内蔵（Edge）',
+  voiceEngineBreeze: 'Breeze オンライン',
+  breezeKeyLabel: 'Breeze API キー',
+  breezeKeyHint:
+    'brz_ で始まるキーを Breeze 管理画面の「API Keys」からコピーします。ローカルの設定ファイルにのみ保存され、「保存」で書き込まれます。公開リポジトリやスクリーンショットに貼らないでください。',
+  breezeVoiceLabel: 'Breeze の声',
+  breezeVoiceAuto: '自動（先頭の声）',
+  breezeVoiceHint:
+    'アカウントで使える声です。「自動」は先頭を選びます。キーを変えた場合、保存後に新しい一覧が取得されます。',
+  breezeSpeedLabel: 'Breeze の速度',
+  breezeSpeedHint: '0.5〜2 倍、1 が原速。試聴と読み上げで共通です。内蔵エンジンは割合指定なので影響しません。',
+  breezeStatusLabel: '接続状態',
+  breezeStatusHint:
+    '「再確認」は保存済みのキーで Breeze から声の一覧を取得します。取得できればキーは有効です。未保存の変更は反映されません。',
+  breezeRefresh: '再確認',
+  breezeNoKey: 'キーが未入力です。入力して保存し、「再確認」を押してください。',
+  breezeBadKey: 'キーが無効か、リセットされています。Breeze で新しいキーをコピーしてください。',
+  breezeListFailed: 'Breeze に接続できません（ネットワークかサービス側の問題）。キー自体は正常かもしれません。',
+  breezeReady: 'キーは有効です。声の一覧を取得しました。',
   voiceNameLabel: '声質',
   voiceVolumeLabel: '音量',
   voiceVolumeHint:
