@@ -17,9 +17,12 @@
   让你以为在放 Breeze；429/5xx 与空音频会自动重试 3 次。
 - **请求到达时更显眼**：审批/提问气泡冒出来时弹两下，并连响两声提示音（原来只有一声点击音，
   和「随手点到了」听感一样，容易被忽略）。
+- **请求挂太久，宠物会游过来**：没人理的请求撑过 90 秒，桌面宠物会沿着一条曲线游到屏幕中央，
+  顺手把气泡再弹一下——用户可能正埋在别的窗口里，气泡和提示音都被盖住了。只提醒一次，
+  一有回应就停，不会反复游来游去。
 - **`GET /request/diag` 只读自查**：一眼看出「这次为什么没弹到宠物上」——开关是否开着、此刻有几个端在
   长轮询、有没有一条请求正挂着，以及最近 12 次的处理结论（`intercepted` / `answered` / `delegated` /
-  `skip:no-client` / `skip:pending` / `skip:off` / `stale-pending`）。
+  `skip:no-client` / `skip:pending` / `skip:off` / `stale-pending` / `late-client` / `escalated`）。
 
 ### 变更
 

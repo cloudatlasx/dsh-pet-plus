@@ -42,6 +42,14 @@ const CLIENT_GRACE_MS = 2000;
 /** 宽限期内重试间隔（毫秒）。 */
 const CLIENT_GRACE_STEP_MS = 120;
 
+/**
+ * 多久没响应算「太久」（毫秒）。
+ *
+ * 90 秒是「大概真的没注意到」的位置：比审批超时（180 秒）短，留出第二次提醒的余地，
+ * 又不至于刚弹出来就把宠物叫走、显得心浮气躁。
+ */
+const ESCALATE_MS = 90 * 1000;
+
 /** 等一小会儿（`unref` 掉计时器，别拿它吊住宿主进程退出）。 */
 const sleep = (ms: number): Promise<void> =>
   new Promise<void>((resolve) => {
@@ -77,6 +85,14 @@ export interface RequestHubDeps {
   now?: () => number;
   /** `no-client` 宽限时长（ms）；不传用 `CLIENT_GRACE_MS`，测试注入短值。 */
   clientGraceMs?: number;
+  /**
+   * 请求挂太久没人理时的动作：把宠物挪到屏幕中央（`swim`）再提醒一次。
+   *
+   * 只在一端做：两端都会调，实现自己按 `display` 决定要不要动。
+   */
+  escalate?: (kind: 'approval' | 'question') => void;
+  /** 多久没响应算「太久」（ms）；不传用 `ESCALATE_MS`，测试注入短值。 */
+  escalateMs?: number;
 }
 
 /** 一次拦截尝试的结论（只读诊断用）。 */
@@ -176,6 +192,8 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
   let pending: Pending | null = null;
   let previewId: string | null = null;
   let previewTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 「挂太久」的提醒计时器：请求结束就收掉，只提醒一次。 */
+  let escalateTimer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
   let seq = 0;
   /** 会话键 → 到期时刻：这批会话里的审批不再弹气泡，直接放行。 */
@@ -207,8 +225,35 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
     if (entry === null) return;
     pending = null;
     cleanup(entry);
+    if (escalateTimer !== null) clearTimeout(escalateTimer);
+    escalateTimer = null;
     close(entry.envelope.id, entry.envelope.kind);
     entry.resolve(resolution);
+  };
+
+  /**
+   * 挂太久的请求：把宠物挪到屏幕中央再提醒一次。
+   *
+   * 用户可能正埋在别的窗口里，气泡和提示音都被盖住；让宠物「游过来」是这套桌宠里最不容易被
+   * 忽略的动作。只喊一次，用户开始答（`settle`）就把计时器收掉。
+   *
+   * @param kind - 请求类型，交给实现决定文案/动作。
+   */
+  const scheduleEscalate = (kind: 'approval' | 'question'): void => {
+    if (!deps.escalate) return;
+    if (escalateTimer !== null) clearTimeout(escalateTimer);
+    escalateTimer = setTimeout(() => {
+      escalateTimer = null;
+      // 已经答完 / 已经换了一条：别动
+      if (pending === null) return;
+      note(kind, 'escalated');
+      try {
+        deps.escalate?.(kind);
+      } catch (error) {
+        log.warn('dsh-pet: request escalate failed: ' + messageOf(error));
+      }
+    }, deps.escalateMs ?? ESCALATE_MS);
+    escalateTimer.unref?.();
   };
 
   /**
@@ -358,6 +403,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       };
       log.info('dsh-pet: approval/request intercepted tool=' + toolName);
       note('approval', 'intercepted ' + toolName);
+      scheduleEscalate('approval');
       const resolution = await begin(envelope, APPROVAL_TIMEOUT_MS, req.signal, sessionKey);
       if (resolution.type === 'approval' && resolution.outcome !== 'delegate') {
         note('approval', 'answered ' + resolution.outcome);
@@ -389,6 +435,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       };
       log.info('dsh-pet: user-questions/request intercepted count=' + questions.length);
       note('question', 'intercepted ' + questions.length + 'q');
+      scheduleEscalate('question');
       const resolution = await begin(envelope, QUESTION_TIMEOUT_MS, req.signal, null);
       if (resolution.type === 'answers') {
         note('question', 'answered');

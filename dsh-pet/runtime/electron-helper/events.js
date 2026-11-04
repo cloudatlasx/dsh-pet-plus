@@ -378,7 +378,12 @@ function applyPositionLeaf(petId, leaf) {
   const hit = S.readPosition(leaf);
   if (!hit) return;
   for (const s of sprites) {
-    if (s.pet.id === petId) s.moveToCenter(hit.x, hit.y, hit.mode, hit.duration);
+    if (s.pet.id !== petId) continue;
+    s.moveToCenter(hit.x, hit.y, hit.mode, hit.duration);
+    // 宿主让宠物「游到屏幕中央」是为了把挂着的请求再露一次脸：跟着把气泡弹一下，
+    // 否则宠物挪过去了、气泡安安静静，用户还是不知道该点哪里。
+    // 用带后缀的 id 绕过 pulseBubble 的同 id 去重，让动画重新跑一遍。
+    if (s.requestEnvelope) s.pulseBubble(s.requestEnvelope.id + ':esc');
   }
 }
 

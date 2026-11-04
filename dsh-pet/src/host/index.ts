@@ -19,7 +19,7 @@ import { createSessionNotify } from './plugin/session-notify.ts';
 import { createPetLookup } from './plugin/pet-lookup.ts';
 import { createDownloadReport } from './plugin/download-report.ts';
 import { createWorkStatusBridge } from './plugin/work-status-bridge.ts';
-import { registerTodoReminders } from './plugin/todo-reminders.ts';
+import { registerTodoReminders, pickReminderSpeaker } from './plugin/todo-reminders.ts';
 import { registerScheduleReminders } from './plugin/schedule-reminders.ts';
 import { createRequestHub } from './request-hub.ts';
 import { createVoiceService } from './voice/speak.ts';
@@ -105,6 +105,23 @@ export function apply(ctx: any): void {
     log,
     enabled: () => readAllConfig(configPaths).main?.requestBubbleEnabled === true,
     hasClient: () => state.waiterCount(),
+    // 挂太久没人理：让宠物游到屏幕中央再露一次脸。
+    //
+    // 只在桌面端有意义——网页端宠物就在页面里，位置是页面自己排的，挪不动也不该挪。
+    // 动作复用现成的 `position` 叶子（`mode: 'line'`），渲染端照着这条叶子游过去，
+    // 宿主不引入任何新运动学；气泡本身不动，答完之后宠物留在中央，下次拖它才回去。
+    escalate: () => {
+      const pets = effectivePetList();
+      const pet = pickReminderSpeaker(
+        pets,
+        (petId) => lock.locked(petId),
+        (petId) => sleep.sleeping(petId),
+      );
+      if (pet === null) return;
+      const display = String(pets.find((row) => String(row.id ?? '') === pet)?.display ?? '');
+      if (display !== 'desktop') return;
+      state.writePet(pet, 'position', { x: 0.5, y: 0.5, mode: 'line', duration: 900 });
+    },
   });
   ctx.effect(() => {
     const offApproval = ctx.on(

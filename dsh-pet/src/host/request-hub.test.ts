@@ -26,21 +26,25 @@ const makeState = (written: RequestEnvelope[]) =>
   }) as unknown as Parameters<typeof createRequestHub>[0]['state'];
 
 /** 造一个只关心「有没有端」和「几点」的中转站。 */
-function makeHub(options: { clock?: { t: number }; graceMs?: number } = {}) {
+function makeHub(options: { clock?: { t: number }; graceMs?: number; escalateMs?: number } = {}) {
   const clock = options.clock ?? { t: 1_000_000 };
   const env = { clients: 1, enabled: true };
   const written: RequestEnvelope[] = [];
+  /** 被喊去屏幕中央的次数（每次 `escalate` 记一条）。 */
+  const escalated: Array<'approval' | 'question'> = [];
   const hub = createRequestHub({
     state: makeState(written),
     log: { info: () => {}, warn: () => {} },
     enabled: () => env.enabled,
     hasClient: () => env.clients,
     now: () => clock.t,
+    escalate: (kind) => escalated.push(kind),
+    escalateMs: options.escalateMs ?? 60,
     ...(options.graceMs === undefined ? {} : { clientGraceMs: options.graceMs }),
   });
   /** 最近一条写出去的信封 id。 */
   const lastId = (): string => written[written.length - 1]?.id ?? '';
-  return { hub, env, clock, lastId };
+  return { hub, env, clock, lastId, escalated };
 }
 
 /** 造一条审批请求体。 */
@@ -125,5 +129,28 @@ describe('request hub 准入', () => {
     }));
     assert.deepEqual(outcome, { answers: [] });
     assert.ok(hub.diag().hits.some((hit) => hit.outcome === 'skip:off'));
+  });
+
+  it('挂太久还没人理：喊一次「游到屏幕中央」，只喊一次', async () => {
+    const { hub, lastId, escalated } = makeHub({ escalateMs: 30 });
+    const pending = hub.interceptApproval(approval, () => 'unavailable') as Promise<string>;
+    await tick();
+    assert.deepEqual(escalated, [], '刚弹出来不该立刻把宠物叫走');
+    await new Promise((resolve) => setTimeout(resolve, 90));
+    assert.deepEqual(escalated, ['approval']);
+    await new Promise((resolve) => setTimeout(resolve, 90));
+    assert.deepEqual(escalated, ['approval'], '只提醒一次，别循环游来游去');
+    hub.answer({ id: lastId(), outcome: 'rejected' });
+    assert.equal(await pending, 'rejected');
+  });
+
+  it('答得快就不喊：计时器随请求一起收掉', async () => {
+    const { hub, lastId, escalated } = makeHub({ escalateMs: 200 });
+    const pending = hub.interceptApproval(approval, () => 'unavailable') as Promise<string>;
+    await tick();
+    hub.answer({ id: lastId(), outcome: 'allowed-once' });
+    assert.equal(await pending, 'allowed-once');
+    await new Promise((resolve) => setTimeout(resolve, 260));
+    assert.deepEqual(escalated, []);
   });
 });
