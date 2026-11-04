@@ -28,14 +28,22 @@ const reasonOf = (d: { ok: boolean } & Record<string, unknown>): unknown => (d.o
 describe('decidePosition —— 参数校验、模式与夹取', () => {
   test('合法坐标与模式原样通过（非 line 模式的 duration 回 null）', () => {
     const d = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.35, mode: 'spring' });
-    assert.deepEqual(d, { ok: true, petId: 'main', x: 0.5, y: 0.35, mode: 'spring', duration: null });
+    assert.deepEqual(d, {
+      ok: true,
+      petId: 'main',
+      x: 0.5,
+      y: 0.35,
+      mode: 'spring',
+      duration: null,
+      returnAfter: null,
+    });
   });
 
   test('越界夹到 0~1（夹取而不是拒绝）', () => {
     const hi = decidePosition({ cfg, requested: 'main', x: 1.8, y: 99, mode: 'instant' });
-    assert.deepEqual(hi, { ok: true, petId: 'main', x: 1, y: 1, mode: 'instant', duration: null });
+    assert.deepEqual(hi, { ok: true, petId: 'main', x: 1, y: 1, mode: 'instant', duration: null, returnAfter: null });
     const lo = decidePosition({ cfg, requested: 'main', x: -3, y: -0.01, mode: 'instant' });
-    assert.deepEqual(lo, { ok: true, petId: 'main', x: 0, y: 0, mode: 'instant', duration: null });
+    assert.deepEqual(lo, { ok: true, petId: 'main', x: 0, y: 0, mode: 'instant', duration: null, returnAfter: null });
   });
 
   test('边界值 0 与 1 原样保留（中心可到屏幕边缘，允许半个身体出屏）', () => {
@@ -52,9 +60,25 @@ describe('decidePosition —— 参数校验、模式与夹取', () => {
   });
 
   test('line 模式 duration 必填：非负有限数才受理，`0` 合法（= 立即到位）', () => {
-    const ok = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode: 'line', duration: 1200 });
-    assert.deepEqual(ok, { ok: true, petId: 'main', x: 0.5, y: 0.5, mode: 'line', duration: 1200 });
-    const zero = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode: 'line', duration: 0 });
+    const ok = decidePosition({
+      cfg,
+      requested: 'main',
+      x: 0.5,
+      y: 0.5,
+      mode: 'line',
+      duration: 1200,
+      returnAfter: null,
+    });
+    assert.deepEqual(ok, { ok: true, petId: 'main', x: 0.5, y: 0.5, mode: 'line', duration: 1200, returnAfter: null });
+    const zero = decidePosition({
+      cfg,
+      requested: 'main',
+      x: 0.5,
+      y: 0.5,
+      mode: 'line',
+      duration: 0,
+      returnAfter: null,
+    });
     assert.equal(zero.ok && zero.duration, 0, '0 = 立即到位，是合法值而不是"没给"');
     for (const bad of [undefined, null, -1, -0.5, NaN, Infinity, -Infinity, '1200', true, {}]) {
       const d = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode: 'line', duration: bad });
@@ -65,7 +89,7 @@ describe('decidePosition —— 参数校验、模式与夹取', () => {
   test('instant / spring 给了 duration 也**不看**（调用方复用 body 模板时不必删字段）', () => {
     for (const mode of ['instant', 'spring'] as const) {
       const d = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode, duration: 9999 });
-      assert.deepEqual(d, { ok: true, petId: 'main', x: 0.5, y: 0.5, mode, duration: null });
+      assert.deepEqual(d, { ok: true, petId: 'main', x: 0.5, y: 0.5, mode, duration: null, returnAfter: null });
     }
     // 连非法值都不看：这两个模式压根不用时间
     const junk = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode: 'spring', duration: -1 });
@@ -84,18 +108,18 @@ describe('decidePosition —— 参数校验、模式与夹取', () => {
 
 describe('positionLeafData —— 写进 S 叶子的载荷形状', () => {
   test('line 带 duration，其余模式不带（叶子形状本身就是语义）', () => {
-    assert.deepEqual(positionLeafData({ x: 0.5, y: 0.35, mode: 'line', duration: 1200 }), {
+    assert.deepEqual(positionLeafData({ x: 0.5, y: 0.35, mode: 'line', duration: 1200, returnAfter: null }), {
       x: 0.5,
       y: 0.35,
       mode: 'line',
       duration: 1200,
     });
-    assert.deepEqual(positionLeafData({ x: 0.5, y: 0.35, mode: 'spring', duration: null }), {
+    assert.deepEqual(positionLeafData({ x: 0.5, y: 0.35, mode: 'spring', duration: null, returnAfter: null }), {
       x: 0.5,
       y: 0.35,
       mode: 'spring',
     });
-    assert.deepEqual(positionLeafData({ x: 0.5, y: 0.35, mode: 'instant', duration: null }), {
+    assert.deepEqual(positionLeafData({ x: 0.5, y: 0.35, mode: 'instant', duration: null, returnAfter: null }), {
       x: 0.5,
       y: 0.35,
       mode: 'instant',
@@ -103,8 +127,73 @@ describe('positionLeafData —— 写进 S 叶子的载荷形状', () => {
   });
 
   test('非 line 模式**没有** duration 键（不是写了个 undefined）', () => {
-    assert.equal('duration' in positionLeafData({ x: 0, y: 0, mode: 'instant', duration: null }), false);
-    assert.equal('duration' in positionLeafData({ x: 0, y: 0, mode: 'spring', duration: null }), false);
+    assert.equal(
+      'duration' in positionLeafData({ x: 0, y: 0, mode: 'instant', duration: null, returnAfter: null }),
+      false,
+    );
+    assert.equal(
+      'duration' in positionLeafData({ x: 0, y: 0, mode: 'spring', duration: null, returnAfter: null }),
+      false,
+    );
+  });
+
+  test('returnAfter > 0 才写这个键；没给 / 给 0 / 给 null 都当「不归位」', () => {
+    assert.deepEqual(positionLeafData({ x: 0.5, y: 0.5, mode: 'line', duration: 900, returnAfter: 8000 }), {
+      x: 0.5,
+      y: 0.5,
+      mode: 'line',
+      duration: 900,
+      returnAfter: 8000,
+    });
+    for (const returnAfter of [undefined, null, 0]) {
+      const leaf = positionLeafData({ x: 0.5, y: 0.5, mode: 'line', duration: 900, returnAfter });
+      assert.equal('returnAfter' in leaf, false, `returnAfter=${String(returnAfter)}`);
+    }
+  });
+});
+
+describe('decidePosition —— returnAfter（游过去再游回来）', () => {
+  test('合法值原样带出；没给就是 null', () => {
+    const given = decidePosition({
+      cfg,
+      requested: 'main',
+      x: 0.5,
+      y: 0.5,
+      mode: 'line',
+      duration: 900,
+      returnAfter: 8000,
+    });
+    assert.equal(given.ok && given.returnAfter, 8000);
+    const omitted = decidePosition({ cfg, requested: 'main', x: 0.5, y: 0.5, mode: 'line', duration: 900 });
+    assert.equal(omitted.ok && omitted.returnAfter, null);
+  });
+
+  test('上限 60 秒：给 999999 按 60000 算（催一下不是让宠物长期漂在别处）', () => {
+    const d = decidePosition({
+      cfg,
+      requested: 'main',
+      x: 0.5,
+      y: 0.5,
+      mode: 'line',
+      duration: 900,
+      returnAfter: 999_999,
+    });
+    assert.equal(d.ok && d.returnAfter, 60_000);
+  });
+
+  test('负数 / NaN / Infinity / 非数字 → bad-request', () => {
+    for (const bad of [-1, Number.NaN, Number.POSITIVE_INFINITY, '8000', true, {}]) {
+      const d = decidePosition({
+        cfg,
+        requested: 'main',
+        x: 0.5,
+        y: 0.5,
+        mode: 'line',
+        duration: 900,
+        returnAfter: bad,
+      });
+      assert.equal(reasonOf(d), 'bad-request', `returnAfter=${String(bad)}`);
+    }
   });
 });
 

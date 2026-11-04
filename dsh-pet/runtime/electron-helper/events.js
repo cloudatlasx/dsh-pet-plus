@@ -379,7 +379,10 @@ function applyPositionLeaf(petId, leaf) {
   if (!hit) return;
   for (const s of sprites) {
     if (s.pet.id !== petId) continue;
-    s.moveToCenter(hit.x, hit.y, hit.mode, hit.duration);
+    // 带 returnAfter 的是「过去催一下、催完自己游回来」：出发位置只有渲染端知道
+    // （多显示器/自定义布局下宿主算不出来），所以记在 sprite 自己身上。
+    if (hit.returnAfter > 0) s.moveToCenterAndReturn(hit.x, hit.y, hit.mode, hit.duration, hit.returnAfter);
+    else s.moveToCenter(hit.x, hit.y, hit.mode, hit.duration);
     // 宿主让宠物「游到屏幕中央」是为了把挂着的请求再露一次脸：跟着把气泡弹一下，
     // 否则宠物挪过去了、气泡安安静静，用户还是不知道该点哪里。
     // 用带后缀的 id 绕过 pulseBubble 的同 id 去重，让动画重新跑一遍。

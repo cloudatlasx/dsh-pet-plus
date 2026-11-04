@@ -390,12 +390,14 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
       y: 0.35,
       mode: 'instant',
       duration: 0,
+      returnAfter: 0,
     });
     assert.deepEqual(readPosition({ counter: 1, data: { x: 0.5, y: 0.35, mode: 'spring' } }), {
       x: 0.5,
       y: 0.35,
       mode: 'spring',
       duration: 0,
+      returnAfter: 0,
     });
   });
 
@@ -405,8 +407,21 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
       y: 0.35,
       mode: 'line',
       duration: 1200,
+      returnAfter: 0,
     });
     assert.equal(readPosition({ counter: 1, data: { x: 0.5, y: 0.35, mode: 'line', duration: 0 } })?.duration, 0);
+  });
+
+  test('returnAfter：给了就带出来；缺省或非法一律当 0（不归位），不因此整条指令作废', () => {
+    assert.equal(
+      readPosition({ counter: 1, data: { x: 0.5, y: 0.5, mode: 'line', duration: 900, returnAfter: 8000 } })
+        ?.returnAfter,
+      8000,
+    );
+    for (const returnAfter of [undefined, null, 0, -5, '8000', Number.NaN]) {
+      const hit = readPosition({ counter: 1, data: { x: 0.5, y: 0.5, mode: 'line', duration: 900, returnAfter } });
+      assert.equal(hit?.returnAfter, 0, `returnAfter=${String(returnAfter)}`);
+    }
   });
 
   test('边界值 0 与 1 合法（中心可到屏幕边缘）', () => {
@@ -415,6 +430,7 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
       y: 1,
       mode: 'spring',
       duration: 0,
+      returnAfter: 0,
     });
   });
 

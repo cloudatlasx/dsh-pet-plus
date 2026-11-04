@@ -838,6 +838,17 @@ paths:
                     负数 / `NaN` / `Infinity` / 非数字 → `bad-request`。**不设上限**。
                     `instant` / `spring` 模式下这个字段被忽略。
                   example: 1200
+                returnAfter:
+                  type: number
+                  description: |
+                    可选：到了之后停多久再**自己游回出发位置**（毫秒，上限 60000，超出按 60000 算）。
+                    不给就留在原地。
+
+                    「出发位置」由渲染端在收到指令时记下——宿主不知道窗口在哪（多显示器、自定义
+                    布局、用户随时拖动），所以归位坐标**只能**由这一端保存。这条主要给「请求挂了
+                    太久，让宠物游到屏幕中央催一下」用；用户在归位前按住拖走，归位自动取消。
+                    负数 / `NaN` / `Infinity` / 非数字 → `bad-request`。
+                  example: 8000
               examples:
                 instant:
                   summary: 立即跳到左下角

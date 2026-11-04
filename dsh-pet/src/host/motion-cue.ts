@@ -24,7 +24,16 @@ export const POSITION_MODES: readonly PositionMode[] = ['instant', 'spring', 'li
 
 /** 位置决策结论：通过则给出最终要写进 S 的内容（`duration` 为 `null` = 该模式不用时间）。 */
 export type PositionDecision =
-  | { ok: true; petId: string; x: number; y: number; mode: PositionMode; duration: number | null }
+  | {
+      ok: true;
+      petId: string;
+      x: number;
+      y: number;
+      mode: PositionMode;
+      duration: number | null;
+      /** 到了之后停多久再游回原位（`null` = 不归位）。 */
+      returnAfter: number | null;
+    }
   | { ok: false; reason: MotionFailure; message: string };
 
 /** 抛掷决策结论。 */
@@ -78,6 +87,12 @@ export function decidePosition(args: {
   mode?: unknown;
   /** 仅 `line` 模式必填：行程时间（毫秒），非负有限数，`0` = 立即到位 */
   duration?: unknown;
+  /**
+   * 可选：到了之后停多久再自己游回出发位置（毫秒）。给了就归位，不给就留在原地。
+   *
+   * 上限 60 秒——这是「过去催一下」的辅助动作，不是让宠物长期漂在别处。
+   */
+  returnAfter?: unknown;
 }): PositionDecision {
   const x = finite(args.x);
   if (x === null) return { ok: false, reason: 'bad-request', message: 'x 必须是有限数字' };
@@ -97,10 +112,19 @@ export function decidePosition(args: {
     duration = d;
   }
 
+  let returnAfter: number | null = null;
+  if (args.returnAfter !== undefined && args.returnAfter !== null) {
+    const r = finite(args.returnAfter);
+    if (r === null || r < 0) {
+      return { ok: false, reason: 'bad-request', message: 'returnAfter 必须是非负有限数字（毫秒）' };
+    }
+    returnAfter = Math.min(60_000, r);
+  }
+
   const pet = resolvePet(args.cfg, args.requested);
   if (!pet.ok) return pet;
 
-  return { ok: true, petId: pet.petId, x: clamp01(x), y: clamp01(y), mode, duration };
+  return { ok: true, petId: pet.petId, x: clamp01(x), y: clamp01(y), mode, duration, returnAfter };
 }
 
 /**
@@ -112,8 +136,14 @@ export const positionLeafData = (d: {
   y: number;
   mode: PositionMode;
   duration: number | null;
-}): Record<string, unknown> =>
-  d.duration === null ? { x: d.x, y: d.y, mode: d.mode } : { x: d.x, y: d.y, mode: d.mode, duration: d.duration };
+  returnAfter?: number | null;
+}): Record<string, unknown> => {
+  const base: Record<string, unknown> = { x: d.x, y: d.y, mode: d.mode };
+  if (d.duration !== null) base.duration = d.duration;
+  // 归位是附加值：没有就不写这个键，叶子形状和以前一字不差（老消费端读不懂也不会因此判非法）
+  if (typeof d.returnAfter === 'number' && d.returnAfter > 0) base.returnAfter = d.returnAfter;
+  return base;
+};
 
 /**
  * 把外部给的抛掷请求核对成一个结论。

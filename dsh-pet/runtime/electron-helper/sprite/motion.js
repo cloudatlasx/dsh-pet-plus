@@ -197,6 +197,45 @@ Object.assign(PetSprite.prototype, {
   },
 
   /**
+   * 位置指令 + 稍后归位：先游到 (rx, ry)，`returnAfter` 毫秒后再游回出发的地方。
+   *
+   * 给「请求挂太久，宠物游到屏幕中央催一下」用：宿主只知道该提醒了，不知道窗口原来在哪
+   * （多显示器、自定义布局都在渲染端），所以「原位」只能在这里记。用户中途自己按着宠物拖走，
+   * 就当他接管了——归位取消，别把人家手里的东西拽回去。
+   *
+   * @param rx - 目标中心横坐标（归一化 0~1）。
+   * @param ry - 目标中心纵坐标（归一化 0~1）。
+   * @param mode - 运动模式，通常传 `line`。
+   * @param duration - 去程时长（ms）。
+   * @param returnAfter - 去程结束后停留多久再归位（ms）；`<= 0` 表示不归位。
+   */
+  moveToCenterAndReturn(rx, ry, mode, duration, returnAfter) {
+    if (this.dragState.active) return;
+    const home = { rx: this.currentCenterX() / VIEW.w, ry: this.currentCenterY() / VIEW.h };
+    this.cancelReturnHome();
+    this.moveToCenter(rx, ry, mode, duration);
+    if (!(returnAfter > 0)) return;
+    const token = ++this.returnSeq;
+    this.returnHomeToken = token;
+    this.returnTimer = setTimeout(() => {
+      this.returnTimer = null;
+      // 期间被新的位置指令 / 用户拖拽接管，就不归位了
+      if (this.returnHomeToken !== token) return;
+      if (this.dragState.active) return;
+      // 用 instant 会瞬间闪回去，这里固定走一段直线，肉眼能看出「它自己溜回去了」
+      this.moveToCenter(home.rx, home.ry, 'line', 900);
+    }, duration + returnAfter);
+    this.returnTimer.unref?.();
+  },
+
+  /** 取消待执行的归位（新指令、拖拽、销毁时都要调，否则宠物会突然自己跑掉）。 */
+  cancelReturnHome() {
+    if (this.returnTimer) clearTimeout(this.returnTimer);
+    this.returnTimer = null;
+    this.returnHomeToken = 0;
+  },
+
+  /**
    * 位置指令：把宠物中心挪到归一化坐标 (rx, ry)，与 customPos 同一套语义。
    * mode 三选一：instant 一帧到位；spring 走过阻尼弹簧；line 在 duration 毫秒里直线走完
    * （duration <= 0 等同 instant）。用户正按着宠物时整拍静默丢弃——手指底下的东西不该跑。
@@ -204,6 +243,8 @@ Object.assign(PetSprite.prototype, {
    */
   moveToCenter(rx, ry, mode, duration) {
     if (this.dragState.active) return; // 用户交互优先
+    // 任何新的位置指令都作废未执行的归位：否则宠物可能先照新指令走，过一秒又自己溜回老地方
+    this.cancelReturnHome();
     this.stopThrow(); // 先显式接管：停掉飞行与走路（stopMove 顺带停掉上一次的位置跟随）
     this.stopMove();
     // 归一化空间是外接矩形，不规则布局里含大片空洞；position() 的 customPos 分支零夹取，

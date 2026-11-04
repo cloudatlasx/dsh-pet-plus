@@ -319,18 +319,23 @@ export type PositionMode = 'instant' | 'spring' | 'line';
 /** 类型收窄：位置指令叶子 → `{ x, y, mode, duration }`（形状非法 → null，消费端跳过这一拍）。
  *  这是指令不是状态上报：宿主写、前端读来挪宠物，前端不往回写。
  *  x/y 是宠物中心的归一化坐标（0~1，宿主写入前已夹取）；duration 只有 line 模式才有，其余恒为 0。 */
-export function readPosition(leaf: StateLeaf): { x: number; y: number; mode: PositionMode; duration: number } | null {
+export function readPosition(
+  leaf: StateLeaf,
+): { x: number; y: number; mode: PositionMode; duration: number; returnAfter: number } | null {
   if (!leaf.data || typeof leaf.data !== 'object') return null;
-  const d = leaf.data as { x?: unknown; y?: unknown; mode?: unknown; duration?: unknown };
+  const d = leaf.data as { x?: unknown; y?: unknown; mode?: unknown; duration?: unknown; returnAfter?: unknown };
   if (typeof d.x !== 'number' || !Number.isFinite(d.x)) return null;
   if (typeof d.y !== 'number' || !Number.isFinite(d.y)) return null;
   if (d.mode !== 'instant' && d.mode !== 'spring' && d.mode !== 'line') return null;
+  // 归位是可选字段：缺省或非法一律当「不归位」，不为一个附加值跳过整条位置指令
+  const returnAfter =
+    typeof d.returnAfter === 'number' && Number.isFinite(d.returnAfter) && d.returnAfter > 0 ? d.returnAfter : 0;
   if (d.mode === 'line') {
     // line 缺 duration（或非法）就是形状非法：宿主一定会写，写错宁可跳过这一拍，也不替它猜一个时间
     if (typeof d.duration !== 'number' || !Number.isFinite(d.duration) || d.duration < 0) return null;
-    return { x: d.x, y: d.y, mode: 'line', duration: d.duration };
+    return { x: d.x, y: d.y, mode: 'line', duration: d.duration, returnAfter };
   }
-  return { x: d.x, y: d.y, mode: d.mode, duration: 0 };
+  return { x: d.x, y: d.y, mode: d.mode, duration: 0, returnAfter };
 }
 
 /** 类型收窄：抛掷指令叶子 → `{ angle, power }`（形状非法 → null，消费端跳过这一拍）。

@@ -91,6 +91,7 @@ export async function handleMotionRoutes(deps: PetRouteDeps, input: RouteInput):
           y: o.y,
           mode: o.mode,
           duration: o.duration,
+          returnAfter: o.returnAfter,
         });
         if (!d.ok) return failResult(d.reason, d.message);
         const noSurface = surfaceBlocked(cfg, d.petId, url.searchParams);

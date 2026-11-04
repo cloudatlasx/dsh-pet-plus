@@ -47,6 +47,10 @@ Object.assign(PetSprite.prototype, {
     // 位置指令的跟随 rAF（spring 与 line 共用）：与拖拽跟手分开——这条有终点，收敛或到点必须自己收掉。
     this.posFollow = null;
     this.posFollowToken = 0;
+    // 「游过去催一下再自己溜回来」的归位计时器：宿主派地址，所以令牌用来作废被接管的那次。
+    this.returnTimer = null;
+    this.returnHomeToken = 0;
+    this.returnSeq = 0;
     this.space = null; // 抛掷空间（逐屏 AABB）缓存；显示器变化时由 relayout() 置空重建
     // Q 弹挤压（点击回应 / 抛掷落地）：rAF + 待压标记（等新动画成为前台再压，压新首帧）
     this.squashRef = null;
