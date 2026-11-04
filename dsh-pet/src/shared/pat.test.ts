@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 
 import {
   PAT_ANNOYED_BASE,
+  PAT_BUSY_SAY_MS,
+  PAT_HIDE_GAP_MS,
   PAT_HIDE_MAX_MS,
   PAT_HIDE_MIN_MS,
   PAT_RESET_MS,
@@ -108,23 +110,31 @@ describe('pickPatText —— 尽量不连着说同一句', () => {
 });
 
 describe('patTextsOf —— 条目配置收窄', () => {
-  test('四组都读出来，非字符串项被丢掉', () => {
+  test('五组都读出来，非字符串项被丢掉', () => {
     const texts = patTextsOf({
       patShyTexts: ['呀', 3, '', '别戳'],
       patAnnoyedTexts: ['哼'],
       patAngryTexts: ['生气了'],
       patBackTexts: ['我回来了'],
+      patBusyTexts: ['我在忙'],
     });
     assert.deepEqual(texts, {
       shy: ['呀', '别戳'],
       annoyed: ['哼'],
       angry: ['生气了'],
       back: ['我回来了'],
+      busy: ['我在忙'],
     });
   });
 
   test('整段缺失就是空池（代码里不抄默认文案，默认值在 assets/config.jsonc）', () => {
-    assert.deepEqual(patTextsOf({}), { shy: [], annoyed: [], angry: [], back: [] });
+    assert.deepEqual(patTextsOf({}), {
+      shy: [],
+      annoyed: [],
+      angry: [],
+      back: [],
+      busy: [],
+    });
   });
 });
 
@@ -133,5 +143,10 @@ describe('常量口径', () => {
     assert.ok(PAT_SAY_MS.shy < PAT_SAY_MS.annoyed);
     assert.ok(PAT_SAY_MS.annoyed < PAT_SAY_MS.angry);
     assert.equal(PAT_RESET_MS, 3 * 60 * 1000);
+  });
+
+  test('先说再消失：消失前留一段空档，干活时那句更短', () => {
+    assert.ok(PAT_HIDE_GAP_MS > 0);
+    assert.ok(PAT_BUSY_SAY_MS < PAT_SAY_MS.angry, '忙的时候别把台词挂太久');
   });
 });

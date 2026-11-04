@@ -407,6 +407,16 @@ Object.assign(PetSprite.prototype, {
     // 拍一拍：上报给宿主分级（娇羞 → 不高兴 → 气到躲起来），画面与台词都由叶子回来驱动，
     // 这里不等回执——点一下的手感不能被网络往返拖住。
     this.postPat();
+    // 正在干活（有回合在跑）：只应一声，不播点击回应动画——工作第一优先级，
+    // 它该「背对着」继续把手上的事做完，而不是转身陪你玩（台词由宿主的 patBusyTexts 给）。
+    if (
+      this.workState === 'thinking' ||
+      this.workState === 'working' ||
+      this.workState === 'result' ||
+      this.workState === 'waiting'
+    ) {
+      return;
+    }
     if (!this.animations.clicks.length) return;
     this.pendingSquash = true; // 等新点击动画切到前台后 Q 弹（压新首帧，与浏览器一致）
     this.playOnce(S.pick(this.animations.clicks));

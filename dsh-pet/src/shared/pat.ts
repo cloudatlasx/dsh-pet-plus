@@ -77,12 +77,25 @@ export const PAT_SAY_MS: Record<PatTier, number> = { shy: 4200, annoyed: 5200, a
 /** 回来那句的停留时间。 */
 export const PAT_BACK_SAY_MS = 5200;
 
+/**
+ * 「说完再消失」之间留的间隔。
+ *
+ * 生气那条台词本身要占 `PAT_SAY_MS.angry`（7 秒）——把那句话先让人看见，再让窗口消失；
+ * 这两个动作同时发生的话，用户只会看到「啪一下没了」，台词等于没说过。
+ */
+export const PAT_HIDE_GAP_MS = 900;
+
+/** 干活时被拍的台词停留时间：短一点，别挡住它在做的事。 */
+export const PAT_BUSY_SAY_MS = 4200;
+
 /** 条目级台词池（人设的一部分，与睡觉三组台词同一套规则）。 */
 export interface PatTexts {
   shy: string[];
   annoyed: string[];
   angry: string[];
   back: string[];
+  /** 正在干活时被拍：不躲，只回头应一句（「我在忙，等我一下」）。 */
+  busy: string[];
 }
 
 /** 池子收窄：非数组、非字符串项一律丢弃（配置已校验，这里只防手工改坏的文件）。 */
@@ -90,13 +103,14 @@ function pool(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item !== '') : [];
 }
 
-/** 从条目配置里收窄出四组台词；空池 = 没配，调用方据此不说话。 */
+/** 从条目配置里收窄出五组台词；空池 = 没配，调用方据此不说话。 */
 export function patTextsOf(conf: Record<string, unknown>): PatTexts {
   return {
     shy: pool(conf.patShyTexts),
     annoyed: pool(conf.patAnnoyedTexts),
     angry: pool(conf.patAngryTexts),
     back: pool(conf.patBackTexts),
+    busy: pool(conf.patBusyTexts),
   };
 }
 

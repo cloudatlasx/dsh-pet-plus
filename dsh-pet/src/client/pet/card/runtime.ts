@@ -343,6 +343,10 @@ export function createCardRuntime(rt: PetRuntime) {
         // 拍一拍：上报给宿主分级（娇羞 → 不高兴 → 气到躲起来）。台词与「藏多久」都由叶子回来驱动，
         // 这里不等回执——点一下的手感不能被网络往返拖住；失败也不打断用户（最多这次不生气）。
         void postAction(ROUTE_PATH + '/pat?pet=' + encodeURIComponent(cfg.id)).catch(() => undefined);
+        // 正在干活（有回合在跑）：只应一声，不播点击回应——工作第一优先级，
+        // 它该继续把手上的事做完，台词由宿主的 patBusyTexts 给（与桌面端同口径）。
+        const busy = workStatusRef.current?.state;
+        if (busy === 'thinking' || busy === 'working' || busy === 'result' || busy === 'waiting') return;
         drag.onClick();
       },
       onContextMenu: entry.handleContextMenu,

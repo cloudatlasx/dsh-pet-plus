@@ -61,7 +61,7 @@ export function apply(ctx: any): void {
     workStatus,
   });
   const { reportDownload, stopDownloadSlotTimer } = downloadReport;
-  const petLookup = createPetLookup({ state, configPaths });
+  const petLookup = createPetLookup({ state, configPaths, workStatus });
   const { lock, pat, sleep, sleepRefusalText } = petLookup;
   const sessionNotify = createSessionNotify({ ctx, publishWorkStatus, state, workStatus });
   const {

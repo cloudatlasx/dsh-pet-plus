@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { createPetLookup } from './pet-lookup.ts';
 import type { ConfigPaths } from '../config.ts';
 import { PollStateStore } from '../state.ts';
+import { WorkStatusStore } from '../work-status.ts';
 
 /** 建一套临时配置：一只可见宠物 + 一句拒绝台词。 */
 function harness(): { lookup: ReturnType<typeof createPetLookup>; state: PollStateStore; cleanup: () => void } {
@@ -40,7 +41,7 @@ function harness(): { lookup: ReturnType<typeof createPetLookup>; state: PollSta
     }),
   );
   const state = new PollStateStore();
-  const lookup = createPetLookup({ state, configPaths: paths });
+  const lookup = createPetLookup({ state, configPaths: paths, workStatus: new WorkStatusStore() });
   return { lookup, state, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 

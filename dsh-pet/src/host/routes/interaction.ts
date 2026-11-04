@@ -81,7 +81,8 @@ export async function handleInteractionRoutes(deps: PetRouteDeps, input: RouteIn
       if (sleep.sleeping(who.petId)) return okResult({ ok: true, sleeping: true });
       if (lock.locked(who.petId)) return okResult({ ok: true, locked: true });
       const d = pat.pat(who.petId);
-      // hideMs 只在真躲起来时非 0；ignored = 正躲着时的迟到上报（受理但不反应）。
+      // hideMs 只在真躲起来时非 0；ignored = 正躲着时的迟到上报（受理但不反应）；
+      // busy = 这一拍赶上它在干活，工作优先，只应一句不躲（hideMs 为 0）。
       return okResult({
         ok: true,
         tier: d.tier,
@@ -89,6 +90,7 @@ export async function handleInteractionRoutes(deps: PetRouteDeps, input: RouteIn
         plan: d.plan,
         hideMs: d.hideMs,
         ignored: d.ignored,
+        busy: d.busy,
       });
     } catch (e) {
       return failResult('generate-error', e instanceof Error ? e.message : String(e));

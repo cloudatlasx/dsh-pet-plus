@@ -239,8 +239,10 @@ export function topFieldValid(key: string, value: unknown): boolean {
     case 'patShyTexts':
     case 'patAnnoyedTexts':
     case 'patAngryTexts':
+    case 'patBusyTexts':
     case 'patBackTexts': {
-      // 睡觉三组台词（条目级）：非空字符串数组，随机挑一句；空数组/空串会让「说话」变成静默失败
+      // 睡觉三组台词 + 拍一拍五组台词（条目级）：非空字符串数组，随机挑一句；
+      // 空数组/空串会让「说话」变成静默失败
       if (!Array.isArray(value) || value.length === 0) return false;
       return value.every((text) => typeof text === 'string' && text.length > 0);
     }

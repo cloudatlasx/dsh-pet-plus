@@ -17,7 +17,7 @@ import { patTextsOf } from '../../shared/pat.ts';
 import type { HostSetup } from './setup.ts';
 
 /** 宠物定位与访问守卫的输入：装配期对象与更早的工厂。 */
-export type PetLookupInput = {} & Pick<HostSetup, 'state' | 'configPaths'>;
+export type PetLookupInput = {} & Pick<HostSetup, 'state' | 'configPaths' | 'workStatus'>;
 
 /**
  * 创建宠物定位与访问守卫。
@@ -65,6 +65,14 @@ export function createPetLookup(deps: PetLookupInput) {
     },
     onChange: (petId, data) => state.writePet(petId, 'hidden', data),
     onSay: (petId, text, duration) => state.writePet(petId, 'say', { text, anim: false, duration }),
+    // 工作优先（m09304）：手上有回合在跑的时候被戳，不躲，只回头应一句。
+    // 这里的快照是全宿主共用的那一份——「在干活」指的是这个会话正忙，不是哪只宠物专属的状态。
+    busyOf: () => {
+      const snap = deps.workStatus.snapshot();
+      return (
+        snap.state === 'thinking' || snap.state === 'working' || snap.state === 'result' || snap.state === 'waiting'
+      );
+    },
   });
 
   /**

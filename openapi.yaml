@@ -1205,15 +1205,21 @@ paths:
     post:
       tags: [Action]
       operationId: patPet
-      summary: 拍一拍（连点多了会生气躲起来，过一会儿自己回来）
+      summary: 拍一拍（连点多了会生气，先说一句再躲起来，过一会儿自己回来）
       description: |
         渲染端每被用户点一下就调一次。分级反应全在宿主：**阈值每一轮重新抽**（娇羞上界 4~6、
         生气点 9~12，且生气点至少比娇羞大 3），台词取该条目的 `patShyTexts` / `patAnnoyedTexts` /
-        `patAngryTexts` / `patBackTexts`，代码里不写死任何一句——人设怎么写它就怎么气。
+        `patAngryTexts` / `patBackTexts` / `patBusyTexts`，代码里不写死任何一句——人设怎么写它就怎么气。
 
-        生气时她**躲起来**：宿主写 `pets.<id>.hidden = { hidden: true, until }`，桌面端把整个宠物窗口
-        藏起来、网页端不渲染那张卡片；躲的时长每次重抽（1~5 分钟，分布偏向短），到点她写
-        `{ hidden: false }` 并补一句回来的台词，计数同时清零（消气了，下次被戳重新害羞）。
+        生气时她**先说完那句再躲起来**（「我真的生气了！」不是被吞掉的）：台词气泡先挂
+        `PAT_SAY_MS.angry`（7 秒），过 `PAT_HIDE_GAP_MS`（0.9 秒）才写
+        `pets.<id>.hidden = { hidden: true, until }`——桌面端这时才藏窗口、网页端才不渲染那张卡片。
+        躲的时长每次重抽（1~5 分钟，分布偏向短），到点她写 `{ hidden: false }` 并补一句回来的台词，
+        计数同时清零（消气了，下次被戳重新害羞）。
+
+        **工作第一优先级**：手上有回合在跑（`thinking` / `working` / `result` / `waiting`）时被拍，
+        她不躲、也不打断手上的事，只回头说一句 `patBusyTexts`（回执 `busy: true`、`hideMs: 0`）；
+        消失前那一刻开始干活的，这次躲藏也当场作废。
 
         **不参与的情形**：睡着（回 `sleeping: true`）、被第三方持锁（回 `locked: true`）——
         戳睡着的宠物不该把它气跑，持锁期间这只宠物归第三方管。正躲着时的迟到上报照常 200 但
@@ -1226,7 +1232,9 @@ paths:
         "200":
           description: |
             恒为 200（除 405）。成功带 `tier`（`shy` / `annoyed` / `angry`）、本次计数 `count`、
-            这一轮的阈值 `plan`、躲起来多久 `hideMs`（没躲是 0）、以及 `ignored`。
+            这一轮的阈值 `plan`、躲起来多久 `hideMs`（没躲是 0）、`ignored`，以及 `busy`
+            （这一拍赶上它在干活：说了「我在忙」、不躲）。躲起来是**延迟**发生的：回执里
+            `hideMs > 0` 时，`pets.<id>.hidden` 要等台词说完才出现。
             睡着/持锁时回 `ok: true` 加 `sleeping: true` / `locked: true`，不推进计数。
           content:
             application/json:

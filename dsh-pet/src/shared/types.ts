@@ -134,6 +134,8 @@ export interface Pet {
   patAngryTexts?: string[];
   /** 条目级：拍完生气躲起来、过一阵自己回来时说的台词。 */
   patBackTexts?: string[];
+  /** 条目级：正在干活（有回合在跑）时被拍的台词——这时候不躲，只回头说一句然后继续做。 */
+  patBusyTexts?: string[];
   /** 条目级：工作状态气泡文案（外层索引 = 档位 0..5，内层每档可多句随机抽）。
    *  整字段缺失 = 不弹工作状态文本，只播动画。 */
   workStatusTexts?: string[][];

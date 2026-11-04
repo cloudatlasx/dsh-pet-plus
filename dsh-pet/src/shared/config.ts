@@ -38,11 +38,12 @@ export function flattenConfigPets(merged: Record<string, Record<string, unknown>
         sleepStartTexts: conf.sleepStartTexts as string[] | undefined,
         sleepEndTexts: conf.sleepEndTexts as string[] | undefined,
         sleepRefuseTexts: conf.sleepRefuseTexts as string[] | undefined,
-        // 拍一拍四组台词：分档（娇羞/不高兴/生气/回来）都写在条目里，客户端不读磁盘
+        // 拍一拍五组台词：分档（娇羞/不高兴/生气/回来/干活时被拍）都写在条目里，客户端不读磁盘
         patShyTexts: conf.patShyTexts as string[] | undefined,
         patAnnoyedTexts: conf.patAnnoyedTexts as string[] | undefined,
         patAngryTexts: conf.patAngryTexts as string[] | undefined,
         patBackTexts: conf.patBackTexts as string[] | undefined,
+        patBusyTexts: conf.patBusyTexts as string[] | undefined,
         whisperModel: conf.whisperModel as ModelSelection | undefined,
         chatModel: conf.chatModel as ModelSelection | undefined,
         // 表情包三件套：右键「配图」菜单要按配置里的清单与顺序分组，客户端不读磁盘，

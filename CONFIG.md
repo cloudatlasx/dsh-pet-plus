@@ -53,6 +53,7 @@ DSH 设置 → 「桌宠配置」：
 | `patAnnoyedTexts`     | **拍一拍的不高兴台词**（条目级，越过娇羞上界后随机挑一句）                                                     | 非空字符串数组             |
 | `patAngryTexts`       | **拍一拍的生气台词**（条目级，说这句的同时她就躲起来了）                                                       | 非空字符串数组             |
 | `patBackTexts`        | **生气回来时的台词**（条目级，躲了一阵自己露面时随机挑一句）                                                   | 非空字符串数组             |
+| `patBusyTexts`        | **干活时被拍的台词**（条目级；手上有回合在跑时不躲，只回头说一句然后继续做——工作第一优先级）                    | 非空字符串数组             |
 | `notificationsEnabled` | 系统通知总开关（布尔）                                                                                         | 同 `notificationsEnabled`  |
 | `chatAnimationEnabled` | **对话动作联动**：开启后对话时把 `animations.categories` 下的动作清单交给模型，由它按语境挑一个当场表演（布尔，默认 true） | 布尔，默认即可             |
 
