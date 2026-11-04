@@ -103,6 +103,9 @@ class PetSprite {
       b: m,
       l: m,
     };
+    // 左右余量的基准值：对话弹窗会临时把某一侧加宽（见 setChatPad），收起时要能还原。
+    this.sideMargin = m;
+    this.chatPad = null; // { side: 'left' | 'right', px }
     window.__dshPetDebug.winMargin = this.margin;
     // 宠物包围盒左上角在【工作区】坐标系里的位置（本窗口的位置 = 宠物的位置）
     this.pos = { x: 0, y: 0 };
@@ -307,6 +310,33 @@ class PetSprite {
     void S.postAction(BASE + '/playback/' + encodeURIComponent(playbackId) + '/report', body).then((ok) => {
       if (!ok) console.warn('[dsh-pet] 播放回执未送达 pet=' + this.pet.id + ' id=' + playbackId + ' status=' + status);
     });
+  }
+
+  // 弹窗该往哪边开：宠物在可见区右半边 → 朝左长（左半边同理）。
+  // 与 src/shared/chat/place.ts 的 placeBeside 同一口径，保证两边算出来的方向一致。
+  chatSide() {
+    const clamp = this.visibleClampRect();
+    const center = this.margin.l + this.halfW; // 宠物中心（窗口局部坐标）
+    const mid = clamp ? clamp.x + clamp.w / 2 : center;
+    return center > mid ? 'left' : 'right';
+  }
+
+  /**
+   * 临时把窗口往某一侧加宽，给对话弹窗腾地方。side: 'left' | 'right' | null（收起）。
+   *
+   * 只动窗口余量，宠物在屏幕上的位置一动不动：窗口左边界随 margin.l 左移，同时 el 的 left
+   * 加同样的值，两者抵消。窗口本身是透明 + 点击穿透的，多出来的那片只有弹窗在用。
+   */
+  setChatPad(side, px) {
+    const extra = side ? Math.max(0, Math.round(px || 0)) : 0;
+    const want = { side: extra > 0 ? side : null, px: extra };
+    if (this.chatPad && this.chatPad.side === want.side && this.chatPad.px === want.px) return;
+    this.chatPad = want;
+    this.margin.l = this.sideMargin + (want.side === 'left' ? extra : 0);
+    this.margin.r = this.sideMargin + (want.side === 'right' ? extra : 0);
+    window.__dshPetDebug.winMargin = this.margin;
+    if (this.el) this.el.style.left = this.margin.l + 'px';
+    if (this.pos) this.sendBounds(this.pos.x, this.pos.y);
   }
 
   // 可见夹取矩形：以宠物所在那块屏为界，返回窗口局部坐标；可见区太小则返回 null

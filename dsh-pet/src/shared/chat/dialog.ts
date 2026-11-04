@@ -10,6 +10,7 @@ import { createChatDom } from './dom.ts';
 import { createCompositionWatch, decideEnter } from './enter.ts';
 import type { EncodedImage } from './encode.ts';
 import { createChatLog } from './log.ts';
+import { placeBeside } from './place.ts';
 import { sendChat, type ChatAttachment } from './send.ts';
 import { injectChatCss } from './styles.ts';
 
@@ -134,6 +135,13 @@ export interface ChatDialogOptions {
   onClose?: () => void;
   /** 弹窗允许占用的矩形（视口局部坐标）；缺省 = 整个视口。 */
   clamp?: { x: number; y: number; w: number; h: number };
+  /**
+   * 宠物的矩形（视口局部坐标）。给了就按「宠物贴哪边、弹窗朝另一边长」摆，
+   * 不会把宠物整个盖住；缺省退回 `x`/`y` 当左上角的旧行为。
+   */
+  anchor?: { x: number; y: number; w: number; h: number };
+  /** 打开时就展开对话记录（缺省展开；显式传 false 才收起）。 */
+  logOpen?: boolean;
   /** 打开时就带着的图片（拖拽落到宠物身上走的这条）；缺省 = 空弹窗。 */
   initialImage?: File;
   /** 打开时就带着的已编码图片（截图快捷键走的这条：截屏没有 File，只有 base64）。 */
@@ -165,23 +173,47 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   const dom = createChatDom({ capture: opts.capture, hearUrl: opts.hearUrl ?? hearUrlOf(baseUrl) });
   const { root, input, err } = dom;
 
-  // 对话记录面板：展开时插在输入框上方（就地回看），收起时整个移除视野外。
+  // 对话记录面板：默认展开，插在输入框上方（就地回看）；收起时整个移出视野。
   // 只读宿主已有的记忆，不另存一份；「保存」把整条历史导出成 Markdown。
-  const log = createChatLog({ petId, baseUrl });
+  const log = createChatLog({
+    petId,
+    baseUrl,
+    onChange: () => {
+      root.dataset.log = log.isOpen() ? '1' : '0';
+      dom.logBtn.dataset.on = root.dataset.log;
+      place();
+    },
+  });
   root.insertBefore(log.root, input);
 
-  /** 以 (x,y) 落点，超出 clamp 矩形夹回。 */
+  /**
+   * 落点：有 `anchor` 就按「宠物贴哪边、弹窗朝另一边长」摆（见 ./place.ts），
+   * 否则保持旧行为——以 (x,y) 为左上角、超出 clamp 夹回。
+   */
   const place = (): void => {
     const r = root.getBoundingClientRect();
+    if (opts.anchor && opts.anchor.w > 0 && opts.anchor.h > 0) {
+      const at = placeBeside(opts.anchor, { w: r.width, h: r.height }, c);
+      root.style.left = at.x + 'px';
+      root.style.top = at.y + 'px';
+      root.dataset.side = at.side;
+      return;
+    }
     root.style.left = Math.max(c.x + 4, Math.min(x, c.x + c.w - r.width - 4)) + 'px';
     root.style.top = Math.max(c.y + 4, Math.min(y, c.y + c.h - r.height - 4)) + 'px';
   };
 
   let closed = false;
   let unbindDismiss = (): void => {};
+  // 记录面板的列表是异步填进来的：内容一到位弹窗就长高，得跟着重新落点，否则底部会被屏幕裁掉。
+  const ro = new ResizeObserver(() => {
+    if (!closed) place();
+  });
+  ro.observe(root);
   const close = (): void => {
     if (closed) return;
     closed = true;
+    ro.disconnect();
     unbindDismiss();
     log.dispose();
     dom.dispose();
@@ -190,12 +222,9 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
     if (onClose) onClose();
   };
   unbindDismiss = bindDismiss(root, () => closed, close);
-  // 记录按钮：展开/收起。展开后弹窗会变高变宽，重新夹回可视区，贴边时也不会跑出屏幕。
+  // 记录按钮：展开/收起（尺寸变化与重新落点由 log 的 onChange 统一处理，贴边也跑不出屏幕）
   dom.logBtn.addEventListener('click', () => {
     log.toggle();
-    root.dataset.log = log.isOpen() ? '1' : '0';
-    dom.logBtn.dataset.on = root.dataset.log;
-    place();
     if (log.isOpen()) input.focus();
   });
   bindSend({
@@ -224,6 +253,8 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   // 截屏按钮的接线在 dom 里（依赖注入的 capture），这里只负责发送与关闭
 
   dom.resizeInput(); // append 后再量一次（此时样式已生效）
+  // 记录默认展开：先展开再落点，否则第一帧按收起时的小尺寸挑边、展开后又挤出去
+  if (opts.logOpen !== false) log.open();
   place();
   if (opts.initialImage) void dom.setImageFile(opts.initialImage);
   if (opts.initialEncoded) dom.setEncoded(opts.initialEncoded);

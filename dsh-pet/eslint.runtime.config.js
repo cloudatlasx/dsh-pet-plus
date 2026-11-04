@@ -87,6 +87,7 @@ const scriptGlobals = {
   BALANCE_FADE_MS: 'readonly',
   STATE_WAIT_MS: 'readonly',
   WINDOW_MARGIN_RATIO: 'readonly',
+  CHAT_SIDE_PAD: 'readonly',
   rootEl: 'readonly',
   errorEl: 'readonly',
   sprites: 'writable',

@@ -154,7 +154,7 @@ export function createCardEntry(rt: CardEntryRuntime) {
       [],
     );
 
-    /** 挂载对话弹窗：弹窗贴在身体命中区右上角，视频框右上角不等于宠物右上角；超出视口夹回。 */
+    /** 挂载对话弹窗：按宠物所在半边挑一侧弹出（宠物贴右就往左长），超出视口夹回。 */
     const mountChat = (seed: { image?: File; encoded?: EncodedImage }): void => {
       if (chatRef.current) chatRef.current.close();
       const hitRect = stage()?.querySelector('.dsh-pet-hit')?.getBoundingClientRect();
@@ -164,6 +164,7 @@ export function createCardEntry(rt: CardEntryRuntime) {
         surface: 'web',
         x: hitRect ? hitRect.right + 6 : window.innerWidth - 256,
         y: hitRect ? hitRect.top + 6 : 8,
+        ...(hitRect ? { anchor: { x: hitRect.x, y: hitRect.y, w: hitRect.width, h: hitRect.height } } : {}),
         ...(seed.image ? { initialImage: seed.image } : {}),
         ...(seed.encoded ? { initialEncoded: seed.encoded } : {}),
         // 浏览器侧截屏：getDisplayMedia 抓一帧，系统选择器由用户确认

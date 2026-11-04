@@ -294,12 +294,19 @@ Object.assign(PetSprite.prototype, {
     }
     // 语音接口同样走 bridge 地址；念不念由 say.voiceTo 决定（本端身份启动时已 setSurface('desktop')）
     S.setVoiceBase(BASE);
+    // 弹窗挂在窗口里，而窗口只有「宠物 + 半只宠物的余量」那么宽：不临时加宽就必然压住她。
+    // 朝哪边长由宠物在可见区的哪一半决定（与 shared/chat/place 同一口径），关窗时还原。
+    const side = this.chatSide();
+    this.setChatPad(side, CHAT_SIDE_PAD);
+    const hit = this.hit.getBoundingClientRect();
     const m = S.mountChatDialog({
       petId: this.pet.id,
       baseUrl: BASE + '/chat',
       surface: 'desktop',
-      x: Math.max(4, this.hit.getBoundingClientRect().right + 6),
-      y: Math.max(4, this.hit.getBoundingClientRect().top + 6),
+      x: Math.max(4, hit.right + 6),
+      y: Math.max(4, hit.top + 6),
+      // 宠物贴右边缘时弹窗朝左长（否则会被屏幕裁掉、或整个压住宠物）
+      anchor: { x: hit.x, y: hit.y, w: hit.width, h: hit.height },
       // 拖拽落到宠物身上时直接带着图开弹窗
       ...(image ? { initialImage: image } : {}),
       // 截图快捷键：截到的帧是 base64，没有 File
@@ -315,6 +322,7 @@ Object.assign(PetSprite.prototype, {
       onClose: () => {
         this.chatMount = null;
         this.chatOpen = false;
+        this.setChatPad(null); // 弹窗收起：窗口余量还原
         window.__dshPetDebug.chatOpen = false;
         this.syncInputBusy(); // 弹窗关：交还常规判定（菜单还开着的话仍保持忙）
         if (!this.menuOpen) this.setInteractive(false); // 无菜单时恢复命中区穿透

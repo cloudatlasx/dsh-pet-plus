@@ -70,7 +70,12 @@ function textButton(label: string, cls: string): HTMLButtonElement {
  * @param opts.baseUrl - 已含挂载前缀、**不含查询串**的对话地址（如 `.../dsh-pet-7340/chat`）。
  * @returns 面板句柄；根元素默认隐藏，由调用方决定插到哪儿。
  */
-export function createChatLog(opts: { petId: string; baseUrl: string }): ChatLogPanel {
+export function createChatLog(opts: {
+  petId: string;
+  baseUrl: string;
+  /** 展开/收起后通知调用方（弹窗要按新尺寸重新挑落点）。 */
+  onChange?: (open: boolean) => void;
+}): ChatLogPanel {
   const { petId, baseUrl } = opts;
 
   const root = document.createElement('div');
@@ -215,11 +220,14 @@ export function createChatLog(opts: { petId: string; baseUrl: string }): ChatLog
       root.hidden = false;
       root.dataset.open = '1';
       refresh();
+      if (opts.onChange) opts.onChange(true);
     },
     close: () => {
+      const was = open;
       open = false;
       root.hidden = true;
       root.dataset.open = '0';
+      if (was && opts.onChange) opts.onChange(false);
     },
     isOpen: () => open,
     refresh,

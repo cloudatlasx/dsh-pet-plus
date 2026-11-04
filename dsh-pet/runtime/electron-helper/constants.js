@@ -184,6 +184,9 @@ const BALANCE_FADE_MS = 250;
 const STATE_WAIT_MS = 1000;
 // 窗口四周外扩 = 该比例 × 宠物尺寸：为气泡与可能的弹窗预留显示空间，外扩区透明且点击穿透。
 const WINDOW_MARGIN_RATIO = 0.5;
+// 对话弹窗要占的地方：窗口本身只有「宠物 + 半只宠物的余量」，弹窗（展开记录后约 300px）塞不进去，
+// 所以打开时把朝弹窗那一侧的余量临时加宽这么多，关掉再收回去。多留的余量是透明且穿透的。
+const CHAT_SIDE_PAD = 360;
 
 const rootEl = document.getElementById('root');
 const errorEl = document.getElementById('pet-error');
