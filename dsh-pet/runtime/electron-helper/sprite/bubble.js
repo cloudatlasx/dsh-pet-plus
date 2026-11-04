@@ -312,8 +312,14 @@ Object.assign(PetSprite.prototype, {
     this.bubble.classList.add('is-on', 'is-request', 'is-clickable');
     this.pulseBubble(req.id);
     this.bubbleSlot = 'request';
+    // 选一个选项就会重画整个气泡：题目区是独立滚动容器，重画前记下它的位置，
+    // 画完再放回去。否则 scrollTop 归零、底部「发送」被顶出视野，用户得再往下拉一次。
+    const prevScroll = this.bubble.querySelector('.pet-bub-req__scroll');
+    const keepTop = prevScroll && this.reqScrollId === req.id ? prevScroll.scrollTop : 0;
+    this.reqScrollId = req.id;
     this.bubble.innerHTML = '';
-    const wrap = this.bubbleEl('div', 'pet-bub-req');
+    const wrap = this.bubbleEl('div', 'pet-bub-req is-split');
+    const body = this.bubbleEl('div', 'pet-bub-req__scroll');
     const head = this.bubbleEl('div', 'pet-bub-req__head');
     const isQuestion = req.kind === 'question';
     head.appendChild(
@@ -324,7 +330,8 @@ Object.assign(PetSprite.prototype, {
     );
     wrap.appendChild(head);
     if (!isQuestion) {
-      wrap.appendChild(this.bubbleEl('div', 'pet-bub-req__text', req.reason || '是否允许这次操作？'));
+      body.appendChild(this.bubbleEl('div', 'pet-bub-req__text', req.reason || '是否允许这次操作？'));
+      wrap.appendChild(body);
       const actions = this.bubbleEl('div', 'pet-bub-req__actions');
       actions.append(
         this.bubbleButton('允许一次', 'is-primary', 'approve'),
@@ -350,8 +357,9 @@ Object.assign(PetSprite.prototype, {
           opts.appendChild(btn);
         }
         box.appendChild(opts);
-        wrap.appendChild(box);
+        body.appendChild(box);
       }
+      wrap.appendChild(body);
       const ready = questions.length > 0 && questions.every((q) => picksFor(q.id).length > 0);
       const actions = this.bubbleEl('div', 'pet-bub-req__actions');
       const send = this.bubbleButton('发送', 'is-primary', 'send');
@@ -360,6 +368,8 @@ Object.assign(PetSprite.prototype, {
       wrap.appendChild(actions);
     }
     this.bubble.appendChild(wrap);
+    // 复位题目区的滚动位置（同一条请求才复位；换了新请求就从顶部开始读）
+    body.scrollTop = keepTop;
     window.__dshPetDebug.lastBubbleTitle = this.bubble.textContent.slice(0, 60);
     this.syncInputBusy();
   },

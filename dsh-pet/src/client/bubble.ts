@@ -135,7 +135,12 @@ const bubbleCss = [
   // ===== 交互请求（审批 / 提问）与定时提醒 =====
   // 结构：徽标 + 工具名 / 正文 / 按钮行；提问额外有可滚动的题目区。
   '.dsh-pet-bubble.dsh-pet-request{display:flex;flex-direction:column;gap:calc(var(--f)*0.36)}',
-  '.dsh-pet-bubble.dsh-pet-request.is-question{max-height:min(calc(var(--f)*15),46vh);overflow-y:auto;overscroll-behavior:contain}',
+  // 提问气泡：「发送」必须一直看得见，所以滚的只能是中间那块题目区（与折叠台账同一口径）。
+  // 早先整颗气泡是滚动容器，选完一个选项重渲染 → scrollTop 归零 → 底部按钮跑到视野外，
+  // 用户得再往下拉一次才能确认。
+  '.dsh-pet-bubble.dsh-pet-request.is-question{max-height:min(calc(var(--f)*15),46vh);overflow:hidden;overscroll-behavior:contain}',
+  '.dsh-pet-request__scroll{display:flex;flex-direction:column;gap:calc(var(--f)*0.36);min-height:0;' +
+    'overflow-y:auto;overscroll-behavior:contain}',
   '.dsh-pet-request__head{display:flex;align-items:center;gap:calc(var(--f)*0.35);min-width:0}',
   '.dsh-pet-request__badge{flex:none;font-size:calc(var(--f)*0.58);font-weight:700;color:#fff;background:#e8952f;' +
     'border-radius:calc(var(--f)*0.3);padding:calc(var(--f)*0.06) calc(var(--f)*0.34);letter-spacing:.02em}',

@@ -384,6 +384,24 @@
         overflow-y: auto;
         overscroll-behavior: contain;
       }
+      /* 「发送」必须一直看得见：请求气泡拆成「头部 / 可滚的题目区 / 固定按钮行」三段。
+         早先整颗 .pet-bub-req 是滚动容器，选完一个选项要整体重画 innerHTML，
+         scrollTop 归零 → 底部按钮跑到视野外，用户得再往下拉一次（网页端同口径）。 */
+      .pet-bub-req.is-split {
+        overflow: hidden;
+        justify-content: flex-start;
+      }
+      .pet-bub-req__scroll {
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--f) * 0.32);
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .pet-bub-req.is-split > .pet-bub-req__actions {
+        flex: none;
+      }
       .pet-bub-req__head {
         display: flex;
         align-items: center;

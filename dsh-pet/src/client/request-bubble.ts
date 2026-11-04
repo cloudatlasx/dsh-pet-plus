@@ -188,47 +188,54 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
       className: 'dsh-pet-bubble dsh-pet-request is-question' + (on ? ' is-on is-clickable' : ''),
       onClick: (e: ReactNS.MouseEvent<HTMLDivElement>) => e.stopPropagation(),
       children: [
-        ...questions.map((q, index) =>
-          h('div', {
-            key: 'q' + q.id,
-            className: 'dsh-pet-request__question',
-            children: [
-              h('div', {
-                key: 'title',
-                className: 'dsh-pet-request__title',
-                children: (q.header && q.header.trim() !== '' ? q.header + '：' : '') + (index + 1) + '. ' + q.question,
-              }),
-              q.detail && q.detail.trim() !== ''
-                ? h('div', { key: 'detail', className: 'dsh-pet-request__detail', children: q.detail })
-                : null,
-              h('div', {
-                key: 'opts',
-                className: 'dsh-pet-request__options',
-                children: [
-                  ...(q.options ?? []).map((opt) =>
-                    h('button', {
-                      key: 'o' + opt.label,
-                      type: 'button',
-                      className:
-                        'dsh-pet-request__opt' + ((picked[q.id] ?? []).includes(opt.label) ? ' is-picked' : ''),
-                      onClick: () => toggle(q.id, opt.label, q.multiSelect === true),
-                      children: opt.label,
+        // 题目区单独滚：选完一项会重渲染，若整颗气泡是滚动容器，scrollTop 会归零、
+        // 「发送」被顶出视野，用户得再往下拉一次。
+        h('div', {
+          key: 'scroll',
+          className: 'dsh-pet-request__scroll',
+          children: questions.map((q, index) =>
+            h('div', {
+              key: 'q' + q.id,
+              className: 'dsh-pet-request__question',
+              children: [
+                h('div', {
+                  key: 'title',
+                  className: 'dsh-pet-request__title',
+                  children:
+                    (q.header && q.header.trim() !== '' ? q.header + '：' : '') + (index + 1) + '. ' + q.question,
+                }),
+                q.detail && q.detail.trim() !== ''
+                  ? h('div', { key: 'detail', className: 'dsh-pet-request__detail', children: q.detail })
+                  : null,
+                h('div', {
+                  key: 'opts',
+                  className: 'dsh-pet-request__options',
+                  children: [
+                    ...(q.options ?? []).map((opt) =>
+                      h('button', {
+                        key: 'o' + opt.label,
+                        type: 'button',
+                        className:
+                          'dsh-pet-request__opt' + ((picked[q.id] ?? []).includes(opt.label) ? ' is-picked' : ''),
+                        onClick: () => toggle(q.id, opt.label, q.multiSelect === true),
+                        children: opt.label,
+                      }),
+                    ),
+                    h('input', {
+                      key: 'custom',
+                      type: 'text',
+                      className: 'dsh-pet-request__input',
+                      placeholder: (q.options ?? []).length > 0 ? '其他（选填）' : '输入回答…',
+                      value: custom[q.id] ?? '',
+                      onChange: (e: ReactNS.ChangeEvent<HTMLInputElement>) =>
+                        setCustom((prev) => ({ ...prev, [q.id]: e.target.value })),
                     }),
-                  ),
-                  h('input', {
-                    key: 'custom',
-                    type: 'text',
-                    className: 'dsh-pet-request__input',
-                    placeholder: (q.options ?? []).length > 0 ? '其他（选填）' : '输入回答…',
-                    value: custom[q.id] ?? '',
-                    onChange: (e: ReactNS.ChangeEvent<HTMLInputElement>) =>
-                      setCustom((prev) => ({ ...prev, [q.id]: e.target.value })),
-                  }),
-                ],
-              }),
-            ],
-          }),
-        ),
+                  ],
+                }),
+              ],
+            }),
+          ),
+        }),
         h('div', {
           key: 'send',
           className: 'dsh-pet-request__actions',

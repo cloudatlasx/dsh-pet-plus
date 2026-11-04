@@ -137,6 +137,9 @@ Object.assign(PetSprite.prototype, {
     // requestPicks 是提问的已选标签（单选存一个、多选可多个），按题目 id 记。
     this.requestEnvelope = null;
     this.requestPicks = {};
+    // 重画请求气泡时用它判断「是不是同一条请求」：同一条才把题目区滚动位置放回去，
+    // 新请求一律从顶部开始读。
+    this.reqScrollId = null;
     this.requestPending = false;
     // 定时任务提醒：宿主在 sections.reminder 写一条信封，20s 后宿主自己写 closed，这里也留一条兜底计时。
     this.reminderEnvelope = null;
