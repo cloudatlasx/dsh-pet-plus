@@ -44,7 +44,7 @@ import type { PetCollisionSlot } from '../../shared/physics.ts';
 import type { WorkStatusSnapshot } from '../../shared/work-status.ts';
 import type { PetCardProps } from './card/props.ts';
 import type { PetRuntime, RuntimePet } from './types.ts';
-import { setClickSoundEnabled, playClickSound } from './click-sound.ts';
+import { setClickSoundEnabled, playAttentionSound, playClickSound } from './click-sound.ts';
 import { readHistory, readReminder, readRequest } from '../../shared/request.ts';
 import type { HistorySnapshot, ReminderEnvelope, RequestEnvelope } from '../../shared/request.ts';
 import { setSurface, setVoiceConfig } from '../../shared/voice.ts';
@@ -104,6 +104,9 @@ export function createPetMulti(
     // 审批 / 提问：整页只有一条，等用户点完由宿主写 closed 收起。
     const [request, setRequest] = useState<RequestEnvelope | null>(null);
     const [requestTick, setRequestTick] = useState(0);
+    // 上一条请求的 id：轮询每秒重写同一份 sections.request，只有 id 变了才算「新请求」，
+    // 否则提示音会被状态刷新反复触发。用 ref 是为了在回调里读到最新值（state 是闭包旧值）。
+    const requestRef = useRef<RequestEnvelope | null>(null);
     // 定时提醒：20 秒后宿主写 closed，客户端读到 null 即收起。
     const [reminder, setReminder] = useState<ReminderEnvelope | null>(null);
     const [reminderTick, setReminderTick] = useState(0);
@@ -242,12 +245,15 @@ export function createPetMulti(
             notifyFromFrame(leaf.data);
             return;
           case 'request': {
-            // 审批 / 提问是状态：同一条 pending 会被多次写入，这里只在有内容时提醒一声。
+            // 审批 / 提问是状态：同一条 pending 会被多次写入，只有「换了一条新请求」才提醒。
+            // 用 id 比对而不是 hit !== null——否则每秒的状态刷新都会响两声。
             const hit = readRequest(leaf);
+            const fresh = hit !== null && hit.id !== requestRef.current?.id;
+            requestRef.current = hit;
             setRequest(hit);
             if (hit !== null) {
               setRequestTick((t) => t + 1);
-              playClickSound();
+              if (fresh) playAttentionSound();
             }
             return;
           }
@@ -347,7 +353,9 @@ export function createPetMulti(
           menuItemsRef.current = readMenuItems(s.sections.menu?.data, 'web');
           setMenuItems(menuItemsRef.current);
           // 请求与提醒同样是状态：刷新页面时若还挂着，首拉就得把它们显示出来。
-          setRequest(readRequest(s.sections.request));
+          // 首拉不响提示音（旧请求在刷新前就存在，重放一遍等于假装又来了新请求）。
+          requestRef.current = readRequest(s.sections.request);
+          setRequest(requestRef.current);
           setReminder(readReminder(s.sections.reminder));
           setHistory(readHistory(s.sections.history));
           // 睡觉同样是状态而不是事件：刷新页面时宿主仍记着它在睡，首拉必须补一次；

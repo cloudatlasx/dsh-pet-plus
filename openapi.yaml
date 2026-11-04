@@ -3223,6 +3223,61 @@ paths:
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
 
+  /dsh-pet-7340/request/diag:
+    get:
+      tags: [Request]
+      operationId: getRequestDiag
+      summary: 只读自查：拦截为什么没弹气泡
+      description: |
+        给排障用的只读快照，回答「这次请求为什么没弹到宠物上」：
+
+        - `enabled`：设置里的「审批/提问气泡」开关是不是开着。
+        - `waiters`：此刻挂了几个 `/state` 长轮询（页面或桌面宠物在线就 ≥1）。
+        - `pending`：有没有一条请求正等着用户点。
+        - `hits`：最近 12 次请求处理的结果，`outcome` 形如 `intercepted 1q`（已接管）、
+          `answered`（用户点了）、`delegated`（超时/取消，交回 DSH）、`skip:no-client`
+          （当时一个端都没连上）、`skip:pending`、`skip:off`、`stale-pending`（上一条
+          请求的计时器丢了，按到期时刻自愈后继续判断）。
+
+        `skip:no-client` 现在会先给 2 秒宽限再回落，所以它出现在 `hits` 里说明那 2 秒
+        内确实一个端都没连上（页面关了、桌面宠物被关掉或正在重启）。
+      responses:
+        "200":
+          description: 诊断快照。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, enabled, waiters, pending, hits]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  enabled:
+                    type: boolean
+                  waiters:
+                    type: integer
+                    minimum: 0
+                  pending:
+                    type: boolean
+                  hits:
+                    type: array
+                    maxItems: 12
+                    items:
+                      type: object
+                      required: [t, kind, outcome]
+                      properties:
+                        t:
+                          type: integer
+                          description: 毫秒时间戳。
+                        kind:
+                          type: string
+                          enum: [approval, question]
+                        outcome:
+                          type: string
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
   /dsh-pet-7340/request/answer:
     post:
       tags: [Request]

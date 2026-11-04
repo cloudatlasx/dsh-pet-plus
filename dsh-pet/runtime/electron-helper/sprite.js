@@ -38,6 +38,34 @@ const playClickSound = () => {
   }
 };
 
+/**
+ * 新请求到达时的提示音：同一段音效连响两下。
+ *
+ * 单击声（拍一拍/换角/提醒）已经被用户当成「随手点到了」，用它提示「有决策要你选」
+ * 太容易被忽略；两声连发听感上更像「喂，过来看一眼」。音量也比单击声高一点。
+ *
+ * 开关沿用 `main.clickSoundEnabled`：用户把音效关掉时，提示音也不该自己响。
+ *
+ * @returns {void}
+ */
+const playAttentionSound = () => {
+  if (!config || config.clickSoundEnabled !== true) return;
+  const fire = (delayMs, volume) => {
+    setTimeout(() => {
+      try {
+        const audio = new Audio(CLICK_SOUND_URL);
+        audio.volume = volume;
+        const p = audio.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch {
+        /* 音频不可用：静默忽略 */
+      }
+    }, delayMs);
+  };
+  fire(0, 0.7);
+  fire(190, 0.55);
+};
+
 // 单只宠物：行为与浏览器 PetCard 一致，纯逻辑来自 src/shared
 class PetSprite {
   constructor(pet) {
@@ -306,3 +334,4 @@ class PetSprite {
 
 // 气泡相关模块（sprite/bubble.js、events.js）也要播这一声：挂到原型上共享同一份开关与节流。
 PetSprite.prototype.playClickSound = playClickSound;
+PetSprite.prototype.playAttentionSound = playAttentionSound;

@@ -33,6 +33,22 @@ const PREVIEW_TTL_MS = 15 * 1000;
  */
 const SESSION_ALLOW_TTL_MS = 8 * 60 * 60 * 1000;
 
+/** 拦截诊断只留最近多少次尝试。 */
+const DIAG_KEEP = 12;
+
+/** `no-client` 宽限总时长（毫秒）：覆盖长轮询空窗、热重载、页面刷新这种瞬时断连。 */
+const CLIENT_GRACE_MS = 2000;
+
+/** 宽限期内重试间隔（毫秒）。 */
+const CLIENT_GRACE_STEP_MS = 120;
+
+/** 等一小会儿（`unref` 掉计时器，别拿它吊住宿主进程退出）。 */
+const sleep = (ms: number): Promise<void> =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
+
 /** 本条请求的结局。 */
 type Resolution =
   | { type: 'approval'; outcome: ApprovalOutcome }
@@ -59,6 +75,30 @@ export interface RequestHubDeps {
   hasClient: () => number;
   /** 时间源；测试注入。 */
   now?: () => number;
+  /** `no-client` 宽限时长（ms）；不传用 `CLIENT_GRACE_MS`，测试注入短值。 */
+  clientGraceMs?: number;
+}
+
+/** 一次拦截尝试的结论（只读诊断用）。 */
+export interface RequestDiagHit {
+  /** 发生时刻（ms）。 */
+  t: number;
+  /** 哪条瀑布。 */
+  kind: 'approval' | 'question';
+  /** `intercepted` 或跳过/回落的原因。 */
+  outcome: string;
+}
+
+/** 只读诊断快照：为什么没弹气泡，一眼能看出是哪一环。 */
+export interface RequestDiag {
+  /** 气泡开关当前值。 */
+  enabled: boolean;
+  /** 当前挂着的 `/state` 长轮询数（0 表示没有端在看）。 */
+  waiters: number;
+  /** 是否已有一条待处理请求（会挡住后面的）。 */
+  pending: boolean;
+  /** 最近几次尝试，新的在后。 */
+  hits: RequestDiagHit[];
 }
 
 /** 中转站对外能力。 */
@@ -67,6 +107,8 @@ export interface RequestHub {
   interceptApproval(request: unknown, next: () => unknown): Promise<unknown>;
   /** 提问瀑布监听器：接管则返回 `{ answers }`，否则 next()。 */
   interceptQuestions(request: unknown, next: () => unknown): Promise<unknown>;
+  /** 只读诊断：开关、在线端数、待处理与最近几次尝试的结论。 */
+  diag(): RequestDiag;
   /** 处理 `POST /request/answer` 的请求体。 */
   answer(payload: unknown): AnswerResult;
   /** 弹一条预览请求（设置页「试一下」）。 */
@@ -138,6 +180,8 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
   let seq = 0;
   /** 会话键 → 到期时刻：这批会话里的审批不再弹气泡，直接放行。 */
   const sessionAllows = new Map<string, number>();
+  /** 拦截尝试的环形记录（排障用，不落盘）。 */
+  const diagHits: RequestDiagHit[] = [];
 
   /** 写一条请求信封；`data` 直接整体替换叶子。 */
   const write = (data: RequestEnvelope): void => {
@@ -167,11 +211,55 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
     entry.resolve(resolution);
   };
 
-  /** 判断这次请求该不该接管：开关、端在线、没有并发请求。 */
-  const canIntercept = (): boolean => {
-    if (disposed || pending !== null) return false;
-    if (!deps.enabled()) return false;
-    return deps.hasClient() > 0;
+  /**
+   * 不该接管的原因（`null` 表示可以接管）。
+   *
+   * 排障时这一句最值钱：不弹气泡到底是开关关了、端掉了，还是上一条请求没收拾干净。
+   *
+   * @returns 原因词，或 null。
+   */
+  const blockReason = (): string | null => {
+    if (disposed) return 'disposed';
+    if (pending !== null) {
+      // 上一条请求如果在等的时候把计时器丢了（重载 / 端崩溃 / 异常路径），
+      // pending 就会永远占着坑：后面每一条请求都被判成「有并发」直接回落，
+      // 表现就是「宠物从此再也不弹气泡」。按信封自带的到期时刻自愈。
+      if (pending.envelope.expiresAt > now()) return 'pending';
+      const kind = pending.envelope.kind === 'question' ? 'question' : 'approval';
+      settle({ type: 'delegate' });
+      note(kind, 'stale-pending');
+    }
+    if (!deps.enabled()) return 'off';
+    return deps.hasClient() > 0 ? null : 'no-client';
+  };
+
+  /** 记一条诊断（只留最近 `DIAG_KEEP` 条）。 */
+  const note = (kind: 'approval' | 'question', outcome: string): void => {
+    diagHits.push({ t: now(), kind, outcome });
+    if (diagHits.length > DIAG_KEEP) diagHits.splice(0, diagHits.length - DIAG_KEEP);
+  };
+
+  /**
+   * 判定这次能不能接管，`no-client` 时先等一小会儿。
+   *
+   * 客户端的 `/state` 长轮询是「返回—立刻重连」，两次之间有个毫秒级空窗；插件热重载、
+   * 页面刷新、宠物重启也会短暂一个端都不在线。以前这种瞬间的空窗直接把请求让给 DSH 面板，
+   * 用户看到的就是「宠物压根没弹」。这里给 2 秒宽限，期间任一端连上就照常接管。
+   *
+   * @param kind - 请求类型，只用于诊断记账。
+   * @returns 不该接管的原因词，或 null（可以接管）。
+   */
+  const gate = async (kind: 'approval' | 'question'): Promise<string | null> => {
+    let reason = blockReason();
+    if (reason !== 'no-client') return reason;
+    // 按「步数」而不是「截止时刻」收口：注入假时钟时 now() 不动，用时刻会变成死循环。
+    const steps = Math.max(1, Math.round((deps.clientGraceMs ?? CLIENT_GRACE_MS) / CLIENT_GRACE_STEP_MS));
+    for (let i = 0; i < steps && reason === 'no-client'; i += 1) {
+      await sleep(CLIENT_GRACE_STEP_MS);
+      reason = blockReason();
+    }
+    if (reason === null) note(kind, 'late-client');
+    return reason;
   };
 
   /**
@@ -227,7 +315,10 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
 
   return {
     async interceptApproval(request, next) {
-      if (disposed) return next();
+      if (disposed) {
+        note('approval', 'skip:disposed');
+        return next();
+      }
       const req = (request ?? {}) as {
         agent?: unknown;
         toolName?: unknown;
@@ -236,13 +327,21 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         signal?: unknown;
       };
       const toolName = typeof req.toolName === 'string' ? req.toolName : '';
-      if (toolName === '') return next();
+      if (toolName === '') {
+        note('approval', 'skip:no-tool');
+        return next();
+      }
       const sessionKey = sessionKeyOf(req.agent);
       if (sessionAllowed(sessionKey)) {
         log.info('dsh-pet: approval auto-allowed by session grant tool=' + toolName);
+        note('approval', 'auto-allowed');
         return 'allowed-once';
       }
-      if (!canIntercept()) return next();
+      const blocked = await gate('approval');
+      if (blocked !== null) {
+        note('approval', 'skip:' + blocked);
+        return next();
+      }
       const reason =
         typeof req.displayReason === 'string'
           ? req.displayReason
@@ -258,17 +357,29 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         ...(reason === undefined ? {} : { reason }),
       };
       log.info('dsh-pet: approval/request intercepted tool=' + toolName);
+      note('approval', 'intercepted ' + toolName);
       const resolution = await begin(envelope, APPROVAL_TIMEOUT_MS, req.signal, sessionKey);
-      if (resolution.type === 'approval' && resolution.outcome !== 'delegate') return resolution.outcome;
+      if (resolution.type === 'approval' && resolution.outcome !== 'delegate') {
+        note('approval', 'answered ' + resolution.outcome);
+        return resolution.outcome;
+      }
       // delegate（超时 / 取消 / 用户点了「去 DSH」/ 客户端掉线）：交回 DSH 自己的面板。
+      note('approval', 'delegated');
       return next();
     },
 
     async interceptQuestions(request, next) {
-      if (!canIntercept()) return next();
+      const blocked = await gate('question');
+      if (blocked !== null) {
+        note('question', 'skip:' + blocked);
+        return next();
+      }
       const req = (request ?? {}) as { questions?: unknown; signal?: unknown };
       const questions = Array.isArray(req.questions) ? (req.questions as QuestionPrompt[]) : [];
-      if (questions.length === 0) return next();
+      if (questions.length === 0) {
+        note('question', 'skip:empty');
+        return next();
+      }
       const envelope: RequestEnvelope = {
         id: 'q-' + now().toString(36) + '-' + (++seq).toString(36),
         kind: 'question',
@@ -277,9 +388,23 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         questions,
       };
       log.info('dsh-pet: user-questions/request intercepted count=' + questions.length);
+      note('question', 'intercepted ' + questions.length + 'q');
       const resolution = await begin(envelope, QUESTION_TIMEOUT_MS, req.signal, null);
-      if (resolution.type === 'answers') return { answers: resolution.answers };
+      if (resolution.type === 'answers') {
+        note('question', 'answered');
+        return { answers: resolution.answers };
+      }
+      note('question', 'delegated');
       return next();
+    },
+
+    diag() {
+      return {
+        enabled: deps.enabled(),
+        waiters: deps.hasClient(),
+        pending: pending !== null,
+        hits: diagHits.slice(),
+      };
     },
 
     answer(payload) {

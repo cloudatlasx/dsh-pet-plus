@@ -61,13 +61,18 @@ const bubbleCss = [
   '@keyframes dsh-pet-bubble-in{from{opacity:0;transform:translateY(calc(var(--f)*0.5)) scale(.96)}' +
     'to{opacity:1;transform:none}}',
   '.dsh-pet-bubble.is-on{opacity:1;animation:dsh-pet-bubble-in .18s cubic-bezier(.05,.7,.1,1) both}',
+  // 审批/提问气泡弹两下：这类气泡是「有事等你决定」，只在它冒出来时抢注意力，
+  // 普通工作/碎碎念气泡不跳（否则每秒一次状态刷新会像抽筋）。
+  '@keyframes dsh-pet-bub-attn{0%,100%{transform:translateX(-50%) scale(1)}45%{transform:translateX(-50%) scale(1.06)}}',
+  '.dsh-pet-bubble.is-on.dsh-pet-request{animation:dsh-pet-bub-attn .56s cubic-bezier(.2,.8,.2,1) 2}',
   // 深色：底色 96% 的近黑，文字不用纯白（减眩光），描边换成白色低透明度。
   '@media (prefers-color-scheme:dark){' +
     '.dsh-pet-bubble{background:rgba(28,28,30,.96);border-color:rgba(255,255,255,.10);color:#f4f4f5;' +
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 24px -8px rgba(0,0,0,.6)}' +
     '.dsh-pet-bubble::after{border-top-color:rgba(28,28,30,.96)}}',
   // 用户要求减少动效时只留淡入，不做位移与缩放。
-  '@media (prefers-reduced-motion:reduce){.dsh-pet-bubble.is-on{animation:dsh-pet-bubble-in .12s linear both}}',
+  '@media (prefers-reduced-motion:reduce){.dsh-pet-bubble.is-on{animation:dsh-pet-bubble-in .12s linear both}' +
+    '.dsh-pet-bubble.is-on.dsh-pet-request{animation:dsh-pet-bubble-in .12s linear both}}',
   // 碎碎念变体：字号缩到余额气泡的 0.75，宽度下限更窄，上限与折行规则相同。
   // 字号缩到 0.75 后内边距也跟着缩，宽度下限只需留住尾巴；上限仍按内容收口。
   '.dsh-pet-bubble.dsh-pet-whisper{font-size:calc(var(--f)*0.7473);' +

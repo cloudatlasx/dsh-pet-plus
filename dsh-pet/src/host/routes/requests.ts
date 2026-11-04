@@ -124,6 +124,13 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
     return okResult({ ok: true });
   }
 
+  // 只读诊断：为什么没弹气泡。开关、长轮询端数、有没有卡住的待处理请求，
+  // 以及最近几次拦截尝试的结论——排障时不用再猜是哪一环。
+  if (rest === 'request/diag') {
+    if (method !== 'GET') return methodNotAllowed();
+    return okResult({ ok: true, ...deps.requests.diag() });
+  }
+
   if (rest === 'request/preview') {
     if (method !== 'POST') return methodNotAllowed();
     let parsed: unknown;

@@ -440,7 +440,7 @@ function applyRequestLeaf(leaf) {
       // 待办面板占着同一个气泡槽：请求优先，先正常关掉面板（面板会自己收节点、撤类）。
       if (s.todoOpen) s.closeTodo();
       s.requestPicks = s.requestEnvelope && s.requestEnvelope.id === req.id ? s.requestPicks : {};
-      if (!s.requestEnvelope || s.requestEnvelope.id !== req.id) s.playClickSound();
+      if (!s.requestEnvelope || s.requestEnvelope.id !== req.id) s.playAttentionSound();
     }
     s.requestPending = false;
     s.requestEnvelope = req;

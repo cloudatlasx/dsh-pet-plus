@@ -363,6 +363,19 @@
         max-width: min(calc(var(--f) * 20), 100%);
         pointer-events: auto;
       }
+      /* 新请求到达时弹两下：用户如果当时在别的窗口，靠这一下把眼睛拽回来（声音由 playAttentionSound 负责） */
+      .pet-bubble.is-attn {
+        animation: pet-bub-attn 560ms cubic-bezier(0.2, 0.8, 0.2, 1) 2;
+      }
+      @keyframes pet-bub-attn {
+        0%,
+        100% {
+          transform: translateX(-50%) scale(1);
+        }
+        45% {
+          transform: translateX(-50%) scale(1.06);
+        }
+      }
       .pet-bub-req {
         display: flex;
         flex-direction: column;

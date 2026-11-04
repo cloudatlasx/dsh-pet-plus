@@ -8,6 +8,22 @@
 'use strict';
 
 Object.assign(PetSprite.prototype, {
+  /**
+   * 新请求到达时让气泡「弹一下」。
+   *
+   * 只在信封 id 变化时触发：状态轮询每秒都会重画请求气泡，如果每次重画都跳，
+   * 气泡会像在抽筋。样式在 index.html 的 `pet-bub-attn` 关键帧里。
+   *
+   * @param id - 请求信封 id。
+   */
+  pulseBubble(id) {
+    if (!id || this.attnPulseId === id) return;
+    this.attnPulseId = id;
+    this.bubble.classList.remove('is-attn');
+    // 强制一次布局：同一个动画名连续加两个 class 时，浏览器不会重启动画。
+    void this.bubble.offsetWidth;
+    this.bubble.classList.add('is-attn');
+  },
   setTip(on) {
     const next = !!on;
     if (next === this.tipOn) return;
@@ -294,6 +310,7 @@ Object.assign(PetSprite.prototype, {
     const req = this.requestEnvelope;
     this.bubble.classList.remove('is-whisper', 'is-expanded', S.MEME_BUBBLE_CLASS, 'dsh-pet-todo-bubble');
     this.bubble.classList.add('is-on', 'is-request', 'is-clickable');
+    this.pulseBubble(req.id);
     this.bubbleSlot = 'request';
     this.bubble.innerHTML = '';
     const wrap = this.bubbleEl('div', 'pet-bub-req');

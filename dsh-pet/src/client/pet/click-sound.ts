@@ -44,3 +44,27 @@ export function playClickSound(): void {
     /* 音频不可用，静默忽略。 */
   }
 }
+
+/**
+ * 有新请求要用户决定时的提示音：同一段音效连响两下。
+ *
+ * 单击声已经被用户当成「随手点到了」，用它提示「有事等你选」太容易被忽略；
+ * 两声连发听感上更像「过来看一眼」。不受节流约束（两下要按节奏响），
+ * 但仍受同一个开关约束——关掉音效的用户不该被提示音吵到。
+ */
+export function playAttentionSound(): void {
+  if (!clickSoundEnabled) return;
+  const fire = (delayMs: number, volume: number): void => {
+    setTimeout(() => {
+      try {
+        const audio = new Audio(CLICK_SOUND_URL);
+        audio.volume = volume;
+        void audio.play().catch(() => {});
+      } catch {
+        /* 音频不可用，静默忽略。 */
+      }
+    }, delayMs);
+  };
+  fire(0, 0.7);
+  fire(190, 0.55);
+}
