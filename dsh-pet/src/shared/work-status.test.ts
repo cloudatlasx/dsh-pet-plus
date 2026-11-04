@@ -7,7 +7,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { progressLabel, todoPercent, todoProgressLabel, toWorkStatus } from './work-status.ts';
+import { isWorkingState, progressLabel, todoPercent, todoProgressLabel, toWorkStatus } from './work-status.ts';
 
 describe('toWorkStatus —— sessionId 解析', () => {
   test('带 sessionId → 原样保留，供点气泡跳会话', () => {
@@ -105,5 +105,19 @@ describe('todoPercent / todoProgressLabel —— 清单进度条', () => {
     assert.equal(toWorkStatus({ state: 'working', todoDone: -1, todoTotal: 4 })?.todoDone, 0);
     assert.equal(toWorkStatus({ state: 'working', todoDone: 3, todoTotal: 0 })?.todoDone, 0);
     assert.equal(toWorkStatus({ state: 'working', todoDone: 3, todoTotal: 0 })?.todoTotal, 0);
+  });
+});
+
+describe('isWorkingState —— 「正忙着」的四档（随机链据此不许走开）', () => {
+  test('思考 / 工作 / 整理 / 等审批 → true', () => {
+    for (const state of ['thinking', 'working', 'result', 'waiting'] as const) {
+      assert.equal(isWorkingState(state), true, `${state} 应该算在干活`);
+    }
+  });
+
+  test('成功 / 出错 / 空闲 → false（终态该抬头报喜或报错，允许走动）', () => {
+    for (const state of ['success', 'error', null, undefined] as const) {
+      assert.equal(isWorkingState(state), false, `${String(state)} 不该拦住随机链`);
+    }
   });
 });

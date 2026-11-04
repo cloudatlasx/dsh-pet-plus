@@ -81,15 +81,19 @@ export interface RollOptions {
   /** 宠物固定（pets[].fixedEnabled）：turn 与 move 两档权重按 0 算，份额自然归入 action。
    *  不做归一化——idle 的绝对概率原样不动，实现最简，idle=0 的退化配置也自然。 */
   fixed?: boolean;
+  /** 别走开（干活时用）：只把 move 权重按 0 算，turn 照旧——工作中可以转个方向、背对着
+   *  屏幕继续干活，但不该自己溜达到别处。理由同 fixed：不做归一化，idle 概率原样不动。 */
+  still?: boolean;
 }
 
 /** 按权重掷骰：roll ∈ [0,1) → 下一个动画类别。
  *  (idle + turn + move) / 100 是这三档的占比之和，剩余概率归入 action。
  *  opts.fixed 为真时 turn / move 权重按 0 算，只可能返回 idle 或 action。
+ *  opts.still 为真时只把 move 权重按 0 算（干活时「忙得走不开」），turn 保留。
  *  两端共用本函数，随机链行为严格一致。 */
 export const rollKind = (roll: number, w: Weights, opts?: RollOptions): RollKind => {
   const turn = opts?.fixed ? 0 : w.turn;
-  const move = opts?.fixed ? 0 : w.move;
+  const move = opts?.fixed || opts?.still ? 0 : w.move;
   const topEnd = (w.idle + turn + move) / 100;
   if (roll < w.idle / 100) return 'idle';
   if (roll < (w.idle + turn) / 100) return 'turn';

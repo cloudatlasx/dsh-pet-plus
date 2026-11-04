@@ -7,7 +7,7 @@
  */
 import { pick, pickSlot, rollKind } from '../../../shared/pickers.ts';
 import type { SleepState } from '../../../shared/state.ts';
-import { WORK_STATUS_INDEX } from '../../../shared/work-status.ts';
+import { WORK_STATUS_INDEX, isWorkingState } from '../../../shared/work-status.ts';
 import { decideNextAnimation } from '../animation/next-animation.ts';
 import { createSleepMachine } from './sleep-machine.ts';
 import type { CardHub } from './hub.ts';
@@ -104,7 +104,9 @@ export function createAnimationFlow(rt: AnimationFlowRuntime) {
       if (sleeping()) return;
       const roll = Math.random();
       // 宠物固定时，掷骰把「转向/移动」权重按 0 算；菜单点播与显式点播不走这里。
-      const kind = rollKind(roll, hub.cfg().animationWeights, { fixed: hub.cfg().fixedEnabled });
+      // 干活时只压掉「移动」：能转身背对着屏幕继续忙，但不会自己溜达到页面另一头（工作第一优先级）。
+      const working = hub.cfg().workStatusEnabled && isWorkingState(workStatusRef.current?.state ?? null);
+      const kind = rollKind(roll, hub.cfg().animationWeights, { fixed: hub.cfg().fixedEnabled, still: working });
       // 只有掷到 move 档才试走位：占用中返回 true（已有移动在跑），无法移动返回 false。
       const move = kind === 'move' ? hub.tryWalk() : undefined;
       const decision = decideNextAnimation({

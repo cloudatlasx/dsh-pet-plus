@@ -67,6 +67,16 @@ export function toWorkStatus(raw: unknown): WorkStatusSnapshot | null {
 }
 
 /**
+ * 是否处在「正在干活」的档位：思考 / 工作 / 整理 / 等审批。
+ *
+ * 成功与出错是终态——那一刻宠物该抬头报喜或报错，本来就允许走动，所以不算。
+ * 随机链用它决定「这一拍该不该自己走开」（`rollKind` 的 `still`），两端共用一份判断。
+ */
+export function isWorkingState(state: WorkStatusState | null | undefined): boolean {
+  return state === 'thinking' || state === 'working' || state === 'result' || state === 'waiting';
+}
+
+/**
  * 气泡第二行的进度文案：「第 3 步 · 已用 2 分钟」。
  *
  * 只给能确认的数：步数不知道就不显示；起点不知道就只显示步数。**不编百分比**——总步数只有

@@ -191,6 +191,36 @@ describe('rollKind —— 随机链掷骰（含宠物固定 fixedEnabled）', ()
     for (const roll of [0, 0.05, 0.12, 0.17, 0.5, 0.9999]) {
       assert.equal(rollKind(roll, w, {}), rollKind(roll, w), `roll=${roll}：空选项应等价于不传`);
       assert.equal(rollKind(roll, w, { fixed: false }), rollKind(roll, w), `roll=${roll}：false 应等价于不传`);
+      assert.equal(rollKind(roll, w, { still: false }), rollKind(roll, w), `roll=${roll}：still=false 应等价于不传`);
+    }
+  });
+
+  test('干活时（still）：只压掉 move，turn 与 idle 的概率原样不动', () => {
+    // idle / turn 的边界一字不变
+    assert.equal(rollKind(0, w, { still: true }), 'idle');
+    assert.equal(rollKind(0.0999, w, { still: true }), 'idle');
+    assert.equal(rollKind(0.1, w, { still: true }), 'turn');
+    assert.equal(rollKind(0.1499, w, { still: true }), 'turn');
+    // 原本落 move 的 [0.15, 0.2) 整段归 action（不再自己走开）
+    assert.equal(rollKind(0.15, w, { still: true }), 'action');
+    assert.equal(rollKind(0.1999, w, { still: true }), 'action');
+    assert.equal(rollKind(0.9999, w, { still: true }), 'action');
+  });
+
+  test('干活时（still）+ 全区间扫描：绝不返回 move，但 turn 仍可能出现', () => {
+    let turns = 0;
+    for (let i = 0; i < 1000; i++) {
+      const roll = i / 1000;
+      const k = rollKind(roll, w, { still: true });
+      assert.notEqual(k, 'move', `roll=${roll}：干活时不该抽到 move（会自己溜达走）`);
+      if (k === 'turn') turns++;
+    }
+    assert.equal(turns, 50, 'turn 的份额必须保住（可以转身，只是不许走开）');
+  });
+
+  test('fixed 与 still 同时为真：等价于 fixed（两档都压掉）', () => {
+    for (const roll of [0, 0.05, 0.12, 0.17, 0.5, 0.9999]) {
+      assert.equal(rollKind(roll, w, { fixed: true, still: true }), rollKind(roll, w, { fixed: true }));
     }
   });
 });
@@ -230,5 +260,20 @@ describe('宠物固定 —— 双端一致守卫（两端必须都把这个开�
   test('两端传的都是该宠物自己的配置项（不是写死的 true/false）', () => {
     assert.ok(/fixed:\s*hub\.cfg\(\)\.fixedEnabled/.test(browserShell), '浏览器壳必须传该宠物自己的 fixedEnabled');
     assert.ok(/fixed:\s*this\.pet\.fixedEnabled/.test(desktopShell), '桌面壳必须传 this.pet.fixedEnabled');
+  });
+
+  // 干活时不许自己走开：两端都要把「是否正在干活」按 still 传给掷骰，并且这个判断要共用
+  // shared/work-status 的 isWorkingState——两端各写一份判断，迟早会漂。
+  test('两端干活时都传了 still，且走同一份 isWorkingState 判断', () => {
+    assert.ok(/still:\s*working/.test(browserShell), '浏览器壳必须把 still 传进 rollKind（否则干活时还在走）');
+    assert.ok(/still:\s*working/.test(desktopShell), '桌面壳必须把 still 传进 rollKind（否则干活时还在走）');
+    assert.ok(
+      /isWorkingState\(/.test(browserShell),
+      '浏览器壳的「在干活」判断必须用 shared/work-status 的 isWorkingState',
+    );
+    assert.ok(
+      /isWorkingState\(/.test(desktopShell),
+      '桌面壳的「在干活」判断必须用 shared/work-status 的 isWorkingState',
+    );
   });
 });

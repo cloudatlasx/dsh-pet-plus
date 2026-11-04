@@ -258,7 +258,10 @@ Object.assign(PetSprite.prototype, {
     const roll = Math.random();
     // 宠物固定：掷骰时把「转向 / 移动」两档权重按 0 算，随机链不再让宠物自己翻朝向或走开；
     // 菜单点播与 /anim 不走这里，不受影响。
-    const k = S.rollKind(roll, animationWeights, { fixed: this.pet.fixedEnabled });
+    // 干活时（thinking/working/result/waiting）再压掉「移动」一档：可以转个方向背对着电脑继续忙，
+    // 但不该自己溜达到屏幕另一头——工作第一优先级。成功/出错是终态，照旧允许走动。
+    const working = this.pet.workStatusEnabled && S.isWorkingState(this.workState);
+    const k = S.rollKind(roll, animationWeights, { fixed: this.pet.fixedEnabled, still: working });
     let next;
     if (k === 'idle') {
       next = S.pick(animations.idle, this.anim);
