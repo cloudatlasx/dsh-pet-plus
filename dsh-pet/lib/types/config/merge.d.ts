@@ -6,3 +6,15 @@
 export declare function packBase(base: Record<string, unknown>, mainOverlay: Record<string, unknown> | undefined): Record<string, unknown>;
 /** 一个覆盖文件 → 完整条目：顶层逐字段合并（没写/非法 → 内置默认 + 告警），pets 逐实例 */
 export declare function mergeEntry(base: Record<string, unknown>, overlay: Record<string, unknown> | undefined, label: string, basePets: Record<string, unknown>[], seenIds: Set<string>): Record<string, unknown>;
+/**
+ * animations 段：内置默认 ← 用户层，**逐块合并**而不是整段替换（用户常常只想加一个自己的动作）。
+ *
+ * - idle / turn / drag / clicks：写了非空动作名数组就整池替换，否则沿用默认
+ * - moves：default 参数浅合并、actions 整体替换
+ * - categories：按 id 合并（见 mergeCategories）
+ * - extra：`[{ category, actions, weight? }]` 增量追加到 categories；新分类没写 weight 时权重 0
+ * - events：按键整体覆盖（没写的键沿用默认，balance 必须仍在）
+ * - sleep：写了就整体替换
+ * 合并结果仍要过 animationsValid，非法就整段回退默认（不静默半残）。
+ */
+export declare function mergeAnimations(base: unknown, own: unknown, label: string): unknown;

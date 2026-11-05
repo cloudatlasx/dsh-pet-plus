@@ -10,7 +10,7 @@ import { isKnownVoice } from '../voice/voices.ts';
 import { FONT_FAMILY_SET } from './constants.ts';
 
 /** animations 段完整性校验（与旧 assertAnimationsHost 同一套规则；不 throw，非法返回 false） */
-function animationsValid(a: unknown): boolean {
+export function animationsValid(a: unknown): boolean {
   if (!a || typeof a !== 'object') return false;
   const anims = a as Record<string, unknown>;
   for (const key of ['idle', 'turn', 'drag', 'clicks']) {

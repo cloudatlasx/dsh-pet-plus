@@ -43,7 +43,7 @@ DSH 设置 → 「桌宠配置」：
 | 字段                   | 作用                                                                                                           | 格式与默认一致即可         |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------- |
 | `pets`                 | 宠物列表（大小/位置/多开/余额开关）                                                                            | 数组，每项同 `pets[]` 结构 |
-| `animations`           | **动画池**：idle / turn / drag / clicks / moves / categories / events（余额等事件动画）/ sleep（睡觉套，可选） | 同 `animations` 结构       |
+| `animations`           | **动画池**：idle / turn / drag / clicks / moves / categories / events（余额等事件动画）/ sleep（睡觉套，可选）/ extra（自己追加的动作） | 同 `animations` 结构，可只写一部分 |
 | `animationWeights`     | 动画链播放权重（idle / turn / move）                                                                           | 同 `animationWeights` 结构 |
 | `eventsRefreshSec`     | 事件刷新周期（秒）：`whisper` 碎碎念、`sleepTalk` 梦话、`balance` 余额                                         | 同 `eventsRefreshSec` 结构 |
 | `sleepStartTexts`      | **入睡台词**（条目级，随机挑一句；播「开始」时弹气泡）                                                         | 非空字符串数组             |
@@ -57,7 +57,29 @@ DSH 设置 → 「桌宠配置」：
 | `notificationsEnabled` | 系统通知总开关（布尔）                                                                                         | 同 `notificationsEnabled`  |
 | `chatAnimationEnabled` | **对话动作联动**：开启后对话时把 `animations.categories` 下的动作清单交给模型，由它按语境挑一个当场表演（布尔，默认 true） | 布尔，默认即可             |
 
-> 覆盖语义：用户层给出即**整体替换**该字段（如写了 `animations` 就用你的整份动画池，替代默认），没写的字段回落包内默认。校验在插件加载时执行——格式错误会在 DSH 控制台显式报错，不会静默运行残缺配置。
+> 覆盖语义：用户层给出即**整体替换**该字段，没写的字段回落包内默认。唯一例外是 `animations`——它**逐块合并**（`idle`/`turn`/`drag`/`clicks` 写了才替换；`categories` 按 id 追加动作、可改权重；`extra` 增量追加），所以只想加自己的动作时写几行就够，不必抄整段。校验在插件加载时执行——格式错误会在 DSH 控制台显式报错，不会静默运行残缺配置。
+
+### 自己加一个动作
+
+1. **放素材**：`$DSH_HOME/dsh-pet/main-animation/webm/<动作名>.webm`（文件名就是动作名）。格式与自带的相同：VP9 + alpha、16:9（自带的是 640×360、24fps）。转码：
+   ```bash
+   ffmpeg -i 源.mov -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 2M -r 24 -an 打招呼.webm
+   ```
+   角色包（pet pack）放 `pet/<名>-animation/webm/<动作名>.webm`。
+2. **登记**：在 `main-config.jsonc` 里加
+   ```jsonc
+   "animations": {
+     "extra": [
+       { "category": "我加的", "actions": ["打招呼"] }
+     ]
+   }
+   ```
+3. **生效**：桌面端右键 →「重载配置」；网页端刷新页面。
+
+`extra` 规则：`category` 已存在 → 动作追加进那个分类（可写 `"weight"` 顺便改它的随机权重）；分类不存在 → 新建，权重缺省 `0`，即**只在右键「动作」菜单里点播、不参与随机自播**。想让它也随机出现，给一个大于 0 的 `weight`（各分类权重是相对比例，不必凑成固定总和）。
+
+菜单里的位置由 `animations.categories` 的顺序决定：新分类排在最后。
+
 
 ## 方式四：额外宠物（pet pack）——添加新「种类」
 

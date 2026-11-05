@@ -1,3 +1,5 @@
+/** animations 段完整性校验（与旧 assertAnimationsHost 同一套规则；不 throw，非法返回 false） */
+export declare function animationsValid(a: unknown): boolean;
 /** physics 段校验：gravity ≥ 0（0 = 无重力，合法）、restitution ∈ [0,1]、groundFriction ≥ 0（均为有限数字）、
  *  ceilingBounce / petCollision 为布尔、throwPower > 0（有限数字）。
  *  hapticEnabled / tiltGravity / shakeThrow 为可选布尔（旧配置没有这几个键）。 */

@@ -7,7 +7,7 @@
  */
 import { CORNER_SET, GLOBAL_DEFAULT_KEYS, isValidPetId, PET_DISPLAY_SET, warnOnce } from './constants.ts';
 import { isValidSizePercent, SIZE_PERCENT_DEFAULT, SIZE_PERCENT_MIN } from '../../shared/pet-size.ts';
-import { topFieldValid } from './validate.ts';
+import { animationsValid, topFieldValid } from './validate.ts';
 
 /**
  * 文件宠物条目的合并基座：内置默认 + 白名单字段改用用户层的值。这些字段是用户级成本/偏好/
@@ -43,6 +43,11 @@ export function mergeEntry(
       out.pets = mergePets(basePets, overlay?.[key], label, seenIds);
       continue;
     }
+    if (key === 'animations') {
+      // 动画是唯一允许「只写一部分」的字段：用户只想加自己的动作，不该被迫把上百行默认池抄一遍。
+      out.animations = mergeAnimations(base[key], overlay?.[key], label);
+      continue;
+    }
     const own = overlay ? overlay[key] : undefined;
     // 结构性常态：覆盖层（尤其是设置页写的用户层）本来就不写顶层字段 → 缺失静默取默认，不告警；
     // 只有「显式写了但非法」才告警（真异常，默认值兜底）
@@ -56,6 +61,134 @@ export function mergeEntry(
       continue;
     }
     out[key] = own;
+  }
+  return out;
+}
+
+/** 动画名（非空字符串）判定：animations 局部合并用 */
+function isAnimName(v: unknown): v is string {
+  return typeof v === 'string' && v.length > 0;
+}
+
+/** 动作名数组：非空、每项都是非空字符串 */
+function isAnimList(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every(isAnimName);
+}
+
+/** 取一个分类条目：`id` 来自 categories，`category` 来自 extra（两种写法都收） */
+function toCategory(raw: unknown, idField: 'id' | 'category'): Record<string, unknown> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const item = raw as Record<string, unknown>;
+  const id = item[idField];
+  if (!isAnimName(id)) return undefined;
+  const weight = Number(item.weight);
+  const hasWeight = item.weight !== undefined && Number.isFinite(weight) && weight >= 0;
+  return {
+    id,
+    actions: isAnimList(item.actions) ? [...item.actions] : [],
+    ...(hasWeight ? { weight } : {}),
+  };
+}
+
+/**
+ * categories 合并：默认分类打底 → 用户 categories 按 id 追加动作 / 改权重 → extra 再叠一次。
+ * - 已存在的分类：动作去重追加；只在用户写了 weight 时才改权重
+ * - 新分类：追加到末尾，权重缺省 0（只进右键菜单点播，不参与随机自播）
+ */
+function mergeCategories(base: unknown, own: unknown, extra: unknown): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  const byId = new Map<string, Record<string, unknown>>();
+  const put = (spec: Record<string, unknown>): void => {
+    const id = spec.id as string;
+    const hit = byId.get(id);
+    if (hit) {
+      const list = hit.actions as string[];
+      for (const name of spec.actions as string[]) if (!list.includes(name)) list.push(name);
+      if (spec.weight !== undefined) hit.weight = spec.weight;
+      return;
+    }
+    const cat: Record<string, unknown> = { id, weight: spec.weight ?? 0, actions: spec.actions };
+    byId.set(id, cat);
+    out.push(cat);
+  };
+  for (const raw of Array.isArray(base) ? base : []) {
+    const spec = toCategory(raw, 'id');
+    if (spec) put(spec);
+  }
+  for (const raw of Array.isArray(own) ? own : []) {
+    const spec = toCategory(raw, 'id');
+    if (spec) put(spec);
+  }
+  for (const raw of Array.isArray(extra) ? extra : []) {
+    const spec = toCategory(raw, 'category');
+    if (spec) put(spec);
+  }
+  return out;
+}
+
+/**
+ * animations 段：内置默认 ← 用户层，**逐块合并**而不是整段替换（用户常常只想加一个自己的动作）。
+ *
+ * - idle / turn / drag / clicks：写了非空动作名数组就整池替换，否则沿用默认
+ * - moves：default 参数浅合并、actions 整体替换
+ * - categories：按 id 合并（见 mergeCategories）
+ * - extra：`[{ category, actions, weight? }]` 增量追加到 categories；新分类没写 weight 时权重 0
+ * - events：按键整体覆盖（没写的键沿用默认，balance 必须仍在）
+ * - sleep：写了就整体替换
+ * 合并结果仍要过 animationsValid，非法就整段回退默认（不静默半残）。
+ */
+export function mergeAnimations(base: unknown, own: unknown, label: string): unknown {
+  if (!base || typeof base !== 'object' || Array.isArray(base)) return base;
+  if (own === undefined) return base;
+  if (!own || typeof own !== 'object' || Array.isArray(own)) {
+    warnOnce(`${label}:animations`, `「${label}」的 animations 不是对象，已取默认值`);
+    return base;
+  }
+  const b = base as Record<string, unknown>;
+  const o = own as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...b };
+
+  for (const key of ['idle', 'turn', 'drag', 'clicks']) {
+    const pool = o[key];
+    if (isAnimList(pool) && pool.length > 0) out[key] = [...pool];
+  }
+
+  const baseMoves =
+    b.moves && typeof b.moves === 'object' && !Array.isArray(b.moves) ? (b.moves as Record<string, unknown>) : {};
+  const ownMoves =
+    o.moves && typeof o.moves === 'object' && !Array.isArray(o.moves) ? (o.moves as Record<string, unknown>) : {};
+  const baseDefault =
+    baseMoves.default && typeof baseMoves.default === 'object' && !Array.isArray(baseMoves.default)
+      ? (baseMoves.default as Record<string, unknown>)
+      : {};
+  const ownDefault =
+    ownMoves.default && typeof ownMoves.default === 'object' && !Array.isArray(ownMoves.default)
+      ? (ownMoves.default as Record<string, unknown>)
+      : {};
+  const actions = Array.isArray(ownMoves.actions) ? ownMoves.actions : baseMoves.actions;
+  out.moves = {
+    ...baseMoves,
+    ...ownMoves,
+    default: { ...baseDefault, ...ownDefault },
+    actions: Array.isArray(actions) ? actions : [],
+  };
+
+  out.categories = mergeCategories(b.categories, o.categories, o.extra);
+
+  const baseEvents =
+    b.events && typeof b.events === 'object' && !Array.isArray(b.events) ? (b.events as Record<string, unknown>) : {};
+  const ownEvents =
+    o.events && typeof o.events === 'object' && !Array.isArray(o.events) ? (o.events as Record<string, unknown>) : {};
+  out.events = { ...baseEvents, ...ownEvents };
+
+  if (o.sleep !== undefined) out.sleep = o.sleep;
+
+  if (!animationsValid(out)) {
+    warnOnce(
+      `${label}:animations`,
+      `「${label}」的 animations 合并后不合法（idle/turn/drag/clicks/moves/categories/events 或 balance 缺失），已取默认值`,
+    );
+    return base;
   }
   return out;
 }

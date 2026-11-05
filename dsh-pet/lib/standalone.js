@@ -384,7 +384,6 @@ function isKnownVoice(id) {
 
 //#endregion
 //#region src/host/config/validate.ts
-/** animations 段完整性校验（与旧 assertAnimationsHost 同一套规则；不 throw，非法返回 false） */
 function animationsValid(a) {
 	if (!a || typeof a !== "object") return false;
 	const anims = a;
@@ -564,6 +563,10 @@ function mergeEntry(base, overlay, label, basePets, seenIds) {
 			out.pets = mergePets(basePets, overlay?.[key], label, seenIds);
 			continue;
 		}
+		if (key === "animations") {
+			out.animations = mergeAnimations(base[key], overlay?.[key], label);
+			continue;
+		}
 		const own$1 = overlay ? overlay[key] : void 0;
 		if (own$1 === void 0) {
 			out[key] = base[key];
@@ -575,6 +578,114 @@ function mergeEntry(base, overlay, label, basePets, seenIds) {
 			continue;
 		}
 		out[key] = own$1;
+	}
+	return out;
+}
+/** 动画名（非空字符串）判定：animations 局部合并用 */
+function isAnimName(v) {
+	return typeof v === "string" && v.length > 0;
+}
+/** 动作名数组：非空、每项都是非空字符串 */
+function isAnimList(v) {
+	return Array.isArray(v) && v.every(isAnimName);
+}
+/** 取一个分类条目：`id` 来自 categories，`category` 来自 extra（两种写法都收） */
+function toCategory(raw, idField) {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return void 0;
+	const item = raw;
+	const id = item[idField];
+	if (!isAnimName(id)) return void 0;
+	const weight = Number(item.weight);
+	const hasWeight = item.weight !== void 0 && Number.isFinite(weight) && weight >= 0;
+	return {
+		id,
+		actions: isAnimList(item.actions) ? [...item.actions] : [],
+		...hasWeight ? { weight } : {}
+	};
+}
+/**
+* categories 合并：默认分类打底 → 用户 categories 按 id 追加动作 / 改权重 → extra 再叠一次。
+* - 已存在的分类：动作去重追加；只在用户写了 weight 时才改权重
+* - 新分类：追加到末尾，权重缺省 0（只进右键菜单点播，不参与随机自播）
+*/
+function mergeCategories(base, own$1, extra) {
+	const out = [];
+	const byId = new Map();
+	const put = (spec) => {
+		const id = spec.id;
+		const hit = byId.get(id);
+		if (hit) {
+			const list = hit.actions;
+			for (const name of spec.actions) if (!list.includes(name)) list.push(name);
+			if (spec.weight !== void 0) hit.weight = spec.weight;
+			return;
+		}
+		const cat = {
+			id,
+			weight: spec.weight ?? 0,
+			actions: spec.actions
+		};
+		byId.set(id, cat);
+		out.push(cat);
+	};
+	for (const raw of Array.isArray(base) ? base : []) {
+		const spec = toCategory(raw, "id");
+		if (spec) put(spec);
+	}
+	for (const raw of Array.isArray(own$1) ? own$1 : []) {
+		const spec = toCategory(raw, "id");
+		if (spec) put(spec);
+	}
+	for (const raw of Array.isArray(extra) ? extra : []) {
+		const spec = toCategory(raw, "category");
+		if (spec) put(spec);
+	}
+	return out;
+}
+function mergeAnimations(base, own$1, label) {
+	if (!base || typeof base !== "object" || Array.isArray(base)) return base;
+	if (own$1 === void 0) return base;
+	if (!own$1 || typeof own$1 !== "object" || Array.isArray(own$1)) {
+		warnOnce(`${label}:animations`, `「${label}」的 animations 不是对象，已取默认值`);
+		return base;
+	}
+	const b = base;
+	const o = own$1;
+	const out = { ...b };
+	for (const key of [
+		"idle",
+		"turn",
+		"drag",
+		"clicks"
+	]) {
+		const pool$1 = o[key];
+		if (isAnimList(pool$1) && pool$1.length > 0) out[key] = [...pool$1];
+	}
+	const baseMoves = b.moves && typeof b.moves === "object" && !Array.isArray(b.moves) ? b.moves : {};
+	const ownMoves = o.moves && typeof o.moves === "object" && !Array.isArray(o.moves) ? o.moves : {};
+	const baseDefault = baseMoves.default && typeof baseMoves.default === "object" && !Array.isArray(baseMoves.default) ? baseMoves.default : {};
+	const ownDefault = ownMoves.default && typeof ownMoves.default === "object" && !Array.isArray(ownMoves.default) ? ownMoves.default : {};
+	const actions = Array.isArray(ownMoves.actions) ? ownMoves.actions : baseMoves.actions;
+	out.moves = {
+		...baseMoves,
+		...ownMoves,
+		default: {
+			...baseDefault,
+			...ownDefault
+		},
+		actions: Array.isArray(actions) ? actions : []
+	};
+	out.categories = mergeCategories(b.categories, o.categories, o.extra);
+	const baseEvents = b.events && typeof b.events === "object" && !Array.isArray(b.events) ? b.events : {};
+	const ownEvents = o.events && typeof o.events === "object" && !Array.isArray(o.events) ? o.events : {};
+	out.events = {
+		...baseEvents,
+		...ownEvents
+	};
+	if (o.sleep !== void 0) out.sleep = o.sleep;
+	if (!animationsValid(out)) {
+		warnOnce(`${label}:animations`, `「${label}」的 animations 合并后不合法（idle/turn/drag/clicks/moves/categories/events 或 balance 缺失），已取默认值`);
+		return base;
 	}
 	return out;
 }
