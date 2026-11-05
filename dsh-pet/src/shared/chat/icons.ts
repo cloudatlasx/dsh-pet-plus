@@ -66,6 +66,18 @@ export function logIcon(size = 16): SVGElement {
   return svg;
 }
 
+/** 关闭图标：两条交叉线（弹窗右上角的 ✕ 用它，不依赖字体里的乘号字形）。 */
+export function closeIcon(size = 16): SVGElement {
+  const svg = svgNode('svg', {
+    viewBox: '0 0 24 24',
+    width: String(size),
+    height: String(size),
+    ...ICON_ATTRS,
+  });
+  svg.append(svgNode('path', { d: 'M6 6l12 12' }), svgNode('path', { d: 'M18 6L6 18' }));
+  return svg;
+}
+
 /** 相机图标：机身 + 镜头。 */
 export function cameraIcon(size = 16): SVGElement {
   const svg = svgNode('svg', {

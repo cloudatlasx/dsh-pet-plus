@@ -9,7 +9,8 @@
  *  初始 160px，随输入增宽、封顶 340px 后折行增高；回车发送，Esc 或点外关闭。
  *  宽度由 JS 按文本测量覆盖根元素宽度。 */
 export const CHAT_CSS = [
-  '.dsh-pet-chat{position:fixed;z-index:2147483001;width:160px;max-width:80vw;',
+  // z-index 略低于右键菜单（2147483000）：弹窗开着时右键宠物，菜单要能盖在它上面。
+  '.dsh-pet-chat{position:fixed;z-index:2147482999;width:160px;max-width:80vw;',
   'background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.12);border-radius:10px;',
   'box-shadow:0 10px 32px rgba(0,0,0,.22);color:#2b2b2b;font-size:14px;line-height:1.5;',
   // 字体与桌宠气泡同款（上首软糖体，两端均已注入 @font-face），风格一致不显正式。
@@ -23,8 +24,12 @@ export const CHAT_CSS = [
   'resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}',
   '.dsh-pet-chat-input::placeholder{color:rgba(43,43,43,.45)}',
   '.dsh-pet-chat-input:disabled{opacity:.55}',
-  // 操作行：上传 / 截屏 / 按住说话三枚图标按钮（无边框、悬停才显底）
+  // 操作行：记录 / 上传 / 截屏 / 按住说话，最右是关闭（撑开的空白由 spacer 占住）
   '.dsh-pet-chat-actions{display:flex;align-items:center;gap:6px;padding:0 8px 7px}',
+  '.dsh-pet-chat-spacer{flex:1 1 auto;min-width:0}',
+  // 关闭按钮：独立底色，悬停变红一点，别和「往消息里加东西」的动作混在一起
+  '.dsh-pet-chat-btn[data-close="1"]{color:rgba(43,43,43,.5)}',
+  '.dsh-pet-chat-btn[data-close="1"]:hover{background:rgba(229,72,77,.12);color:#d94f3d}',
   '.dsh-pet-chat-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;',
   'border:none;border-radius:6px;background:transparent;color:rgba(43,43,43,.62);font-size:14px;line-height:1;',
   'cursor:pointer;transition:background .15s,color .15s}',

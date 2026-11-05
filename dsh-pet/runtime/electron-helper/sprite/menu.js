@@ -18,6 +18,10 @@ Object.assign(PetSprite.prototype, {
     const d = this.dragState;
     if (d.active || d.dragging || this.justDragged || this.menuOpen) return;
     e.preventDefault();
+    // 对话弹窗开着时右键宠物 = 先把弹窗收起，再正常弹菜单。
+    // 窗口是透明+点击穿透的，点弹窗外面那一下根本到不了 DOM 的 document，
+    // 只靠弹窗自己的「点外关闭」在桌面上是收不掉的。
+    if (this.chatMount) this.chatMount.close();
     this.stopThrow(); // 菜单弹出前停住飞行中的宠物
     this.stopMove(); // 菜单悬停期间宠物不漫游
     // 桌面专属工具根项 + 共享菜单树（动作 → 分类 → 具体动画）。碎碎念/对话无条件显示：手动触发

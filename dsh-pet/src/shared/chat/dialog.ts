@@ -222,6 +222,8 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
     if (onClose) onClose();
   };
   unbindDismiss = bindDismiss(root, () => closed, close);
+  // 关闭按钮：桌面窗口是透明+穿透的，点弹窗外那一下到不了 DOM；这颗按钮在哪一端都关得掉。
+  dom.closeBtn.addEventListener('click', close);
   // 记录按钮：展开/收起（尺寸变化与重新落点由 log 的 onChange 统一处理，贴边也跑不出屏幕）
   dom.logBtn.addEventListener('click', () => {
     log.toggle();
@@ -233,16 +235,8 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
     url: withPet,
     isClosed: () => closed,
     onOk: () => {
-      // 记录面板开着 = 用户正在「边聊边看」：留在弹窗里，把这一轮追加进列表；
-      // 没开就照旧关掉，回复走气泡（与加入记录前逐字一致）。
-      if (log.isOpen()) {
-        input.value = '';
-        dom.clearAttach();
-        dom.resizeInput();
-        log.refresh();
-        if (onSent) onSent();
-        return;
-      }
+      // 发送成功即收起：回复本来就由 /state 走气泡，弹窗留着只会挡住宠物和右键菜单。
+      // 记录面板（默认展开的那块）跟着弹窗一起关，下次点「对话记录」再打开。
       close();
       if (onSent) onSent();
     },

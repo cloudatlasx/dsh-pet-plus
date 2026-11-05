@@ -6,7 +6,7 @@
 import { type EncodedImage, encodeImageFile } from './encode.ts';
 import { createHearControl } from './hear-control.ts';
 import { IMAGE_ACCEPT, firstImageFromClipboard, isImageFile } from './image-pick.ts';
-import { cameraIcon, logIcon, micIcon, pictureIcon } from './icons.ts';
+import { cameraIcon, closeIcon, logIcon, micIcon, pictureIcon } from './icons.ts';
 import type { ChatAttachment } from './send.ts';
 import { CHAT_H_PAD, CHAT_MAX_W, CHAT_MIN_W } from './styles.ts';
 
@@ -21,6 +21,8 @@ export interface ChatDom {
   readonly shotBtn: HTMLButtonElement;
   /** 「对话记录」按钮：行为在 dialog 里（面板要插到输入框上方，归挂载方管）。 */
   readonly logBtn: HTMLButtonElement;
+  /** 关闭按钮：行为在 dialog 里（点它要触发整个弹窗的清理）。 */
+  readonly closeBtn: HTMLButtonElement;
   /** 输入框与根宽度随文本自适应；挂到文档后调用一次，输入时自动重算。 */
   readonly resizeInput: () => void;
   /** 清掉待发送图片（含 file input 的值）。 */
@@ -139,7 +141,13 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
 
   const actions = document.createElement('div');
   actions.className = 'dsh-pet-chat-actions';
-  actions.append(logBtn, pickBtn, shotBtn, micBtn, fileInput, attach);
+  // 关闭：顶到动作行最右。桌面窗口是透明+穿透的，点弹窗外那一下根本到不了 DOM，
+  // 光靠「点外面 / Esc」关不掉时，必须有一颗看得见的按钮。
+  const closeBtn = iconButton('关闭对话', closeIcon());
+  closeBtn.setAttribute('data-close', '1');
+  const spacer = document.createElement('span');
+  spacer.className = 'dsh-pet-chat-spacer';
+  actions.append(logBtn, pickBtn, shotBtn, micBtn, fileInput, attach, spacer, closeBtn);
 
   root.append(input, actions, hint, err);
   document.body.appendChild(root);
@@ -231,6 +239,7 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
     err,
     shotBtn,
     logBtn,
+    closeBtn,
     resizeInput,
     clearAttach,
     setImageFile,
