@@ -2694,12 +2694,12 @@ function pad2$1(value) {
 	return String(value).padStart(2, "0");
 }
 /** 当天零点的时间戳：跨日比较用它，避开夏令时造成的 23/25 小时日。 */
-function startOfDay$1(date) {
+function startOfDay$2(date) {
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 /** 两个时刻相差几个自然日（按本地日历，向前为负）。 */
 function dayDiff(target, base) {
-	return Math.round((startOfDay$1(target) - startOfDay$1(base)) / DAY_MS$1);
+	return Math.round((startOfDay$2(target) - startOfDay$2(base)) / DAY_MS$1);
 }
 function spanText(ms) {
 	const minutes = Math.max(1, Math.round(Math.abs(ms) / MINUTE_MS));
@@ -2776,6 +2776,260 @@ function monthCells(year, month) {
 }
 
 //#endregion
+//#region src/shared/todo/natural-time.ts
+/**
+* 把一句话说的时间解析成时间戳：待办的「提醒时间」用它，不用先点日历再挑数字。
+*
+* 支持的说法（去掉空白后匹配，全角数字与冒号会先归一）：
+* - 相对：`5分钟后`、`半个小时之后`、`一个半小时后`、`两小时`、`三天后`、`两周后`、`一个月后`；
+* - 日子：`今天`、`明天`、`后天`、`大后天`、`周五`、`星期五`、`下周一`、`周三下午`；
+* - 时刻：`9点`、`9点半`、`9点20`、`21:30`、`下午3点`、`晚上八点`、`早上七点一刻`；
+* - 组合：`明天早上九点`、`下周一上午10点半`、`今晚8点`、`8月20日 14:00`。
+*
+* 只给日子不给时刻时，默认当天早上九点（与日历选择器的默认值一致）；只给时刻且今天已经过了，
+* 就顺延到明天。解析不出来返回 null——调用方自己决定提示什么，这里不猜。
+* @module dsh-pet/src/shared/todo/natural-time
+*/
+/** 只说了日子、没说时刻时的默认钟点（与日历选择器的 `DEFAULT_HOUR` 一致）。 */
+const DEFAULT_DUE_HOUR = 9;
+/** 相对时间的单位（毫秒）。`个月` 按 30 天算：只用于「一个月后」这类粗粒度说法。 */
+const UNIT_MS = {
+	秒: 1e3,
+	秒钟: 1e3,
+	分: 60 * 1e3,
+	分钟: 60 * 1e3,
+	小时: 60 * 60 * 1e3,
+	钟头: 60 * 60 * 1e3,
+	天: 24 * 60 * 60 * 1e3,
+	日: 24 * 60 * 60 * 1e3,
+	周: 7 * 24 * 60 * 60 * 1e3,
+	星期: 7 * 24 * 60 * 60 * 1e3,
+	礼拜: 7 * 24 * 60 * 60 * 1e3,
+	个月: 30 * 24 * 60 * 60 * 1e3,
+	月: 30 * 24 * 60 * 60 * 1e3
+};
+/** 时刻前的时段词与它带来的偏移（下午 3 点 = 15 点）。 */
+const PERIODS = [
+	["凌晨", 0],
+	["清晨", 0],
+	["早上", 0],
+	["早晨", 0],
+	["上午", 0],
+	["中午", 12],
+	["下午", 12],
+	["傍晚", 12],
+	["傍晚", 12],
+	["晚上", 12],
+	["夜里", 12],
+	["夜间", 12]
+];
+/** 日子词与相对今天的天数；长的写在前面，先匹配「大后天」再匹配「后天」。 */
+const DAY_WORDS = [
+	["大后天", 3],
+	["后天", 2],
+	["明天", 1],
+	["明日", 1],
+	["今天", 0],
+	["今日", 0]
+];
+/** 「今晚 / 明晚 / 昨晚」这类把日子和晚上连在一起的说法。 */
+const EVENING_WORDS = [
+	["明晚", 1],
+	["今晚", 0],
+	["今儿晚上", 0]
+];
+/** 周几：周一为 1，周日为 7。 */
+const WEEK_DAYS = {
+	一: 1,
+	二: 2,
+	三: 3,
+	四: 4,
+	五: 5,
+	六: 6,
+	日: 7,
+	天: 7
+};
+/** 中文数字（含「十」「十二」「二十」这类组合），解析不了返回 null。 */
+function chineseNumber(raw) {
+	if (!raw) return null;
+	if (/^\d+(?:\.\d+)?$/.test(raw)) return Number(raw);
+	if (raw === "半") return .5;
+	const half = /^(.+)个半$/.exec(raw);
+	if (half) {
+		const base = chineseNumber(half[1]);
+		return base === null ? null : base + .5;
+	}
+	const trimmed = raw.endsWith("个") ? raw.slice(0, -1) : raw;
+	const digits = {
+		零: 0,
+		一: 1,
+		二: 2,
+		两: 2,
+		三: 3,
+		四: 4,
+		五: 5,
+		六: 6,
+		七: 7,
+		八: 8,
+		九: 9
+	};
+	const ten = /^([零一二两三四五六七八九])?十([一二三四五六七八九])?$/.exec(trimmed);
+	if (ten) {
+		const high = ten[1] ? digits[ten[1]] : 1;
+		const low = ten[2] ? digits[ten[2]] : 0;
+		return high * 10 + low;
+	}
+	if (trimmed.length === 1 && trimmed in digits) return digits[trimmed];
+	return null;
+}
+/** 当天零点。 */
+function startOfDay$1(base) {
+	return new Date(base.getFullYear(), base.getMonth(), base.getDate());
+}
+/** 加天数（跨月由 Date 自己处理）。 */
+function addDays(base, days) {
+	return new Date(base.getFullYear(), base.getMonth(), base.getDate() + days);
+}
+/** 本周一（周一为一周首日）。 */
+function mondayOf(base) {
+	const day = base.getDay();
+	const offset = day === 0 ? -6 : 1 - day;
+	return addDays(startOfDay$1(base), offset);
+}
+/** 全角转半角 + 去掉空白，让后续正则只面对一种写法。 */
+function normalize(input) {
+	return input.replace(/[\uFF10-\uFF19]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 65248)).replace(/\uFF1A/g, ":").replace(/\s+/g, "");
+}
+/** 相对时间：`5分钟后`、`一个半小时后`、`两小时`。 */
+function matchRelative(text, now) {
+	const m = /^(.+?)(?:个)?(秒钟|秒|分钟|分|小时|钟头|天|日|周|星期|礼拜|个月|月)(?:之后|以后|后|内)?$/.exec(text);
+	if (!m) return null;
+	const unit = UNIT_MS[m[2]];
+	if (unit === void 0) return null;
+	const amount = chineseNumber(m[1]);
+	if (amount === null || amount <= 0) return null;
+	return now.getTime() + Math.round(amount * unit);
+}
+/** 解析「9点」「9点半」「9点20」「21:30」「七点一刻」「八点半」；返回时刻与剩下的文本。 */
+function parseClock(text) {
+	const colon = /^(\d{1,2}):(\d{2})/.exec(text);
+	if (colon) {
+		const hour$1 = Number(colon[1]);
+		const minute$1 = Number(colon[2]);
+		if (hour$1 > 23 || minute$1 > 59) return null;
+		return {
+			hour: hour$1,
+			minute: minute$1,
+			rest: text.slice(colon[0].length)
+		};
+	}
+	const m = /^(\d{1,2}|[零一二两三四五六七八九十]{1,3})[点时]/.exec(text);
+	if (!m) return null;
+	const hour = chineseNumber(m[1]);
+	if (hour === null || hour > 24) return null;
+	let rest = text.slice(m[0].length);
+	let minute = 0;
+	if (rest.startsWith("半")) {
+		minute = 30;
+		rest = rest.slice(1);
+	} else if (rest.startsWith("一刻")) {
+		minute = 15;
+		rest = rest.slice(2);
+	} else if (rest.startsWith("三刻")) {
+		minute = 45;
+		rest = rest.slice(2);
+	} else {
+		const mm = /^(\d{1,2}|[零一二两三四五六七八九十]{1,3})分?/.exec(rest);
+		const parsed = mm ? chineseNumber(mm[1]) : null;
+		if (mm && parsed !== null) {
+			minute = parsed;
+			rest = rest.slice(mm[0].length);
+		}
+	}
+	if (minute > 59) return null;
+	return {
+		hour,
+		minute,
+		rest
+	};
+}
+function parseNaturalTime(input, now = new Date()) {
+	const text = normalize(input);
+	if (!text) return null;
+	const relative = matchRelative(text, now);
+	if (relative !== null) return relative;
+	let rest = text;
+	let day = null;
+	let shift = 0;
+	for (const [word, offset] of EVENING_WORDS) if (rest.startsWith(word)) {
+		day = addDays(startOfDay$1(now), offset);
+		shift = 12;
+		rest = rest.slice(word.length);
+		break;
+	}
+	if (day === null) {
+		for (const [word, offset] of DAY_WORDS) if (rest.startsWith(word)) {
+			day = addDays(startOfDay$1(now), offset);
+			rest = rest.slice(word.length);
+			break;
+		}
+	}
+	if (day === null) {
+		const week = /^(下下|下|这|本|上)?(?:周|星期|礼拜)([一二三四五六日天])/.exec(rest);
+		if (week) {
+			const target = WEEK_DAYS[week[2]];
+			const monday = mondayOf(now);
+			let offset = target - 1;
+			if (week[1] === "下") offset += 7;
+			else if (week[1] === "下下") offset += 14;
+			else if (week[1] === "上") offset -= 7;
+			else if (week[1] === void 0 && offset < now.getDay() - 1) offset += 7;
+			day = addDays(monday, offset);
+			rest = rest.slice(week[0].length);
+		}
+	}
+	if (day === null) {
+		const md = /^(\d{1,2})[月\-/](\d{1,2})日?/.exec(rest);
+		if (md) {
+			const month = Number(md[1]) - 1;
+			const date = Number(md[2]);
+			if (month >= 0 && month <= 11 && date >= 1 && date <= 31) {
+				const thisYear = new Date(now.getFullYear(), month, date);
+				day = thisYear.getTime() < startOfDay$1(now).getTime() ? new Date(now.getFullYear() + 1, month, date) : thisYear;
+				rest = rest.slice(md[0].length);
+			}
+		}
+	}
+	for (const [word, offset] of PERIODS) if (rest.startsWith(word)) {
+		shift = offset;
+		rest = rest.slice(word.length);
+		break;
+	}
+	let hour = null;
+	let minute = 0;
+	const clock = parseClock(rest);
+	if (clock) {
+		hour = clock.hour;
+		minute = clock.minute;
+	}
+	if (hour === null) {
+		if (day === null) return null;
+		hour = DEFAULT_DUE_HOUR;
+		minute = 0;
+	}
+	if (shift === 12 && hour < 12) hour += 12;
+	if (hour === 24) hour = 0;
+	if (hour > 23) return null;
+	const base = day ?? startOfDay$1(now);
+	let ms = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0).getTime();
+	if (day === null && ms <= now.getTime()) {
+		const next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, hour, minute, 0, 0);
+		ms = next.getTime();
+	}
+	return ms;
+}
+
+//#endregion
 //#region src/shared/todo/due-picker.ts
 /** 周一为一周首日，与国内日历习惯一致。 */
 const WEEK_HEAD = [
@@ -2817,6 +3071,15 @@ function buildPickerDom() {
 	const calendar = make("div", "dsh-pet-todo-cal");
 	calendar.setAttribute("role", "dialog");
 	calendar.setAttribute("aria-label", "选择提醒时间");
+	const nlRow = make("div", "dsh-pet-todo-cal-nl-row");
+	const nl = document.createElement("input");
+	nl.type = "text";
+	nl.className = "dsh-pet-todo-cal-nl";
+	nl.placeholder = "如：5分钟后、明天9点";
+	nl.setAttribute("aria-label", "用一句话说时间");
+	nl.autocomplete = "off";
+	const nlHint = make("span", "dsh-pet-todo-cal-nl-hint");
+	nlRow.append(nl, nlHint);
 	const head = make("div", "dsh-pet-todo-cal-head");
 	const prev = makeButton("dsh-pet-todo-cal-nav", "‹");
 	prev.dataset.act = "prev";
@@ -2850,7 +3113,7 @@ function buildPickerDom() {
 	const done = makeButton("dsh-pet-todo-cal-act", "完成");
 	done.dataset.act = "done";
 	foot.append(today, clear, grow, hourChip, colon, minuteChip, done);
-	calendar.append(head, week, grid, foot);
+	calendar.append(nlRow, head, week, grid, foot);
 	return {
 		el,
 		calendar,
@@ -2859,7 +3122,9 @@ function buildPickerDom() {
 		title,
 		grid,
 		hourChip,
-		minuteChip
+		minuteChip,
+		nl,
+		nlHint
 	};
 }
 /** 同一个自然日（忽略时分）。 */
@@ -2996,6 +3261,29 @@ function createDuePicker(options = {}) {
 		const button = event.target.closest("button");
 		if (button !== null) onCalendarClick(dom, state, button, () => setOpen(false));
 	});
+	dom.nl.addEventListener("keydown", (event) => {
+		if (event.key !== "Enter") return;
+		event.preventDefault();
+		event.stopPropagation();
+		const raw = dom.nl.value.trim();
+		if (!raw) return;
+		const ms = parseNaturalTime(raw);
+		if (ms === null) {
+			dom.nlHint.textContent = "没看懂这个时间";
+			dom.nlHint.dataset.err = "1";
+			return;
+		}
+		const at = new Date(ms);
+		state.picked = new Date(at.getFullYear(), at.getMonth(), at.getDate());
+		state.hour = at.getHours();
+		state.minute = at.getMinutes();
+		state.view = new Date(at.getFullYear(), at.getMonth(), 1);
+		state.mode = "day";
+		renderPicker(dom, state);
+		dom.nlHint.dataset.err = "0";
+		dom.nlHint.textContent = `${at.getMonth() + 1}月${at.getDate()}日 ${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
+		dom.nl.value = "";
+	});
 	const onDocMouseDown = (event) => {
 		if (!state.open) return;
 		const target = event.target;
@@ -3017,6 +3305,9 @@ function createDuePicker(options = {}) {
 			state.hour = DEFAULT_HOUR;
 			state.minute = 0;
 			state.mode = "day";
+			dom.nl.value = "";
+			dom.nlHint.textContent = "";
+			dom.nlHint.dataset.err = "0";
 			renderPicker(dom, state);
 			setOpen(false);
 		},
@@ -3211,6 +3502,12 @@ const TODO_CSS = [
 	".dsh-pet-todo-cal{display:flex;flex-direction:column;gap:.308em;",
 	"padding:.462em .615em .615em;background:rgba(43,43,43,.025)}",
 	".dsh-pet-todo-cal-head{display:flex;align-items:center;gap:.308em}",
+	".dsh-pet-todo-cal-nl-row{display:flex;align-items:center;gap:.462em}",
+	".dsh-pet-todo-cal-nl{flex:1 1 auto;min-width:0;border:1px solid rgba(43,43,43,.14);border-radius:.462em;",
+	"background:#fff;font-family:inherit;font-size:.923em;line-height:1.4;padding:.231em .462em;color:#2b2b2b}",
+	".dsh-pet-todo-cal-nl:focus{outline:none;border-color:#3a6ce8;box-shadow:0 0 0 2px rgba(58,108,232,.14)}",
+	".dsh-pet-todo-cal-nl-hint{font-size:.846em;color:rgba(43,43,43,.5);white-space:nowrap}",
+	".dsh-pet-todo-cal-nl-hint[data-err=\"1\"]{color:#c0392b}",
 	".dsh-pet-todo-cal-title{flex:1;text-align:center;font-size:1.077em;font-weight:600}",
 	".dsh-pet-todo-cal-nav{border:none;background:transparent;color:rgba(43,43,43,.55);font-family:inherit;",
 	"font-size:1.154em;line-height:1;padding:.154em .385em;border-radius:.462em;cursor:pointer}",

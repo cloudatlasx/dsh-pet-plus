@@ -11,7 +11,7 @@ export declare const TODO_PANEL_METRICS: {
     readonly list: number;
     /** 底部提示。 */
     readonly hint: number;
-    /** 日历态：内边距 + 标题行 + 星期行 + 六行日期 + 底部操作行 + 行间空隙。 */
+    /** 日历态：内边距 + 一句话输入行 + 标题行 + 星期行 + 六行日期 + 底部操作行 + 行间空隙。 */
     readonly calendar: number;
 };
 /** 面板样式：头部 + 添加行 + 可滚动的清单 + 底部提示。 */

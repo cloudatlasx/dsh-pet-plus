@@ -22,8 +22,17 @@ export const TODO_PANEL_METRICS = {
   list: 0.462 * 2 + 2 * (0.538 * 2 + 1.5 + 0.154 + 0.846 * 1.5),
   /** 底部提示。 */
   hint: 0.462 + 0.692 + 0.846 * 1.5,
-  /** 日历态：内边距 + 标题行 + 星期行 + 六行日期 + 底部操作行 + 行间空隙。 */
-  calendar: 1.077 + 1.077 * 1.5 + 0.846 * 1.5 + 6 * (1.4 + 0.231 * 2) + 5 * 0.154 + (0.923 * 1.5 + 0.462) + 0.308 * 3,
+  /** 日历态：内边距 + 一句话输入行 + 标题行 + 星期行 + 六行日期 + 底部操作行 + 行间空隙。 */
+  calendar:
+    1.077 +
+    1.077 * 1.5 +
+    0.846 * 1.5 +
+    6 * (1.4 + 0.231 * 2) +
+    5 * 0.154 +
+    (0.923 * 1.5 + 0.462) +
+    // 一句话说时间：输入框（行高 + 内边距 + 上下边框）与它后面那道 gap。
+    (0.923 * 1.4 + 0.231 * 2 + 0.154) +
+    0.308 * 4,
 } as const;
 
 /** 面板样式：头部 + 添加行 + 可滚动的清单 + 底部提示。 */
@@ -72,6 +81,13 @@ export const TODO_CSS = [
   '.dsh-pet-todo-cal{display:flex;flex-direction:column;gap:.308em;',
   'padding:.462em .615em .615em;background:rgba(43,43,43,.025)}',
   '.dsh-pet-todo-cal-head{display:flex;align-items:center;gap:.308em}',
+  // 一句话说时间：一行输入 + 右侧结果/提示，省掉「先点日期再切小时分钟」的来回。
+  '.dsh-pet-todo-cal-nl-row{display:flex;align-items:center;gap:.462em}',
+  '.dsh-pet-todo-cal-nl{flex:1 1 auto;min-width:0;border:1px solid rgba(43,43,43,.14);border-radius:.462em;',
+  'background:#fff;font-family:inherit;font-size:.923em;line-height:1.4;padding:.231em .462em;color:#2b2b2b}',
+  '.dsh-pet-todo-cal-nl:focus{outline:none;border-color:#3a6ce8;box-shadow:0 0 0 2px rgba(58,108,232,.14)}',
+  '.dsh-pet-todo-cal-nl-hint{font-size:.846em;color:rgba(43,43,43,.5);white-space:nowrap}',
+  '.dsh-pet-todo-cal-nl-hint[data-err="1"]{color:#c0392b}',
   '.dsh-pet-todo-cal-title{flex:1;text-align:center;font-size:1.077em;font-weight:600}',
   '.dsh-pet-todo-cal-nav{border:none;background:transparent;color:rgba(43,43,43,.55);font-family:inherit;',
   'font-size:1.154em;line-height:1;padding:.154em .385em;border-radius:.462em;cursor:pointer}',

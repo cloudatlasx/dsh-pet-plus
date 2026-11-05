@@ -9,6 +9,7 @@
  */
 import { monthCells } from './calendar.ts';
 import { dueLabel, formatDateTimeLocal } from './format.ts';
+import { parseNaturalTime } from './natural-time.ts';
 
 /** 周一为一周首日，与国内日历习惯一致。 */
 const WEEK_HEAD = ['一', '二', '三', '四', '五', '六', '日'] as const;
@@ -67,6 +68,10 @@ interface PickerDom {
   grid: HTMLDivElement;
   hourChip: HTMLButtonElement;
   minuteChip: HTMLButtonElement;
+  /** 一句话说时间（「5分钟后」「明天9点」）。 */
+  nl: HTMLInputElement;
+  /** 解析结果 / 看不懂时的提示。 */
+  nlHint: HTMLSpanElement;
 }
 
 /** 两位补零。 */
@@ -99,6 +104,17 @@ function buildPickerDom(): PickerDom {
   const calendar = make('div', 'dsh-pet-todo-cal');
   calendar.setAttribute('role', 'dialog');
   calendar.setAttribute('aria-label', '选择提醒时间');
+
+  // 一句话说时间：不用先在日历里点日期，再切小时、切分钟。
+  const nlRow = make('div', 'dsh-pet-todo-cal-nl-row');
+  const nl = document.createElement('input');
+  nl.type = 'text';
+  nl.className = 'dsh-pet-todo-cal-nl';
+  nl.placeholder = '如：5分钟后、明天9点';
+  nl.setAttribute('aria-label', '用一句话说时间');
+  nl.autocomplete = 'off';
+  const nlHint = make('span', 'dsh-pet-todo-cal-nl-hint');
+  nlRow.append(nl, nlHint);
 
   const head = make('div', 'dsh-pet-todo-cal-head');
   const prev = makeButton('dsh-pet-todo-cal-nav', '‹');
@@ -136,8 +152,8 @@ function buildPickerDom(): PickerDom {
   done.dataset.act = 'done';
   foot.append(today, clear, grow, hourChip, colon, minuteChip, done);
 
-  calendar.append(head, week, grid, foot);
-  return { el, calendar, prev, next, title, grid, hourChip, minuteChip };
+  calendar.append(nlRow, head, week, grid, foot);
+  return { el, calendar, prev, next, title, grid, hourChip, minuteChip, nl, nlHint };
 }
 
 /** 同一个自然日（忽略时分）。 */
@@ -298,6 +314,30 @@ export function createDuePicker(options: DuePickerOptions = {}): DuePicker {
     const button = (event.target as HTMLElement).closest('button');
     if (button !== null) onCalendarClick(dom, state, button, () => setOpen(false));
   });
+  // 一句话说时间：回车解析，成功就写进状态并重画日历，失败只在输入框旁边给一行提示。
+  dom.nl.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const raw = dom.nl.value.trim();
+    if (!raw) return;
+    const ms = parseNaturalTime(raw);
+    if (ms === null) {
+      dom.nlHint.textContent = '没看懂这个时间';
+      dom.nlHint.dataset.err = '1';
+      return;
+    }
+    const at = new Date(ms);
+    state.picked = new Date(at.getFullYear(), at.getMonth(), at.getDate());
+    state.hour = at.getHours();
+    state.minute = at.getMinutes();
+    state.view = new Date(at.getFullYear(), at.getMonth(), 1);
+    state.mode = 'day';
+    renderPicker(dom, state);
+    dom.nlHint.dataset.err = '0';
+    dom.nlHint.textContent = `${at.getMonth() + 1}月${at.getDate()}日 ${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
+    dom.nl.value = '';
+  });
   // 点面板里别处就收起日历：面板自己也挂了同样的监听，两者互不干扰（各判各的容器）。
   const onDocMouseDown = (event: MouseEvent): void => {
     if (!state.open) return;
@@ -321,6 +361,9 @@ export function createDuePicker(options: DuePickerOptions = {}): DuePicker {
       state.hour = DEFAULT_HOUR;
       state.minute = 0;
       state.mode = 'day';
+      dom.nl.value = '';
+      dom.nlHint.textContent = '';
+      dom.nlHint.dataset.err = '0';
       renderPicker(dom, state);
       setOpen(false);
     },
