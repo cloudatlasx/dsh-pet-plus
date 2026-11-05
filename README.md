@@ -48,9 +48,12 @@
 ```bash
 git clone https://github.com/cloudatlasx/dsh-pet-plus.git
 cd dsh-pet-plus/dsh-pet
-pnpm install
-pnpm build          # 生成 lib/ 与桌面运行壳
+pnpm install        # 只为本地开发 / 重新构建
 ```
+
+仓库里**已经把构建产物一起吃进去了**（`lib/`、`runtime/electron-helper/shared-core.js`），
+所以 clone 下来不用构建就能直接装；只有改了 `src/` 或桌面共享逻辑时才需要
+`pnpm bundle && pnpm build`，并把重新生成的产物一起提交——这样别的机器拉下来就是「完整、能跑」的状态。
 
 然后在 DSH 里把插件装进目标 profile（`dsh web` 用 `web`，桌面应用用 `desktop`）：
 
@@ -68,7 +71,11 @@ dsh plugin --profile desktop add E:\path\to\dsh-pet-plus\dsh-pet
 dsh plugin --profile desktop add https://github.com/cloudatlasx/dsh-pet-plus/releases/download/v0.12.0/dsh-pet-plus-0.12.0.tgz
 ```
 
-也可以装 git 子目录（`dsh-pet/` 是包所在目录）：`dsh plugin --profile desktop add github:cloudatlasx/dsh-pet-plus#path:/dsh-pet`。
+也可以直接从 git 装（包在 `dsh-pet/` 子目录，构建产物已入库）：
+
+```bash
+dsh plugin --profile desktop add github:cloudatlasx/dsh-pet-plus#path:/dsh-pet
+```
 
 ### 方式三：DSH 市场
 
