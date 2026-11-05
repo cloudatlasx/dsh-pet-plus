@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { appendFileSync, chmodSync, closeSync, constants, cpSync, createReadStream, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from "node:path";
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawn } from "node:child_process";
@@ -219,13 +219,13 @@ function defaultLog(level, message) {
 //#endregion
 //#region src/host/config/constants.ts
 /** 位置角落白名单 */
-const CORNERS = [
+const CORNERS$1 = [
 	"top-left",
 	"top-right",
 	"bottom-left",
 	"bottom-right"
 ];
-const CORNER_SET = new Set(CORNERS);
+const CORNER_SET = new Set(CORNERS$1);
 const PET_DISPLAY_SET = new Set(PET_DISPLAYS);
 const FONT_FAMILY_SET = new Set(FONT_PRESETS.map((preset) => preset.id));
 const ID_FORBIDDEN = /[\\/:\x00-\x1f]/;
@@ -5481,7 +5481,7 @@ function readReminder(leaf) {
 	const d = leaf.data;
 	if (d.closed === true) return null;
 	if (typeof d.id !== "string" || d.id === "") return null;
-	if (d.kind !== "schedule" && d.kind !== "announce" && d.kind !== "chat") return null;
+	if (d.kind !== "schedule" && d.kind !== "announce" && d.kind !== "chat" && d.kind !== "todo") return null;
 	if (typeof d.title !== "string" || d.title.trim() === "") return null;
 	const lines = labelsOf(d.lines);
 	const actions = actionsOf$1(d.actions);
@@ -8709,6 +8709,87 @@ function extractChatAction(text, names) {
 }
 
 //#endregion
+//#region src/host/chat-acts.ts
+/**
+* 对话里的「真去做事」标记：改名、记住、改大小、换角落。
+*
+* 与动作/配图/提醒同一套机制——模型在回复末尾附一个方括号标记，宿主剥掉它并真的执行。
+* 这里只做纯文本解析与指令拼装，不碰配置、不写文件：
+* - 改名 / 大小 / 角落由 ./plugin/chat-memory 调 `renamePet` / `configurePet`
+*   （走 `saveUserConfig`，与设置页同一条写盘路径）；
+* - 「记住」由 ./soul 追加进 `growth.md`。
+*
+* 标记故意用中文且与正文区分明显：模型照抄过一次也不会被误当成玩笑话。
+* @module dsh-pet/src/host/chat-acts
+*/
+/** 改名标记：`[改名:新名字]` */
+const RENAME_RE = /\[改名[:：]\s*([^[\]\n]{1,40})\]/gu;
+/** 大小标记：`[大小:1.2]`（倍率，0.5–3） */
+const SIZE_RE = /\[大小[:：]\s*([^[\]\n]{1,12})\]/gu;
+/** 位置标记：`[位置:右下]`（也可写 top-left 等） */
+const CORNER_RE = /\[位置[:：]\s*([^[\]\n]{1,20})\]/gu;
+/** 记住标记：`[记住:一句话]` */
+const REMEMBER_RE = /\[记住[:：]\s*([^[\]\n]{1,300})\]/gu;
+const ACT_NAME_MAX = 20;
+const ACT_SIZE_MIN = .5;
+const ACT_SIZE_MAX = 3;
+/** 中文落点 → 配置里的 corner 值。 */
+const CORNERS = {
+	左上: "top-left",
+	右上: "top-right",
+	左下: "bottom-left",
+	右下: "bottom-right",
+	"top-left": "top-left",
+	"top-right": "top-right",
+	"bottom-left": "bottom-left",
+	"bottom-right": "bottom-right"
+};
+const ACT_REMEMBER_MAX = 200;
+/** 把模型写出来的名字整理成能落盘的形式：去引号/空白/句末标点，限长。 */
+function cleanName(raw) {
+	const name = raw.trim().replace(/^[「『"'“”‘’]+|[」』"'“”‘’]+$/gu, "").replace(/[。！？!?,，、\s]+$/u, "").trim().slice(0, ACT_NAME_MAX);
+	return name;
+}
+/** 把「记住」的内容整理成一行；全是标点/空白时返回空串（没有可记的东西）。 */
+function cleanRemember(raw) {
+	const body = raw.trim().replace(/\s+/gu, " ").slice(0, ACT_REMEMBER_MAX);
+	return /[\p{L}\p{N}]/u.test(body) ? body : "";
+}
+function extractChatActs(text) {
+	let rename$1;
+	let remember;
+	let size;
+	let corner;
+	const stripped = text.replace(RENAME_RE, (_match, raw) => {
+		const name = cleanName(raw);
+		if (name !== "") rename$1 = name;
+		return "";
+	}).replace(REMEMBER_RE, (_match, raw) => {
+		const body = cleanRemember(raw);
+		if (body !== "") remember = body;
+		return "";
+	}).replace(SIZE_RE, (_match, raw) => {
+		const value = Number(raw.trim());
+		if (Number.isFinite(value) && value > 0) size = Math.min(ACT_SIZE_MAX, Math.max(ACT_SIZE_MIN, value));
+		return "";
+	}).replace(CORNER_RE, (_match, raw) => {
+		const mapped = CORNERS[raw.trim()];
+		if (mapped !== void 0) corner = mapped;
+		return "";
+	}).trim();
+	return {
+		text: stripped,
+		...rename$1 !== void 0 ? { rename: rename$1 } : {},
+		...remember !== void 0 ? { remember } : {},
+		...size !== void 0 ? { size } : {},
+		...corner !== void 0 ? { corner } : {}
+	};
+}
+function actInstruction() {
+	return "\n\n【你能真的做事】你不只会说话，还能真的改变自己（写了标记就会立刻生效，主人看得见）：\n- 主人给你取新名字 → 回复末尾附 [改名:新名字]\n- 主人要你长久记住一件事 → 回复末尾附 [记住:一句话]\n- 主人说你太大/太小、让你变大变小 → 回复末尾附 [大小:倍率]（相对现在，0.5 到 3；「一点」约 1.2，「很多」约 1.5）\n- 主人让你换个角落待着 → 回复末尾附 [位置:左上|右上|左下|右下]\n「变大一点」「挪到左上角」这类就是明确要求，必须附标记——只嘴上答应、不附标记，等于没做。\n标记写在回复最后一行，正文照常自然地说，不要向主人解释标记本身。闲聊不要加。";
+}
+
+//#endregion
 //#region src/host/chat-reminder.ts
 const REMINDER_MIN_SECONDS = 5;
 const REMINDER_MAX_SECONDS = 7 * 24 * 60 * 60;
@@ -9396,7 +9477,7 @@ async function generateWith$1(ctx, once) {
 	const supportsOff = await supportsReasoningOff(ctx, sel.provider, sel.model);
 	const wantImage = pool$1.length > 0;
 	const wantAction = actions.length > 0;
-	const instruction = (wantImage ? imageInstruction(pool$1) : "") + (wantAction ? actionInstruction(actions) : "") + reminderInstruction(new Date(nowMs));
+	const instruction = (wantImage ? imageInstruction(pool$1) : "") + (wantAction ? actionInstruction(actions) : "") + reminderInstruction(new Date(nowMs)) + actInstruction();
 	const content = [{
 		type: "text",
 		text: instruction === "" ? userText : userText + instruction
@@ -9437,12 +9518,17 @@ async function generateWith$1(ctx, once) {
 	const acted = wantAction ? extractChatAction(text, actions) : { text };
 	const picked = wantImage ? extractChatImage(acted.text, pool$1) : { text: acted.text };
 	const reminded = extractChatReminder(picked.text);
+	const acts = extractChatActs(reminded.text);
 	return {
 		ok: true,
-		text: reminded.text,
+		text: acts.text,
 		...picked.image ? { image: picked.image } : {},
 		...acted.action ? { action: acted.action } : {},
-		...reminded.reminder ? { reminder: reminded.reminder } : {}
+		...reminded.reminder ? { reminder: reminded.reminder } : {},
+		...acts.rename !== void 0 ? { rename: acts.rename } : {},
+		...acts.remember !== void 0 ? { remember: acts.remember } : {},
+		...acts.size !== void 0 ? { size: acts.size } : {},
+		...acts.corner !== void 0 ? { corner: acts.corner } : {}
 	};
 }
 
@@ -9464,13 +9550,130 @@ function petPersona(conf, pet) {
 function composeSystemPrompt(parts) {
 	const name = String(parts.name || parts.id);
 	const nameLine = name ? "你的名字是“" + name + "”。" : "";
-	const lines = [parts.prompt, nameLine].filter((line) => line !== "");
+	const soul = typeof parts.soul === "string" ? parts.soul.trim() : "";
+	const growth = parts.growth ?? [];
+	const lines = [
+		parts.prompt,
+		soul !== "" ? "【她写给自己的人格（soul.md，主人亲自写的，最高优先）】\n" + soul : "",
+		nameLine
+	].filter((line) => line !== "");
+	if (growth.length > 0) lines.push("【你记得的事】\n" + growth.map((item) => "- " + item).join("\n"));
 	const time = timeContextOf(parts.now);
 	if (time) {
 		lines.push(time);
 		if (parts.historyTimes === true) lines.push(HISTORY_TIMES_LINE);
 	}
 	return lines.join("\n");
+}
+
+//#endregion
+//#region src/host/soul.ts
+const SOUL_FILE_NAME = "soul.md";
+const GROWTH_FILE_NAME = "growth.md";
+const CONVERSATION_DIR_NAME = "conversations";
+const SOUL_MAX_CHARS = 4e3;
+const GROWTH_KEEP_LINES = 40;
+const GROWTH_LINE_MAX = 200;
+const GROWTH_FILE_MAX_LINES = 400;
+const SOUL_TEMPLATE = `# 她的灵魂
+
+这个文件决定她是谁、怎么说话、在意什么。改完保存，下一句对话就会生效。
+下面每一节都可以重写、删掉或加新的一节；全部删掉也不会出错，那就只剩名字和时间。
+
+## 性格
+
+- 说话轻快、有点调皮，但正事上可靠。
+- 不懂就问，不装懂；做错了直接认。
+
+## 在意的事
+
+- 主人交代过的事要记住，到点要提醒。
+- 主人忙的时候少打扰，但该说的事一定要说。
+
+## 边界
+
+- 不编造没发生的事，不假装做过什么。
+- 不确定的事先问一句，再动手。
+`;
+function soulPath(userRoot) {
+	return join(userRoot, SOUL_FILE_NAME);
+}
+function growthPath(userRoot) {
+	return join(userRoot, GROWTH_FILE_NAME);
+}
+function conversationPath(userRoot, petId, now) {
+	const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+	return join(userRoot, CONVERSATION_DIR_NAME, `${petId === "" ? "pet" : petId}-${month}.jsonl`);
+}
+async function readSoul(userRoot) {
+	try {
+		const text = await readFile(soulPath(userRoot), "utf8");
+		const trimmed = text.trim();
+		return trimmed.length > SOUL_MAX_CHARS ? trimmed.slice(0, SOUL_MAX_CHARS) : trimmed;
+	} catch {
+		return "";
+	}
+}
+async function ensureSoul(userRoot) {
+	try {
+		await readFile(soulPath(userRoot), "utf8");
+		return false;
+	} catch {
+		try {
+			await mkdir(userRoot, { recursive: true });
+			await writeFile(soulPath(userRoot), SOUL_TEMPLATE, "utf8");
+			return true;
+		} catch {
+			return false;
+		}
+	}
+}
+async function readGrowth(userRoot) {
+	let raw;
+	try {
+		raw = await readFile(growthPath(userRoot), "utf8");
+	} catch {
+		return [];
+	}
+	const lines = raw.split(/\r?\n/u).map((line) => line.trim()).filter((line) => line !== "" && !line.startsWith("<!--") && !line.startsWith("#"));
+	return lines.slice(-GROWTH_KEEP_LINES);
+}
+async function appendGrowth(userRoot, line, now = new Date()) {
+	const body = line.trim().replace(/\s+/gu, " ").slice(0, GROWTH_LINE_MAX);
+	if (body === "") return false;
+	const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+	const entry = `- ${stamp} · ${body}`;
+	let existing;
+	try {
+		const raw = await readFile(growthPath(userRoot), "utf8");
+		existing = raw.split(/\r?\n/u);
+	} catch {
+		existing = ["# 她的成长记录", "<!-- 对话里她说「记住了」的事会追加到这里；一行一条，可以手改 -->"];
+	}
+	if (existing.some((item) => item.trim().endsWith("· " + body))) return false;
+	const kept = existing.filter((item) => item.trim() !== "");
+	const next = [...kept, entry].slice(-GROWTH_FILE_MAX_LINES);
+	try {
+		await mkdir(userRoot, { recursive: true });
+		await writeFile(growthPath(userRoot), next.join("\n") + "\n", "utf8");
+		return true;
+	} catch {
+		return false;
+	}
+}
+async function archiveConversation(userRoot, petId, messages, now = new Date()) {
+	if (messages.length === 0) return false;
+	try {
+		await mkdir(join(userRoot, CONVERSATION_DIR_NAME), { recursive: true });
+		const lines = messages.map((m) => JSON.stringify({
+			pet: petId,
+			...m
+		}) + "\n").join("");
+		await appendFile(conversationPath(userRoot, petId, now), lines, "utf8");
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 //#endregion
@@ -9625,7 +9828,8 @@ function voiceTargetFor(pet) {
 	return pickVoiceSurface(String(pet.display ?? "")) ?? void 0;
 }
 function createChatMemory(deps) {
-	const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot, scheduleReminder } = deps;
+	const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot, scheduleReminder, renamePet } = deps;
+	const { configurePet } = deps;
 	let activePetId = "";
 	const lastWhisperAt = new Map();
 	const memoryPath = join(userRoot, "memory.json");
@@ -9664,6 +9868,8 @@ function createChatMemory(deps) {
 	*  「查不到就兜底 main」的不可达分支。 */
 	const petSystemPrompt = (found, options = {}) => composeSystemPrompt({
 		prompt: petPersona(found.conf, found.pet),
+		...options.soul !== void 0 && options.soul !== "" ? { soul: options.soul } : {},
+		...options.growth !== void 0 && options.growth.length > 0 ? { growth: options.growth } : {},
 		name: String(found.pet.name ?? ""),
 		id: String(found.pet.id ?? ""),
 		now: new Date(),
@@ -9773,7 +9979,14 @@ function createChatMemory(deps) {
 		if (existing !== void 0 && (!existing || !Array.isArray(existing.messages))) log.error(`[dsh-pet] 记忆结构异常（messages 不是数组）pet=${petId}，按新会话处理：${memoryPath}`);
 		const entry = existing && Array.isArray(existing.messages) ? existing : bucket[petId] = { messages: [] };
 		const list = sliceMemoryRounds(entry.messages, rounds);
-		const system = petSystemPrompt(found, { historyTimes: list.length > 0 });
+		const soul = await readSoul(userRoot);
+		if (soul === "") ensureSoul(userRoot);
+		const growth = await readGrowth(userRoot);
+		const system = petSystemPrompt(found, {
+			historyTimes: list.length > 0,
+			soul,
+			growth
+		});
 		if (image !== void 0) log.info(`[dsh-pet] 对话附带图片 pet=${petId}，${image.width}x${image.height}，${image.bytes} 字节（模型不支持读图时内核会以占位文本代替）`);
 		const generated = await generateChat({
 			ctx,
@@ -9807,6 +10020,41 @@ function createChatMemory(deps) {
 			} } : {}
 		});
 		await writeMemory(mem);
+		await archiveConversation(userRoot, petId, [{
+			role: "user",
+			content: text,
+			ts: now
+		}, {
+			role: "assistant",
+			content: generated.text,
+			ts: now
+		}], new Date(now));
+		let renamedName;
+		if (generated.rename !== void 0 && renamePet !== void 0) {
+			const renamed = await renamePet(petId, generated.rename);
+			if (renamed) renamedName = generated.rename;
+			log.info(`[dsh-pet] 对话里改名 pet=${petId} → ${generated.rename}（${renamed ? "已写盘" : "写盘失败"}）`);
+		}
+		let resized;
+		let moved;
+		if ((generated.size !== void 0 || generated.corner !== void 0) && configurePet !== void 0) {
+			const patch = {
+				...generated.size !== void 0 ? { size: generated.size } : {},
+				...generated.corner !== void 0 ? { corner: generated.corner } : {}
+			};
+			const configured = await configurePet(petId, patch);
+			if (configured) {
+				if (generated.size !== void 0) resized = generated.size;
+				if (generated.corner !== void 0) moved = generated.corner;
+			}
+			log.info(`[dsh-pet] 对话里改外形 pet=${petId}（${configured ? "已写盘" : "写盘失败"}）：${JSON.stringify(patch)}`);
+		}
+		let rememberedText;
+		if (generated.remember !== void 0) {
+			const saved = await appendGrowth(userRoot, generated.remember, new Date(now));
+			if (saved) rememberedText = generated.remember;
+			log.info(`[dsh-pet] 对话里记住一件事 pet=${petId}（${saved ? "已追加" : "未变化"}）：${generated.remember}`);
+		}
 		if (generated.action !== void 0) {
 			const record = playback.create(petId, generated.action);
 			state.writePet(petId, "anim", {
@@ -9828,7 +10076,11 @@ function createChatMemory(deps) {
 			...remind ? { remind: {
 				...remind,
 				title: generated.reminder?.title ?? ""
-			} } : {}
+			} } : {},
+			...renamedName !== void 0 ? { renamed: renamedName } : {},
+			...rememberedText !== void 0 ? { remembered: rememberedText } : {},
+			...resized !== void 0 ? { resized } : {},
+			...moved !== void 0 ? { moved } : {}
 		};
 	});
 	/** 删除某只宠物的对话记忆：`ts` 缺省 = 清空全部，给了 ts = 只删命中的轮（一轮两条共享 ts，成对删）。
@@ -10960,6 +11212,10 @@ function reminderText(todo, now) {
 const TICK_MS = 60 * 1e3;
 /** 提醒气泡停留时长（ms）：比默认 10 秒久一点，欠着的事值得多看两眼。 */
 const BUBBLE_DURATION_MS = 15 * 1e3;
+/** 提醒气泡（带「知道了 / 等会儿」按钮）的停留时长：比说话气泡更久，会一直挂到用户处理。 */
+const REMINDER_TTL_MS = 5 * 60 * 1e3;
+/** 两拍之间的最短等待（ms）：防止对齐计算退化成一个极小的数字把定时器打成忙等。 */
+const MIN_ARM_MS = 500;
 function pickReminderSpeaker(pets, isLocked, isSleeping = () => false) {
 	let desktopOnly = null;
 	for (const pet of pets) {
@@ -10983,11 +11239,22 @@ async function tickTodoReminders(deps) {
 	if (speaker === null) return;
 	const display = String(pets.find((pet) => String(pet.id ?? "") === speaker)?.display ?? "");
 	const voiceTo = deps.isVoiceTodoEnabled() ? pickVoiceSurface(display) : null;
+	const text = reminderText(due.todo, now);
 	deps.state.writePet(speaker, "say", {
-		text: reminderText(due.todo, now),
+		text,
 		duration: BUBBLE_DURATION_MS,
 		...voiceTo ? { voiceTo } : {}
 	});
+	publishReminder(deps.state, {
+		id: `todo-${due.todo.id}-${now}`,
+		kind: "todo",
+		ts: now,
+		title: due.todo.text,
+		prompt: text,
+		hint: "点「知道了」关掉；点「等会儿」15 分钟后再提醒。",
+		...due.todo.dueAt === null ? {} : { scheduledAt: new Date(due.todo.dueAt).toISOString() },
+		ttlMs: REMINDER_TTL_MS
+	}, () => now);
 	await deps.todos.markReminded(due.todo.id, now);
 	const remainingSec = due.todo.dueAt === null ? 0 : Math.round((due.todo.dueAt - now) / 1e3);
 	deps.log.info(`[dsh-pet] 待办提醒 todo=${due.todo.id} pet=${speaker} 剩余=${remainingSec}s`);
@@ -11014,16 +11281,33 @@ function registerTodoReminders(deps) {
 	ctx.effect(() => {
 		let disposed = false;
 		let timer = null;
+		/** 下一拍该等多久：对齐最近一条待办的提醒时刻（上限仍是 {@link TICK_MS}）。
+		*  固定 60 秒栅格会让「16:46:54 到点」的提醒最晚晚到 60 秒（实测晚 34 秒）；
+		*  按 nextReminderAt 对齐后，到点那一拍误差在 1 秒内。读清单失败退回固定间隔。 */
+		async function nextDelayMs() {
+			try {
+				const now = Date.now();
+				let next = Number.POSITIVE_INFINITY;
+				for (const todo of await todos.list()) {
+					const at = nextReminderAt(todo, now);
+					if (at !== null && at > now) next = Math.min(next, at);
+				}
+				if (!Number.isFinite(next)) return TICK_MS;
+				return Math.max(MIN_ARM_MS, Math.min(TICK_MS, next - now + 50));
+			} catch {
+				return TICK_MS;
+			}
+		}
 		/** 排下一拍；已卸载就不再排。 */
-		function arm() {
+		function arm(delayMs) {
 			if (disposed) return;
-			timer = setTimeout(() => void run$1(), TICK_MS);
+			timer = setTimeout(() => void run$1(), delayMs);
 		}
 		/** 跑一拍再排下一拍：启动即检查一次，不等第一个周期。 */
 		async function run$1() {
 			timer = null;
 			await tick();
-			arm();
+			arm(await nextDelayMs());
 		}
 		run$1();
 		return () => {
@@ -11586,7 +11870,7 @@ function createHearService(options) {
 //#region src/host/index.ts
 function apply(ctx) {
 	const setup = createHostSetup(ctx);
-	const { userRoot, log, configPaths, thumbUserRoot, memeDirsFor, standaloneAiPolicy, standaloneAiBalance, state, playback, workStatus, EXTERNAL_WORK_SESSION, nextExternalWorkSeq } = setup;
+	const { userRoot, userConfigPath, log, configPaths, thumbUserRoot, memeDirsFor, standaloneAiPolicy, standaloneAiBalance, state, playback, workStatus, EXTERNAL_WORK_SESSION, nextExternalWorkSeq } = setup;
 	const workStatusBridge = createWorkStatusBridge({
 		state,
 		workStatus,
@@ -11623,6 +11907,65 @@ function apply(ctx) {
 	ctx.effect(() => () => {
 		petReminders.dispose();
 	}, "dsh-pet: chat reminders");
+	let requestRestartRef = null;
+	const renamePet = async (petId, newName) => {
+		try {
+			const existing = readUserConfig(configPaths);
+			const source = existing ?? readAllConfig(configPaths).main;
+			const list = Array.isArray(source.pets) ? source.pets : [];
+			const index = list.findIndex((item) => item && typeof item === "object" && String(item.id ?? "") === petId);
+			if (index < 0) return false;
+			const pets = list.map((item, i) => i === index ? {
+				...item,
+				name: newName
+			} : item);
+			const clean = saveUserConfig({
+				...source,
+				pets
+			}, existing);
+			if (!clean) return false;
+			await mkdir(userRoot, { recursive: true });
+			await writeFile(userConfigPath, JSON.stringify(clean, null, 2), "utf8");
+			requestRestartRef?.();
+			return true;
+		} catch (e) {
+			log.warn("[dsh-pet] 对话改名写盘失败：" + (e instanceof Error ? e.message : String(e)));
+			return false;
+		}
+	};
+	const configurePet = async (petId, patch) => {
+		try {
+			const existing = readUserConfig(configPaths);
+			const source = existing ?? readAllConfig(configPaths).main;
+			const list = Array.isArray(source.pets) ? source.pets : [];
+			const index = list.findIndex((item) => item && typeof item === "object" && String(item.id ?? "") === petId);
+			if (index < 0) return false;
+			const current$2 = list[index];
+			const position = current$2.position && typeof current$2.position === "object" ? current$2.position : {};
+			const next = { ...current$2 };
+			if (patch.size !== void 0) {
+				const base = Number(current$2.size);
+				next.size = Math.round((Number.isFinite(base) && base > 0 ? base : 462) * patch.size);
+			}
+			if (patch.corner !== void 0) next.position = {
+				...position,
+				corner: patch.corner
+			};
+			const pets = list.map((item, i) => i === index ? next : item);
+			const clean = saveUserConfig({
+				...source,
+				pets
+			}, existing);
+			if (!clean) return false;
+			await mkdir(userRoot, { recursive: true });
+			await writeFile(userConfigPath, JSON.stringify(clean, null, 2), "utf8");
+			requestRestartRef?.();
+			return true;
+		} catch (e) {
+			log.warn("[dsh-pet] 对话改外形写盘失败：" + (e instanceof Error ? e.message : String(e)));
+			return false;
+		}
+	};
 	const chatMemory = createChatMemory({
 		ctx,
 		configPaths,
@@ -11637,7 +11980,9 @@ function apply(ctx) {
 				id: item.id,
 				dueAt: item.dueAt
 			};
-		}
+		},
+		renamePet,
+		configurePet
 	});
 	const { lastWhisperAt, publishWhisper, publishSleepTalk, chatWithPet, getActivePetId, setActivePetId } = chatMemory;
 	const balancePoll = createBalancePoll({
@@ -11663,6 +12008,7 @@ function apply(ctx) {
 		getHandlePetRoute: () => httpRoute.handlePetRoute
 	});
 	const { startHelper, stopHelper, markDisposed } = desktopHelper;
+	requestRestartRef = desktopHelper.requestRestart;
 	const requests = createRequestHub({
 		state,
 		log,

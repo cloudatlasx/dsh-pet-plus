@@ -7,10 +7,11 @@
  * @module dsh-pet/src/host/plugin/todo-reminders
  */
 import { pickVoiceSurface } from '../surface.ts';
-import { pickReminder, reminderText } from '../todo/policy.ts';
+import { nextReminderAt, pickReminder, reminderText } from '../todo/policy.ts';
 import type { TodoStore } from '../todo/store.ts';
 import type { LockStore } from '../lock.ts';
 import type { PollStateStore } from '../state.ts';
+import { publishReminder } from '../request-hub.ts';
 import type { HostSetup } from './setup.ts';
 import type { PetLookup } from './pet-lookup.ts';
 import type { HostContext } from './context.ts';
@@ -20,6 +21,12 @@ const TICK_MS = 60 * 1000;
 
 /** 提醒气泡停留时长（ms）：比默认 10 秒久一点，欠着的事值得多看两眼。 */
 const BUBBLE_DURATION_MS = 15 * 1000;
+
+/** 提醒气泡（带「知道了 / 等会儿」按钮）的停留时长：比说话气泡更久，会一直挂到用户处理。 */
+const REMINDER_TTL_MS = 5 * 60 * 1000;
+
+/** 两拍之间的最短等待（ms）：防止对齐计算退化成一个极小的数字把定时器打成忙等。 */
+const MIN_ARM_MS = 500;
 
 /** 一拍所需的最小能力（与完整输入同形，便于测试替身）。 */
 export interface TodoReminderTickDeps {
@@ -32,8 +39,8 @@ export interface TodoReminderTickDeps {
   /** 睡着的宠物不打扰：提醒是「跟它说话」，睡着时说了它也听不见，换一只醒着的。
    *  缺省视为都不睡（老调用方与测试替身不必改）。 */
   isSleeping?: (petId: string) => boolean;
-  /** 轮询状态：提醒写进 `pets.<id>.say`。 */
-  state: Pick<PollStateStore, 'writePet'>;
+  /** 轮询状态：说话写 `pets.<id>.say`，到点提醒同时写 `sections.reminder`。 */
+  state: Pick<PollStateStore, 'writePet' | 'writeSection'>;
   /** 日志出口。 */
   log: Pick<HostSetup['log'], 'info' | 'warn'>;
   /** 时间源；测试注入固定时钟。 */
@@ -102,11 +109,29 @@ export async function tickTodoReminders(deps: TodoReminderTickDeps): Promise<voi
   // 播报开关关掉时干脆不写这个键（叶子不带 = 谁都不念），气泡照旧弹。
   const display = String(pets.find((pet) => String(pet.id ?? '') === speaker)?.display ?? '');
   const voiceTo = deps.isVoiceTodoEnabled() ? pickVoiceSurface(display) : null;
+  const text = reminderText(due.todo, now);
   deps.state.writePet(speaker, 'say', {
-    text: reminderText(due.todo, now),
+    text,
     duration: BUBBLE_DURATION_MS,
     ...(voiceTo ? { voiceTo } : {}),
   });
+  // 除了说一句，还要弹一条带按钮的提醒气泡：说话气泡 15 秒就没了，忙起来一抬头就错过；
+  // 提醒气泡挂 5 分钟、带「知道了 / 等会儿」，用户点了才算处理过。
+  // kind 用 'todo'（与定时任务 / 聊天提醒区分），id 带时刻——同一条待办的每次提醒都要能分别关闭。
+  publishReminder(
+    deps.state,
+    {
+      id: `todo-${due.todo.id}-${now}`,
+      kind: 'todo',
+      ts: now,
+      title: due.todo.text,
+      prompt: text,
+      hint: '点「知道了」关掉；点「等会儿」15 分钟后再提醒。',
+      ...(due.todo.dueAt === null ? {} : { scheduledAt: new Date(due.todo.dueAt).toISOString() }),
+      ttlMs: REMINDER_TTL_MS,
+    },
+    () => now,
+  );
   await deps.todos.markReminded(due.todo.id, now);
   // 只记 id 与剩余时长：待办正文是用户内容，不进日志。
   const remainingSec = due.todo.dueAt === null ? 0 : Math.round((due.todo.dueAt - now) / 1000);
@@ -143,17 +168,36 @@ export function registerTodoReminders(deps: TodoReminderInput): void {
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
+    /** 下一拍该等多久：对齐最近一条待办的提醒时刻（上限仍是 {@link TICK_MS}）。
+     *  固定 60 秒栅格会让「16:46:54 到点」的提醒最晚晚到 60 秒（实测晚 34 秒）；
+     *  按 nextReminderAt 对齐后，到点那一拍误差在 1 秒内。读清单失败退回固定间隔。 */
+    async function nextDelayMs(): Promise<number> {
+      try {
+        const now = Date.now();
+        let next = Number.POSITIVE_INFINITY;
+        for (const todo of await todos.list()) {
+          const at = nextReminderAt(todo, now);
+          if (at !== null && at > now) next = Math.min(next, at);
+        }
+        if (!Number.isFinite(next)) return TICK_MS;
+        // +50ms 缓冲：pickReminder 用 >= 判到点，提前一点点醒不会漏。
+        return Math.max(MIN_ARM_MS, Math.min(TICK_MS, next - now + 50));
+      } catch {
+        return TICK_MS;
+      }
+    }
+
     /** 排下一拍；已卸载就不再排。 */
-    function arm(): void {
+    function arm(delayMs: number): void {
       if (disposed) return;
-      timer = setTimeout(() => void run(), TICK_MS);
+      timer = setTimeout(() => void run(), delayMs);
     }
 
     /** 跑一拍再排下一拍：启动即检查一次，不等第一个周期。 */
     async function run(): Promise<void> {
       timer = null;
       await tick();
-      arm();
+      arm(await nextDelayMs());
     }
 
     void run();

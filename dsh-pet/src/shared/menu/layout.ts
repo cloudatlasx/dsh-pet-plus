@@ -26,13 +26,13 @@ export interface MenuToolAction {
 /**
  * 工具项清单与默认顺序。
  *
- * 「对话」「指令」排最前是刻意的：它们是这个菜单里唯一「马上要用」的动作，
+ * 「对话」排最前是刻意的：它是这个菜单里唯一「马上要说句话」的入口，
  * 其余（余额、待办、记录、碎碎念）都是查看型，睡觉与位置属于环境操作。
- * 两者是两个独立入口，不是同一个窗的两档：对话要留痕、能接着聊；指令只发一件事、看结果。
+ * 只留一个入口：对话窗里既能聊天、也能让她做事（改名、记住、定时提醒都由对话解析），
+ * 不再单独摆一个「指令」窗——两个窗反而让人分不清该点哪个。
  */
 export const MENU_TOOL_ACTIONS: readonly MenuToolAction[] = [
   { action: 'chat', label: '对话', hint: '在宠物身上打开对话窗，输入框贴上就能说' },
-  { action: 'command', label: '指令', hint: '让她去做一件事；结果留在窗里，看完自己关' },
   { action: 'show-balance', label: '查看余额', hint: '拉一次余额并弹气泡' },
   { action: 'todo', label: '待办事项', hint: '打开待办面板' },
   { action: 'history', label: '最近记录', hint: '翻看弹过的提醒与推送' },

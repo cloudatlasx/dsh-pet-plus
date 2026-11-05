@@ -55,6 +55,50 @@ describe('composeSystemPrompt —— 分段拼装', () => {
     assert.equal(lines.length, 3, '不带历史说明时不多不少三段');
   });
 
+  test('soul → 紧跟人设之后、名字之前，并标明最高优先', () => {
+    const out = composeSystemPrompt({
+      prompt: '你是小女仆',
+      soul: '# 她的灵魂\n脾气好',
+      name: '蓝毛',
+      id: 'main',
+      now: NOW,
+    });
+    const lines = out.split('\n');
+    assert.equal(lines[0], '你是小女仆');
+    assert.equal(lines[1], '【她写给自己的人格（soul.md，主人亲自写的，最高优先）】');
+    assert.equal(lines[2], '# 她的灵魂');
+    assert.equal(lines[3], '脾气好');
+    assert.equal(lines[4], '你的名字是“蓝毛”。');
+  });
+
+  test('growth → 名字之后、当下之前，每条一行', () => {
+    const out = composeSystemPrompt({
+      prompt: '',
+      growth: ['周三要交周报', '喜欢喝乌龙'],
+      name: '蓝毛',
+      id: 'main',
+      now: NOW,
+    });
+    const lines = out.split('\n');
+    assert.equal(lines[0], '你的名字是“蓝毛”。');
+    assert.equal(lines[1], '【你记得的事】');
+    assert.equal(lines[2], '- 周三要交周报');
+    assert.equal(lines[3], '- 喜欢喝乌龙');
+    assert.ok(lines[4]?.startsWith('【当下】'), '成长记录之后才是时间背景');
+  });
+
+  test('soul 空 / growth 空 → 不占段（与旧的三行完全一致）', () => {
+    const out = composeSystemPrompt({
+      prompt: '你是小女仆',
+      soul: '   ',
+      growth: [],
+      name: '蓝毛',
+      id: 'main',
+      now: NOW,
+    });
+    assert.equal(out.split('\n').length, 3);
+  });
+
   test('historyTimes → 末尾追加【历史】段，仍在时间背景之后', () => {
     const out = composeSystemPrompt({ prompt: '你是小女仆', name: '蓝毛', id: 'main', now: NOW, historyTimes: true });
     const lines = out.split('\n');

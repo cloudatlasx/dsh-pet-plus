@@ -162,10 +162,6 @@ export function createMenuActions(deps: MenuActionDeps): MenuActions {
       deps.openChat();
       return;
     }
-    if (leaf.action === 'command') {
-      deps.openCommand();
-      return;
-    }
     if (leaf.action === 'todo') {
       deps.openTodo();
       return;

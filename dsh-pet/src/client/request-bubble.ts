@@ -276,7 +276,9 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
     const announce = reminder.kind === 'announce';
     // 对话里约好的提醒（kind = 'chat'）：徽标与定时任务分开，用户一眼能认出「这个是刚才聊天时答应我的」。
     const chat = reminder.kind === 'chat';
-    const badgeText = announce ? '宠物消息' : chat ? '聊天提醒' : '定时任务';
+    // 待办清单到点（kind = 'todo'）：与调度器/会话/聊天三种来源分开认。
+    const todo = reminder.kind === 'todo';
+    const badgeText = announce ? '宠物消息' : todo ? '待办提醒' : chat ? '聊天提醒' : '定时任务';
     const actions = reminder.actions ?? [];
     const sessionId = reminder.sessionId;
     const [sending, setSending] = rt.useState('');
@@ -323,7 +325,9 @@ export function makeReminderBubble(rt: RequestBubbleRuntime) {
           children: [
             h('span', {
               key: 'kind',
-              className: 'dsh-pet-request__badge is-reminder' + (announce ? ' is-announce' : chat ? ' is-chat' : ''),
+              className:
+                'dsh-pet-request__badge is-reminder' +
+                (announce ? ' is-announce' : todo ? ' is-todo' : chat ? ' is-chat' : ''),
               children: badgeText,
             }),
             Number.isFinite(planned)

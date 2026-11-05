@@ -14,6 +14,8 @@ import { composeSystemPrompt, petPersona } from '../persona.ts';
 import { findPetInstance, readAllConfig, removeRoundsByTs, sliceMemoryRounds } from '../config.ts';
 import type { PetImageRef } from '../image-attachment.ts';
 import { limitPool, matchMeme, pickMeme, readMemePool } from '../memes.ts';
+import { appendGrowth, archiveConversation, ensureSoul, readGrowth, readSoul } from '../soul.ts';
+import type { PetCorner } from '../chat-acts.ts';
 import { generateWhisper } from '../whisper.ts';
 import { createMemoryOrphans } from './memory-orphans.ts';
 import { configuredModel } from '../model-selection.ts';
@@ -37,6 +39,16 @@ export type ChatMemoryInput = {
    * 免得历史里留一条「答应了却没发生」的提醒。
    */
   scheduleReminder?: (petId: string, reminder: ChatReminder) => { id: string; dueAt: number } | undefined;
+  /**
+   * 把对话里说的「以后叫你 X」真的写进配置（pets[].name）。
+   * 走与设置页同一条写盘路径（saveUserConfig + 重启 Helper），返回是否成功。
+   */
+  renamePet?: (petId: string, name: string) => Promise<boolean> | boolean;
+  /**
+   * 把对话里说的「变大一倍」「挪到左上角」真的写进配置（pets[].size / pets[].position.corner）。
+   * 与改名同一条写盘路径；返回是否成功。
+   */
+  configurePet?: (petId: string, patch: { size?: number; corner?: PetCorner }) => Promise<boolean> | boolean;
 } & Pick<HostSetup, 'configPaths'> &
   Pick<HostSetup, 'log'> &
   Pick<HostSetup, 'memeDirsFor'> &
@@ -48,7 +60,8 @@ export type ChatMemoryInput = {
  * 创建对话与记忆。
  */
 export function createChatMemory(deps: ChatMemoryInput) {
-  const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot, scheduleReminder } = deps;
+  const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot, scheduleReminder, renamePet } = deps;
+  const { configurePet } = deps;
   // 命令「当前桌宠」（/pet 选择、/chat 使用）：全局单值不分会话；进程内内存，重启回默认第一只
   let activePetId = '';
 
@@ -105,10 +118,12 @@ export function createChatMemory(deps: ChatMemoryInput) {
    *  「查不到就兜底 main」的不可达分支。 */
   const petSystemPrompt = (
     found: { conf: Record<string, unknown>; pet: Record<string, unknown> },
-    options: { historyTimes?: boolean } = {},
+    options: { historyTimes?: boolean; soul?: string; growth?: readonly string[] } = {},
   ): string =>
     composeSystemPrompt({
       prompt: petPersona(found.conf, found.pet),
+      ...(options.soul !== undefined && options.soul !== '' ? { soul: options.soul } : {}),
+      ...(options.growth !== undefined && options.growth.length > 0 ? { growth: options.growth } : {}),
       name: String(found.pet.name ?? ''),
       id: String(found.pet.id ?? ''),
       now: new Date(),
@@ -232,7 +247,20 @@ export function createChatMemory(deps: ChatMemoryInput) {
     text: string,
     image?: PetImageRef,
   ): Promise<
-    | { ok: true; text: string; image?: string; remind?: { id: string; title: string; dueAt: number } }
+    | {
+        ok: true;
+        text: string;
+        image?: string;
+        remind?: { id: string; title: string; dueAt: number };
+        /** 这一轮真的改了名（新名字）；没要求改名则没有这个键 */
+        renamed?: string;
+        /** 这一轮真的记住了（那句话）；没要求记住则没有这个键 */
+        remembered?: string;
+        /** 成功改掉的缩放倍率 */
+        resized?: number;
+        /** 成功换到的角落 */
+        moved?: PetCorner;
+      }
     | { ok: false; reason: 'provider-missing' | 'generate-error' | 'unknown-pet'; message?: string }
   > =>
     withMemoryLock(async () => {
@@ -265,9 +293,14 @@ export function createChatMemory(deps: ChatMemoryInput) {
       // rounds = 0（用户关掉历史）→ 空历史；否则截尾部 rounds 轮（1 轮 = 1 问 1 答）。
       // 不能写 slice(-rounds * 2)：-0 在 JS 里 === 0，slice(-0) 返回整个数组而不是空。
       const list = sliceMemoryRounds(entry.messages, rounds);
-      // 人设：实例级 whisperPrompt 优先，没写回落所属条目（与碎碎念同一拼装）。
+      // 人设：实例级 whisperPrompt 优先，没写回落所属条目（与碎碎念同一拼装）；
+      // 再叠上她自己的 soul.md（人格）与 growth.md（记住的事）——这两个文件改了下一句就生效。
       // 有历史才追加【历史】段：没有历史时那段话在描述不存在的前缀，只会误导模型。
-      const system = petSystemPrompt(found, { historyTimes: list.length > 0 });
+      const soul = await readSoul(userRoot);
+      // 第一次对话时顺手落一份模板，用户下次就能编辑；写成异步，不拖慢这一句回复
+      if (soul === '') void ensureSoul(userRoot);
+      const growth = await readGrowth(userRoot);
+      const system = petSystemPrompt(found, { historyTimes: list.length > 0, soul, growth });
       // 图片只记尺寸与字节数（不记 base64）：模型不支持读图时 dsh-llm 会把它投影成占位文本，靠这行日志定位
       if (image !== undefined) {
         log.info(
@@ -312,6 +345,47 @@ export function createChatMemory(deps: ChatMemoryInput) {
         ...(remind ? { remind: { ...remind, title: generated.reminder?.title ?? '' } } : {}),
       });
       await writeMemory(mem);
+      // 按月归档：与 memory.json 两份独立的真相——记忆会被轮数窗口截断，归档不会。
+      // 失败不影响这次对话（append 内部已吞异常），只少了可翻的流水。
+      await archiveConversation(
+        userRoot,
+        petId,
+        [
+          { role: 'user', content: text, ts: now },
+          { role: 'assistant', content: generated.text, ts: now },
+        ],
+        new Date(now),
+      );
+      // 「以后叫你 X」：写进配置（与设置页同一条路径），写成功就算真的改了。
+      let renamedName: string | undefined;
+      if (generated.rename !== undefined && renamePet !== undefined) {
+        const renamed = await renamePet(petId, generated.rename);
+        if (renamed) renamedName = generated.rename;
+        log.info(`[dsh-pet] 对话里改名 pet=${petId} → ${generated.rename}（${renamed ? '已写盘' : '写盘失败'}）`);
+      }
+      // 「记住这件事」：追加到 growth.md，下次对话会带进提示词。
+      let resized: number | undefined;
+      let moved: PetCorner | undefined;
+      if ((generated.size !== undefined || generated.corner !== undefined) && configurePet !== undefined) {
+        const patch = {
+          ...(generated.size !== undefined ? { size: generated.size } : {}),
+          ...(generated.corner !== undefined ? { corner: generated.corner } : {}),
+        };
+        const configured = await configurePet(petId, patch);
+        if (configured) {
+          if (generated.size !== undefined) resized = generated.size;
+          if (generated.corner !== undefined) moved = generated.corner;
+        }
+        log.info(
+          `[dsh-pet] 对话里改外形 pet=${petId}（${configured ? '已写盘' : '写盘失败'}）：${JSON.stringify(patch)}`,
+        );
+      }
+      let rememberedText: string | undefined;
+      if (generated.remember !== undefined) {
+        const saved = await appendGrowth(userRoot, generated.remember, new Date(now));
+        if (saved) rememberedText = generated.remember;
+        log.info(`[dsh-pet] 对话里记住一件事 pet=${petId}（${saved ? '已追加' : '未变化'}）：${generated.remember}`);
+      }
       // 动作先写：与 POST /anim 同一条写回链路（记录 + anim 叶子），渲染端据此播放并回报执。
       if (generated.action !== undefined) {
         const record = playback.create(petId, generated.action);
@@ -336,6 +410,10 @@ export function createChatMemory(deps: ChatMemoryInput) {
         text: generated.text,
         ...(generated.image ? { image: generated.image } : {}),
         ...(remind ? { remind: { ...remind, title: generated.reminder?.title ?? '' } } : {}),
+        ...(renamedName !== undefined ? { renamed: renamedName } : {}),
+        ...(rememberedText !== undefined ? { remembered: rememberedText } : {}),
+        ...(resized !== undefined ? { resized } : {}),
+        ...(moved !== undefined ? { moved } : {}),
       };
     });
 

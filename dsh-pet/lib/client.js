@@ -2252,6 +2252,7 @@ const bubbleCss = [
 	".dsh-pet-request__badge.is-reminder{background:#3f6ea8}",
 	".dsh-pet-request__badge.is-announce{background:#2e9e4f}",
 	".dsh-pet-request__badge.is-chat{background:#7c5cd6}",
+	".dsh-pet-request__badge.is-todo{background:#c9762a}",
 	".dsh-pet-request__tool{font-size:calc(var(--f)*0.64);color:rgba(43,43,43,.62);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}",
 	".dsh-pet-request__body{font-size:calc(var(--f)*0.7);line-height:1.45;color:#2b2b2b;word-break:break-word;max-height:min(calc(var(--f)*5.5),30vh);overflow-y:auto;overscroll-behavior:contain;white-space:pre-wrap}",
 	".dsh-pet-reminder__title{font-size:calc(var(--f)*0.82);line-height:1.35;font-weight:700;color:#1f1f1f;word-break:break-word}",
@@ -3913,7 +3914,8 @@ function makeReminderBubble(rt) {
 		const text = reminder.prompt ?? "";
 		const announce = reminder.kind === "announce";
 		const chat = reminder.kind === "chat";
-		const badgeText = announce ? "宠物消息" : chat ? "聊天提醒" : "定时任务";
+		const todo = reminder.kind === "todo";
+		const badgeText = announce ? "宠物消息" : todo ? "待办提醒" : chat ? "聊天提醒" : "定时任务";
 		const actions = reminder.actions ?? [];
 		const sessionId = reminder.sessionId;
 		const [sending, setSending] = rt.useState("");
@@ -3961,7 +3963,7 @@ function makeReminderBubble(rt) {
 					className: "dsh-pet-request__head",
 					children: [h("span", {
 						key: "kind",
-						className: "dsh-pet-request__badge is-reminder" + (announce ? " is-announce" : chat ? " is-chat" : ""),
+						className: "dsh-pet-request__badge is-reminder" + (announce ? " is-announce" : todo ? " is-todo" : chat ? " is-chat" : ""),
 						children: badgeText
 					}), Number.isFinite(planned) ? h("span", {
 						key: "time",
@@ -5586,11 +5588,6 @@ const MENU_TOOL_ACTIONS = [
 		action: "chat",
 		label: "对话",
 		hint: "在宠物身上打开对话窗，输入框贴上就能说"
-	},
-	{
-		action: "command",
-		label: "指令",
-		hint: "让她去做一件事；结果留在窗里，看完自己关"
 	},
 	{
 		action: "show-balance",
@@ -10637,10 +10634,6 @@ function createMenuActions(deps) {
 			deps.openChat();
 			return;
 		}
-		if (leaf$1.action === "command") {
-			deps.openCommand();
-			return;
-		}
 		if (leaf$1.action === "todo") {
 			deps.openTodo();
 			return;
@@ -13956,10 +13949,6 @@ function createCardEntry(rt) {
 						action: "chat",
 						hint: CHAT_HOTKEY_HINT
 					};
-					case "command": return {
-						label: "指令",
-						action: "command"
-					};
 					case "show-balance": return {
 						label: "查看余额",
 						action: "show-balance"
@@ -15559,7 +15548,7 @@ function readHistory(leaf$1) {
 		if (!item || typeof item !== "object") continue;
 		const e = item;
 		if (typeof e.id !== "string" || e.id === "") continue;
-		if (e.kind !== "schedule" && e.kind !== "announce" && e.kind !== "chat") continue;
+		if (e.kind !== "schedule" && e.kind !== "announce" && e.kind !== "chat" && e.kind !== "todo") continue;
 		if (typeof e.title !== "string" || e.title.trim() === "") continue;
 		const lines = labelsOf(e.lines);
 		entries.push({
@@ -15639,7 +15628,7 @@ function readReminder(leaf$1) {
 	const d = leaf$1.data;
 	if (d.closed === true) return null;
 	if (typeof d.id !== "string" || d.id === "") return null;
-	if (d.kind !== "schedule" && d.kind !== "announce" && d.kind !== "chat") return null;
+	if (d.kind !== "schedule" && d.kind !== "announce" && d.kind !== "chat" && d.kind !== "todo") return null;
 	if (typeof d.title !== "string" || d.title.trim() === "") return null;
 	const lines = labelsOf(d.lines);
 	const actions = actionsOf(d.actions);

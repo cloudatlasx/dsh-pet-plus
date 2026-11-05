@@ -9,6 +9,7 @@
  *
  * @module dsh-pet/src/host/chat
  */
+import { type PetCorner } from './chat-acts.ts';
 import { type ChatReminder } from './chat-reminder.ts';
 import type { PetImageRef } from './image-attachment.ts';
 import { type MemeEntry } from './memes.ts';
@@ -20,6 +21,14 @@ export type ChatGenerateResult = {
     image?: string;
     action?: string;
     reminder?: ChatReminder;
+    /** 对话里要求改名（`[改名:新名字]`）：由 ./plugin/chat-memory 真的写进配置 */
+    rename?: string;
+    /** 对话里要求长久记住一件事（`[记住:…]`）：由 ./soul 追加进 growth.md */
+    remember?: string;
+    /** 对话里要求变大变小（`[大小:倍率]`）：由 ./plugin/chat-memory 写进配置 */
+    size?: number;
+    /** 对话里要求换角落（`[位置:右下]`）：由 ./plugin/chat-memory 写进配置 */
+    corner?: PetCorner;
 } | {
     ok: false;
     reason: 'provider-missing' | 'generate-error';

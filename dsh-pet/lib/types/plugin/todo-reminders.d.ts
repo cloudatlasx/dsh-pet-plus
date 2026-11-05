@@ -15,8 +15,8 @@ export interface TodoReminderTickDeps {
     /** 睡着的宠物不打扰：提醒是「跟它说话」，睡着时说了它也听不见，换一只醒着的。
      *  缺省视为都不睡（老调用方与测试替身不必改）。 */
     isSleeping?: (petId: string) => boolean;
-    /** 轮询状态：提醒写进 `pets.<id>.say`。 */
-    state: Pick<PollStateStore, 'writePet'>;
+    /** 轮询状态：说话写 `pets.<id>.say`，到点提醒同时写 `sections.reminder`。 */
+    state: Pick<PollStateStore, 'writePet' | 'writeSection'>;
     /** 日志出口。 */
     log: Pick<HostSetup['log'], 'info' | 'warn'>;
     /** 时间源；测试注入固定时钟。 */

@@ -44,6 +44,7 @@ function harness(options: {
   voiceTodo?: boolean;
 }) {
   const writes: Array<{ petId: string; leaf: string; data: unknown }> = [];
+  const sections: Array<{ slot: string; data: unknown }> = [];
   const marked: Array<{ id: string; at: number }> = [];
   const deps = {
     todos: {
@@ -59,12 +60,15 @@ function harness(options: {
       writePet: (petId: string, leaf: string, data: unknown) => {
         writes.push({ petId, leaf, data });
       },
+      writeSection: (slot: string, data: unknown) => {
+        sections.push({ slot, data });
+      },
     },
     log: { info: () => undefined, warn: () => undefined },
     now: () => NOW,
     hasListener: () => options.hasListener ?? true,
   };
-  return { deps, writes, marked };
+  return { deps, marked, sections, writes };
 }
 
 describe('pickReminderSpeaker —— 挑开口的宠物', () => {
@@ -118,6 +122,28 @@ describe('tickTodoReminders —— 一拍', () => {
     assert.equal(writes[0]?.leaf, 'say');
     assert.match(String((writes[0]?.data as { text: string }).text), /交周报/);
     assert.deepEqual(marked, [{ id: 'todo-1', at: NOW }]);
+  });
+
+  test('同时弹一条带按钮的提醒气泡：kind=todo、带标题与下次提醒按钮提示、id 含时刻', async () => {
+    const { deps, sections } = harness({ todos: [todo()] });
+    await tickTodoReminders(deps);
+    // publishReminder 还会顺手记一条台账（slot=history），这里只看提醒气泡
+    const reminders = sections.filter((item) => item.slot === 'reminder');
+    assert.equal(reminders.length, 1);
+    const data = reminders[0]?.data as {
+      id: string;
+      kind: string;
+      title: string;
+      hint?: string;
+      scheduledAt?: string;
+      ttlMs?: number;
+    };
+    assert.equal(data.kind, 'todo');
+    assert.equal(data.title, '交周报');
+    assert.equal(data.id, `todo-todo-1-${NOW}`);
+    assert.match(String(data.hint), /等会儿/);
+    assert.equal(data.scheduledAt, new Date(NOW + 10 * MINUTE).toISOString());
+    assert.ok((data.ttlMs ?? 0) > 60 * 1000, '提醒气泡应比说话气泡挂得更久');
   });
 
   test('没到点 / 已完成 / 无期限 → 什么都不做', async () => {

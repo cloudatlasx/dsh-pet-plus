@@ -44,9 +44,6 @@ Object.assign(PetSprite.prototype, {
           return { label: '碎碎念', action: 'whisper' };
         case 'chat':
           return { label: '对话', action: 'chat', hint: S.CHAT_HOTKEY_HINT };
-        // 与「对话」并列的独立入口：只发一件事，结果留在窗里，用户自己按 ✕ 收。
-        case 'command':
-          return { label: '指令', action: 'command' };
         // 睡觉/起来：睡着时这一项是「起来」（点它等于叫醒），醒着时是「睡觉」。
         // 该条目没配 animations.sleep 就整项不出现——与配置注释「不写 = 没有睡觉功能」一致。
         case 'sleep':
@@ -153,10 +150,6 @@ Object.assign(PetSprite.prototype, {
     }
     if (leaf.action === 'chat') {
       this.showChatFromMenu(); // 打开对话弹窗（记忆经 host /chat 读写，浏览器/桌面同一实例共享）
-      return;
-    }
-    if (leaf.action === 'command') {
-      this.showChatFromMenu(undefined, undefined, 'cmd'); // 同一个窗的「指令」档：发完不自动收，结果留窗里
       return;
     }
     if (leaf.action === 'todo') {

@@ -90,13 +90,13 @@ export type RequestAnswerPayload = {
  *
  * `kind` 只影响徽标与默认停留时长：`schedule` 是调度器到点，`announce` 是会话里的 agent
  * 用 `POST /announce` 推过来的结论（日报、待办清单之类），`chat` 是对话里答应了
- * 「两分钟后提醒我」由宠物自己的闹钟弹出来的。
+ * 「两分钟后提醒我」由宠物自己的闹钟弹出来的，`todo` 是待办清单到点。
  */
 export interface ReminderEnvelope {
     /** 提醒 id（由任务 id + 计划时刻拼成，同一条任务的不同次提醒不同）。 */
     id: string;
-    /** 来源：`schedule` = 调度器到点；`announce` = 会话主动推送；`chat` = 对话里约好的提醒。 */
-    kind: 'schedule' | 'announce' | 'chat';
+    /** 来源：`schedule` = 调度器到点；`announce` = 会话主动推送；`chat` = 对话里约好的提醒；`todo` = 待办到点。 */
+    kind: 'schedule' | 'announce' | 'chat' | 'todo';
     /** 写入时刻（ms）。 */
     ts: number;
     /** 任务标题。 */
@@ -140,7 +140,7 @@ export interface HistoryEntry {
     /** 原始提醒 id。 */
     id: string;
     /** 来源。 */
-    kind: 'schedule' | 'announce' | 'chat';
+    kind: 'schedule' | 'announce' | 'chat' | 'todo';
     /** 弹出时刻（ms）。 */
     ts: number;
     /** 标题。 */

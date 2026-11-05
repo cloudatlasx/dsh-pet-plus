@@ -4,7 +4,7 @@
  * @module dsh-pet/src/host/index
  */
 import { createHostSetup } from './plugin/setup.ts';
-import { readAllConfig } from './config.ts';
+import { readAllConfig, readUserConfig, saveUserConfig } from './config.ts';
 import { createHttpRoute, registerHttpRoute } from './plugin/http-route.ts';
 import { registerLifecycle } from './plugin/lifecycle.ts';
 import { registerChatCommand } from './plugin/command-chat.ts';
@@ -15,6 +15,7 @@ import { registerSessionWatch } from './plugin/session-watch.ts';
 import { createDesktopHelper } from './plugin/desktop-helper.ts';
 import { createBalancePoll } from './plugin/balance-poll.ts';
 import { createChatMemory } from './plugin/chat-memory.ts';
+import type { PetCorner } from './chat-acts.ts';
 import { createPetReminderStore } from './plugin/pet-reminders.ts';
 import { createSessionNotify } from './plugin/session-notify.ts';
 import { createPetLookup } from './plugin/pet-lookup.ts';
@@ -27,6 +28,7 @@ import { createVoiceService } from './voice/speak.ts';
 import { resolveVoiceEngine } from './voice/engine.ts';
 import { createHearService } from './voice/hear.ts';
 import { TODO_FILE_NAME, TodoStore } from './todo/store.ts';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PetRouteDeps } from './routes/types.ts';
 
@@ -41,6 +43,7 @@ export function apply(ctx: any): void {
   const setup = createHostSetup(ctx);
   const {
     userRoot,
+    userConfigPath,
     log,
     configPaths,
     thumbUserRoot,
@@ -94,6 +97,62 @@ export function apply(ctx: any): void {
     'dsh-pet: chat reminders',
   );
 
+  // 对话里改名的写盘动作：与设置页同一条路径（saveUserConfig 白名单重建 + 用户层非白名单字段透传），
+  // 只改这一只宠物的 name，其余原样保留。桌面 Helper 的重启引用在本工厂之后才可用，先留占位。
+  let requestRestartRef: (() => Promise<void>) | null = null;
+  const renamePet = async (petId: string, newName: string): Promise<boolean> => {
+    try {
+      const existing = readUserConfig(configPaths);
+      const source: Record<string, unknown> = existing ?? readAllConfig(configPaths).main;
+      const list = Array.isArray(source.pets) ? (source.pets as Record<string, unknown>[]) : [];
+      const index = list.findIndex((item) => item && typeof item === 'object' && String(item.id ?? '') === petId);
+      if (index < 0) return false;
+      const pets = list.map((item, i) => (i === index ? { ...item, name: newName } : item));
+      const clean = saveUserConfig({ ...source, pets }, existing);
+      if (!clean) return false;
+      await mkdir(userRoot, { recursive: true });
+      await writeFile(userConfigPath, JSON.stringify(clean, null, 2), 'utf8');
+      // 显示名进了配置：重启 Helper 让它读到新名字；异步、不阻塞这句回复
+      void requestRestartRef?.();
+      return true;
+    } catch (e) {
+      log.warn('[dsh-pet] 对话改名写盘失败：' + (e instanceof Error ? e.message : String(e)));
+      return false;
+    }
+  };
+
+  // 对话里「变大一点」「挪到左上角」的写盘动作：与改名同一条路径，只改这一只的 size / position.corner。
+  const configurePet = async (petId: string, patch: { size?: number; corner?: PetCorner }): Promise<boolean> => {
+    try {
+      const existing = readUserConfig(configPaths);
+      const source: Record<string, unknown> = existing ?? readAllConfig(configPaths).main;
+      const list = Array.isArray(source.pets) ? (source.pets as Record<string, unknown>[]) : [];
+      const index = list.findIndex((item) => item && typeof item === 'object' && String(item.id ?? '') === petId);
+      if (index < 0) return false;
+      const current = list[index]!;
+      const position =
+        current.position && typeof current.position === 'object' ? (current.position as Record<string, unknown>) : {};
+      const next: Record<string, unknown> = { ...current };
+      if (patch.size !== undefined) {
+        const base = Number(current.size);
+        // 配置里的 size 是像素宽度；缺失/脏值时按内置默认 462 算倍率
+        next.size = Math.round((Number.isFinite(base) && base > 0 ? base : 462) * patch.size);
+      }
+      if (patch.corner !== undefined) next.position = { ...position, corner: patch.corner };
+      const pets = list.map((item, i) => (i === index ? next : item));
+      const clean = saveUserConfig({ ...source, pets }, existing);
+      if (!clean) return false;
+      await mkdir(userRoot, { recursive: true });
+      await writeFile(userConfigPath, JSON.stringify(clean, null, 2), 'utf8');
+      // 大小与角落都要 Helper 重新读配置才生效
+      void requestRestartRef?.();
+      return true;
+    } catch (e) {
+      log.warn('[dsh-pet] 对话改外形写盘失败：' + (e instanceof Error ? e.message : String(e)));
+      return false;
+    }
+  };
+
   const chatMemory = createChatMemory({
     ctx,
     configPaths,
@@ -108,6 +167,9 @@ export function apply(ctx: any): void {
       const item = petReminders.schedule(petId, reminder.title, reminder.seconds);
       return { id: item.id, dueAt: item.dueAt };
     },
+    // 对话里说的「以后叫你 X」：真的写进 pets[].name（与设置页同一条写盘路径）。
+    renamePet,
+    configurePet,
   });
   const { lastWhisperAt, publishWhisper, publishSleepTalk, chatWithPet, getActivePetId, setActivePetId } = chatMemory;
 
@@ -129,6 +191,8 @@ export function apply(ctx: any): void {
     getHandlePetRoute: () => httpRoute.handlePetRoute,
   });
   const { startHelper, stopHelper, markDisposed } = desktopHelper;
+  // 对话改名要重启 Helper 才能读到新名字：工厂已建好，把真实入口填进前面的占位。
+  requestRestartRef = desktopHelper.requestRestart;
 
   // 审批 / 提问气泡：宿主 prepend 抢在 DSH 内置面板之前拿到会话请求，转成 /state 里的
   // sections.request，由宠物气泡作答；不接管（关开关 / 没端在线 / 已有待处理）就 next() 回落。

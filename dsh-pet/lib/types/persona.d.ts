@@ -9,6 +9,10 @@ export declare function petPersona(conf: Record<string, unknown>, pet: Record<st
 export interface SystemPromptParts {
     /** 已回落到生效值的人设正文（petPersona 的结果；空串 = 没有人设，只有名字 + 时间） */
     prompt: string;
+    /** 用户手写的 soul.md（数据根下，见 ../soul）；空串 = 没写，不占段 */
+    soul?: string;
+    /** 最近的成长记录（growth.md 末尾若干行）；空数组 = 不加【你记得的事】 */
+    growth?: readonly string[];
     /** 显示名（pets[].name；缺失/空按 id 处理） */
     name: string;
     /** 宠物 id（name 为空时的兜底；两者都空 = 整段名字声明省略） */

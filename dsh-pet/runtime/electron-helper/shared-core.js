@@ -1620,11 +1620,6 @@ const MENU_TOOL_ACTIONS = [
 		hint: "在宠物身上打开对话窗，输入框贴上就能说"
 	},
 	{
-		action: "command",
-		label: "指令",
-		hint: "让她去做一件事；结果留在窗里，看完自己关"
-	},
-	{
 		action: "show-balance",
 		label: "查看余额",
 		hint: "拉一次余额并弹气泡"

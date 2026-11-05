@@ -385,9 +385,6 @@ export function createCardEntry(rt: CardEntryRuntime) {
         switch (action) {
           case 'chat':
             return { label: '对话', action: 'chat', hint: CHAT_HOTKEY_HINT };
-          case 'command':
-            // 与「对话」并列的独立入口：一发一收，结果留在窗里给她自己关。
-            return { label: '指令', action: 'command' };
           case 'show-balance':
             return { label: '查看余额', action: 'show-balance' };
           case 'todo':

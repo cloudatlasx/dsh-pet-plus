@@ -12,7 +12,7 @@ export interface MenuLeaf {
   label: string;
   /** 播放的动画名（点播动作）；action 优先于 anim */
   anim?: string;
-  /** 自定义动作：打开网站 / 查看余额 / 立即碎碎念 / 打开对话弹窗 / 打开「指令」窗 / 打开待办面板 /
+  /** 自定义动作：打开网站 / 查看余额 / 立即碎碎念 / 打开对话弹窗 / 打开待办面板 /
    *  回到初始位置 / 重载配置（桌面端专属，重启桌面 Helper 并按最新配置重建窗口）/ 改显示位置
    *  （目标值见 display，两端都注入）/ 第三方菜单项（只把 owner 与 label 上报给注册方，具体做什么由它决定）。
    *  手动触发均不受 whisperEnabled 影响——那个字段只关自动轮询。 */
@@ -21,7 +21,6 @@ export interface MenuLeaf {
     | 'show-balance'
     | 'whisper'
     | 'chat'
-    | 'command'
     | 'todo'
     | 'history'
     | 'home'

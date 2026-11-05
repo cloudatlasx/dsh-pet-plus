@@ -1,8 +1,9 @@
 /**
  * 人设拼装（宿主半侧，纯逻辑）：碎碎念与对话共用的 system 提示词只在这一处拼好。
  *
- * 四段，顺序固定：人设正文（实例 whisperPrompt → 条目 whisperPrompt → 空串）、名字声明、
- * 时间背景（timeContextOf 现算，不缓存）、历史时间说明（仅在对话且有历史时追加）。
+ * 段序固定：人设正文（实例 whisperPrompt → 条目 whisperPrompt → 空串）、soul.md 人格、
+ * 名字声明、成长记录（growth.md 最近若干行）、时间背景（timeContextOf 现算，不缓存）、
+ * 历史时间说明（仅在对话且有历史时追加）。
  * 不碰 IO、不读时钟，Date 由调用方传入；也不负责取字段与
  * 发起生成（index.ts 的 petSystemPrompt 只做「取字段 → 调这里」）。
  * 必须始终成立：拼装点唯一——不给名字与时间开占位符配置，否则等于出现第二个拼装点。
@@ -36,6 +37,10 @@ export function petPersona(conf: Record<string, unknown>, pet: Record<string, un
 export interface SystemPromptParts {
   /** 已回落到生效值的人设正文（petPersona 的结果；空串 = 没有人设，只有名字 + 时间） */
   prompt: string;
+  /** 用户手写的 soul.md（数据根下，见 ../soul）；空串 = 没写，不占段 */
+  soul?: string;
+  /** 最近的成长记录（growth.md 末尾若干行）；空数组 = 不加【你记得的事】 */
+  growth?: readonly string[];
   /** 显示名（pets[].name；缺失/空按 id 处理） */
   name: string;
   /** 宠物 id（name 为空时的兜底；两者都空 = 整段名字声明省略） */
@@ -56,7 +61,15 @@ export interface SystemPromptParts {
 export function composeSystemPrompt(parts: SystemPromptParts): string {
   const name = String(parts.name || parts.id);
   const nameLine = name ? '你的名字是“' + name + '”。' : '';
-  const lines = [parts.prompt, nameLine].filter((line) => line !== '');
+  const soul = typeof parts.soul === 'string' ? parts.soul.trim() : '';
+  const growth = parts.growth ?? [];
+  const lines = [
+    parts.prompt,
+    soul !== '' ? '【她写给自己的人格（soul.md，主人亲自写的，最高优先）】\n' + soul : '',
+    nameLine,
+  ].filter((line) => line !== '');
+  // 成长记录跟在名字后面：它记的是「主人说过、要她记住」的事，属于事实层，不该混进人格文本
+  if (growth.length > 0) lines.push('【你记得的事】\n' + growth.map((item) => '- ' + item).join('\n'));
   const time = timeContextOf(parts.now);
   if (time) {
     lines.push(time);
