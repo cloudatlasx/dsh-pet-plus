@@ -3809,7 +3809,7 @@ paths:
           description: |
             `{ ok: true, count, entries }`——`count` 是累计条数（含已滚出列表的），
             `entries` 是最近若干条、新的在前，每条形如
-            `{ id, kind: "schedule"|"announce", ts, title, lines?, prompt?, sessionId? }`。
+            `{ id, kind: "schedule"|"announce"|"chat"|"todo", ts, title, lines?, prompt?, sessionId? }`。
           content:
             application/json:
               schema:
@@ -4179,6 +4179,44 @@ components:
           type: string
           description: |
             随文本一起显示的表情包名（条目开启了配图且池内命中时才有；否则该字段不出现）。
+        action:
+          type: string
+          description: |
+            本轮采纳的动作名（回复里带 `[动作:名称]` 时才有）。动作已写进 `pets.<id>.anim`，
+            这个字段只是让调用方不必再拉一拍。
+        reminder:
+          type: object
+          description: |
+            本轮排上的提醒（回复里带 `[提醒:秒数|标题]` 时才有）。已落盘到数据根的
+            `reminders.json`，到点会弹 `sections.reminder` 气泡；宿主重启后仍会响。
+          properties:
+            title:
+              type: string
+              description: 提醒事项
+            dueAt:
+              type: integer
+              description: 到点时刻（epoch 毫秒）
+        renamed:
+          type: string
+          description: |
+            本轮真的改掉的显示名（回复里带 `[改名:新名字]` 且写盘成功时才有）；
+            已写进 `main-config.jsonc` 的 `pets[].name`，桌面 Helper 会重启读新名字。
+        remembered:
+          type: string
+          description: |
+            本轮真的追加进 `growth.md` 的一件事（回复里带 `[记住:…]` 且写盘成功时才有），
+            每行带日期，同一条不重复写。
+        resized:
+          type: number
+          description: |
+            本轮真的生效的缩放倍率（回复里带 `[大小:倍率]` 且写盘成功时才有，0.5–3）：
+            `pets[].size` 已按「当前尺寸 × 倍率」写回配置。
+        moved:
+          type: string
+          enum: [top-left, top-right, bottom-left, bottom-right]
+          description: |
+            本轮真的换到的角落（回复里带 `[位置:…]` 且写盘成功时才有）：
+            `pets[].position.corner` 已写回配置。
       description: |
         生成成功。文本**仍然**照旧写进 `pets.<id>.say`——其它消费端（网页、桌面、第三方监听）
         继续从 `/state` 读；返回值只是让发起的这一方省一次往返，不改变任何现有展示链路。
