@@ -140,7 +140,9 @@ export interface ChatDialogOptions {
    * 不会把宠物整个盖住；缺省退回 `x`/`y` 当左上角的旧行为。
    */
   anchor?: { x: number; y: number; w: number; h: number };
-  /** 打开时就展开对话记录（缺省展开；显式传 false 才收起）。 */
+  /** 打开时的档：`chat` 带记录、发完留下继续聊；`cmd` 只发一条指令、发完自动收起。 */
+  mode?: 'chat' | 'cmd';
+  /** 打开时就展开对话记录（旧的入口参数；显式传 false 等于 `mode: 'cmd'`）。 */
   logOpen?: boolean;
   /** 打开时就带着的图片（拖拽落到宠物身上走的这条）；缺省 = 空弹窗。 */
   initialImage?: File;
@@ -156,8 +158,9 @@ export interface ChatDialogOptions {
 }
 
 /** 挂载一个对话输入弹窗（两端共用；位置为视口坐标，超出 clamp 矩形自动夹回）。
- *  输入框 + 上传/截屏两枚图标按钮 + 图片预览（本轮只有界面与本地预览，编码与发送待接入）。
- *  回车即发送：发送成功后弹窗关闭并调 onSent。Esc 或点弹窗外关闭；生成失败留在弹窗内显式提示。
+ *  顶栏是「对话 / 指令」两档 + 右上角关闭，下面一行图标按钮（上传 / 截屏 / 按住说话）与图片预览。
+ *  「对话」带记录、发完留下继续聊；「指令」不显示记录、发完即收起。
+ *  Esc 或点弹窗外关闭；生成失败留在弹窗内显式提示。
  *  clamp 由调用方给：桌面传「窗口 ∩ 工作区」，宠物贴边时弹窗照样完整显示、窗口零移动。 */
 export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   injectChatCss();
@@ -173,14 +176,14 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   const dom = createChatDom({ capture: opts.capture, hearUrl: opts.hearUrl ?? hearUrlOf(baseUrl) });
   const { root, input, err } = dom;
 
-  // 对话记录面板：默认展开，插在输入框上方（就地回看）；收起时整个移出视野。
+  // 对话记录面板：插在输入框上方（就地回看）；「对话」档展开，「指令」档收起。
   // 只读宿主已有的记忆，不另存一份；「保存」把整条历史导出成 Markdown。
   const log = createChatLog({
     petId,
     baseUrl,
     onChange: () => {
+      // 面板自己的 ✕ 也能收起记录：dataset 与落点都要跟上，否则弹窗还按展开时的宽度留白
       root.dataset.log = log.isOpen() ? '1' : '0';
-      dom.logBtn.dataset.on = root.dataset.log;
       place();
     },
   });
@@ -224,20 +227,48 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   unbindDismiss = bindDismiss(root, () => closed, close);
   // 关闭按钮：桌面窗口是透明+穿透的，点弹窗外那一下到不了 DOM；这颗按钮在哪一端都关得掉。
   dom.closeBtn.addEventListener('click', close);
-  // 记录按钮：展开/收起（尺寸变化与重新落点由 log 的 onChange 统一处理，贴边也跑不出屏幕）
-  dom.logBtn.addEventListener('click', () => {
-    log.toggle();
-    if (log.isOpen()) input.focus();
-  });
+  // 两档：「对话」带记录、发完留着；「指令」不显示记录、发完即收。
+  // 记录面板的尺寸变化经 ResizeObserver 统一重新落点，贴边也跑不出屏幕。
+  let mode: 'chat' | 'cmd' = opts.mode ?? (opts.logOpen === false ? 'cmd' : 'chat');
+  const setMode = (next: 'chat' | 'cmd', keepOpen = false): void => {
+    const changed = next !== mode;
+    mode = next;
+    root.dataset.mode = next;
+    for (const [key, btn] of [
+      ['chat', dom.modeBtns.chat],
+      ['cmd', dom.modeBtns.cmd],
+    ] as const) {
+      btn.dataset.on = key === next ? '1' : '0';
+      btn.setAttribute('aria-selected', key === next ? 'true' : 'false');
+    }
+    if (next === 'chat') {
+      if (changed || keepOpen) log.open();
+    } else {
+      log.close();
+    }
+    root.dataset.log = log.isOpen() ? '1' : '0';
+    dom.resizeInput();
+    place();
+  };
+  dom.modeBtns.chat.addEventListener('click', () => setMode('chat', true));
+  dom.modeBtns.cmd.addEventListener('click', () => setMode('cmd'));
   bindSend({
     input,
     err,
     url: withPet,
     isClosed: () => closed,
     onOk: () => {
-      // 发送成功即收起：回复本来就由 /state 走气泡，弹窗留着只会挡住宠物和右键菜单。
-      // 记录面板（默认展开的那块）跟着弹窗一起关，下次点「对话记录」再打开。
-      close();
+      // 指令档：说完就走，回复照样由 /state 走气泡，弹窗留着只会挡住宠物和右键菜单。
+      // 对话档：留下并刷新记录——「边聊边看」正是这一档存在的理由，关窗交给右上角 ✕ / Esc。
+      if (mode === 'cmd') close();
+      else {
+        input.value = '';
+        dom.clearAttach();
+        log.refresh();
+        dom.resizeInput();
+        place();
+        input.focus();
+      }
       if (onSent) onSent();
     },
     attachment: () => dom.getAttachment(),
@@ -247,8 +278,8 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   // 截屏按钮的接线在 dom 里（依赖注入的 capture），这里只负责发送与关闭
 
   dom.resizeInput(); // append 后再量一次（此时样式已生效）
-  // 记录默认展开：先展开再落点，否则第一帧按收起时的小尺寸挑边、展开后又挤出去
-  if (opts.logOpen !== false) log.open();
+  // 先按档位收放记录再落点，否则第一帧按收起时的小尺寸挑边、展开后又挤出去
+  setMode(mode, true);
   place();
   if (opts.initialImage) void dom.setImageFile(opts.initialImage);
   if (opts.initialEncoded) dom.setEncoded(opts.initialEncoded);

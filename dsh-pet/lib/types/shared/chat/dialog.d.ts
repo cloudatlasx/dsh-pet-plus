@@ -47,7 +47,9 @@ export interface ChatDialogOptions {
         w: number;
         h: number;
     };
-    /** 打开时就展开对话记录（缺省展开；显式传 false 才收起）。 */
+    /** 打开时的档：`chat` 带记录、发完留下继续聊；`cmd` 只发一条指令、发完自动收起。 */
+    mode?: 'chat' | 'cmd';
+    /** 打开时就展开对话记录（旧的入口参数；显式传 false 等于 `mode: 'cmd'`）。 */
     logOpen?: boolean;
     /** 打开时就带着的图片（拖拽落到宠物身上走的这条）；缺省 = 空弹窗。 */
     initialImage?: File;
@@ -62,7 +64,8 @@ export interface ChatDialogOptions {
     hearUrl?: string;
 }
 /** 挂载一个对话输入弹窗（两端共用；位置为视口坐标，超出 clamp 矩形自动夹回）。
- *  输入框 + 上传/截屏两枚图标按钮 + 图片预览（本轮只有界面与本地预览，编码与发送待接入）。
- *  回车即发送：发送成功后弹窗关闭并调 onSent。Esc 或点弹窗外关闭；生成失败留在弹窗内显式提示。
+ *  顶栏是「对话 / 指令」两档 + 右上角关闭，下面一行图标按钮（上传 / 截屏 / 按住说话）与图片预览。
+ *  「对话」带记录、发完留下继续聊；「指令」不显示记录、发完即收起。
+ *  Esc 或点弹窗外关闭；生成失败留在弹窗内显式提示。
  *  clamp 由调用方给：桌面传「窗口 ∩ 工作区」，宠物贴边时弹窗照样完整显示、窗口零移动。 */
 export declare function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount;

@@ -6,7 +6,7 @@
 import { type EncodedImage, encodeImageFile } from './encode.ts';
 import { createHearControl } from './hear-control.ts';
 import { IMAGE_ACCEPT, firstImageFromClipboard, isImageFile } from './image-pick.ts';
-import { cameraIcon, closeIcon, logIcon, micIcon, pictureIcon } from './icons.ts';
+import { cameraIcon, closeIcon, micIcon, pictureIcon } from './icons.ts';
 import type { ChatAttachment } from './send.ts';
 import { CHAT_H_PAD, CHAT_MAX_W, CHAT_MIN_W } from './styles.ts';
 
@@ -19,8 +19,8 @@ export interface ChatDom {
   readonly input: HTMLTextAreaElement;
   readonly err: HTMLDivElement;
   readonly shotBtn: HTMLButtonElement;
-  /** 「对话记录」按钮：行为在 dialog 里（面板要插到输入框上方，归挂载方管）。 */
-  readonly logBtn: HTMLButtonElement;
+  /** 「对话 / 指令」两档按钮：行为在 dialog 里（切档要收放记录面板、发完要不要关都在那边）。 */
+  readonly modeBtns: { readonly chat: HTMLButtonElement; readonly cmd: HTMLButtonElement };
   /** 关闭按钮：行为在 dialog 里（点它要触发整个弹窗的清理）。 */
   readonly closeBtn: HTMLButtonElement;
   /** 输入框与根宽度随文本自适应；挂到文档后调用一次，输入时自动重算。 */
@@ -116,9 +116,6 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
 
   const pickBtn = iconButton('上传图片', pictureIcon());
   const shotBtn = iconButton('截取当前屏幕', cameraIcon());
-  // 对话记录：展开后把「我和她说过什么」就地显示在输入框上方（见 ./log）。
-  // 放在最左：它是「看历史」而不是「往这条消息里加东西」，与后面三枚动作按钮不是一回事。
-  const logBtn = iconButton('对话记录', logIcon());
   const hearUrl = typeof opts.hearUrl === 'string' ? opts.hearUrl : '';
   const micBtn = iconButton('按住说话', micIcon());
   const fileInput = document.createElement('input');
@@ -141,15 +138,40 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
 
   const actions = document.createElement('div');
   actions.className = 'dsh-pet-chat-actions';
-  // 关闭：顶到动作行最右。桌面窗口是透明+穿透的，点弹窗外那一下根本到不了 DOM，
+  const spacer = document.createElement('span');
+  spacer.className = 'dsh-pet-chat-spacer';
+  actions.append(pickBtn, shotBtn, micBtn, fileInput, attach, spacer);
+
+  // 顶栏：对话 / 指令 两档 + 右上角关闭。
+  // 「对话」= 带记录、聊完还能接着说；「指令」= 不显示记录、说完就走（发完自动收起）。
+  const head = document.createElement('div');
+  head.className = 'dsh-pet-chat-head';
+  const modes = document.createElement('div');
+  modes.className = 'dsh-pet-chat-modes';
+  modes.setAttribute('role', 'tablist');
+  const modeButton = (key: 'chat' | 'cmd', label: string, hint: string): HTMLButtonElement => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dsh-pet-chat-mode';
+    btn.dataset.mode = key;
+    btn.textContent = label;
+    btn.title = hint;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', 'false');
+    return btn;
+  };
+  const chatModeBtn = modeButton('chat', '对话', '带着记录聊，发完可以接着说');
+  const cmdModeBtn = modeButton('cmd', '指令', '只说一句要她做的事，发完就收起来');
+  modes.append(chatModeBtn, cmdModeBtn);
+  const headSpacer = document.createElement('span');
+  headSpacer.className = 'dsh-pet-chat-spacer';
+  // 关闭：右上角（手会本能地往那儿摸）。桌面窗口是透明+穿透的，点弹窗外那一下根本到不了 DOM，
   // 光靠「点外面 / Esc」关不掉时，必须有一颗看得见的按钮。
   const closeBtn = iconButton('关闭对话', closeIcon());
   closeBtn.setAttribute('data-close', '1');
-  const spacer = document.createElement('span');
-  spacer.className = 'dsh-pet-chat-spacer';
-  actions.append(logBtn, pickBtn, shotBtn, micBtn, fileInput, attach, spacer, closeBtn);
+  head.append(modes, headSpacer, closeBtn);
 
-  root.append(input, actions, hint, err);
+  root.append(head, input, actions, hint, err);
   document.body.appendChild(root);
 
   const resizeInput = enableAutoResize(input, root);
@@ -238,7 +260,7 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
     input,
     err,
     shotBtn,
-    logBtn,
+    modeBtns: { chat: chatModeBtn, cmd: cmdModeBtn },
     closeBtn,
     resizeInput,
     clearAttach,

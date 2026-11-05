@@ -12543,16 +12543,6 @@ function micIcon(size = 16) {
 	}), svgNode("path", { d: "M5.5 11a6.5 6.5 0 0 0 13 0" }), svgNode("path", { d: "M12 17.5V21" }), svgNode("path", { d: "M8.5 21h7" }));
 	return svg;
 }
-function logIcon(size = 16) {
-	const svg = svgNode("svg", {
-		viewBox: "0 0 24 24",
-		width: String(size),
-		height: String(size),
-		...ICON_ATTRS
-	});
-	svg.append(svgNode("path", { d: "M4 6h16" }), svgNode("path", { d: "M4 12h16" }), svgNode("path", { d: "M4 18h10" }));
-	return svg;
-}
 function closeIcon(size = 16) {
 	const svg = svgNode("svg", {
 		viewBox: "0 0 24 24",
@@ -12592,6 +12582,14 @@ const CHAT_CSS = [
 	"resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}",
 	".dsh-pet-chat-input::placeholder{color:rgba(43,43,43,.45)}",
 	".dsh-pet-chat-input:disabled{opacity:.55}",
+	".dsh-pet-chat-head{display:flex;align-items:center;gap:6px;padding:6px 6px 2px 8px}",
+	".dsh-pet-chat-modes{display:inline-flex;align-items:center;gap:2px;background:rgba(0,0,0,.05);",
+	"border-radius:8px;padding:2px}",
+	".dsh-pet-chat-mode{border:none;background:transparent;color:rgba(43,43,43,.55);font-size:12px;",
+	"line-height:1;padding:4px 9px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap}",
+	".dsh-pet-chat-mode:hover{color:rgba(43,43,43,.85)}",
+	".dsh-pet-chat-mode[data-on=\"1\"]{background:#fff;color:rgba(43,43,43,.92);",
+	"box-shadow:0 1px 3px rgba(0,0,0,.12)}",
 	".dsh-pet-chat-actions{display:flex;align-items:center;gap:6px;padding:0 8px 7px}",
 	".dsh-pet-chat-spacer{flex:1 1 auto;min-width:0}",
 	".dsh-pet-chat-btn[data-close=\"1\"]{color:rgba(43,43,43,.5)}",
@@ -12715,7 +12713,6 @@ function createChatDom(opts = {}) {
 	};
 	const pickBtn = iconButton("上传图片", pictureIcon());
 	const shotBtn = iconButton("截取当前屏幕", cameraIcon());
-	const logBtn = iconButton("对话记录", logIcon());
 	const hearUrl = typeof opts.hearUrl === "string" ? opts.hearUrl : "";
 	const micBtn = iconButton("按住说话", micIcon());
 	const fileInput = document.createElement("input");
@@ -12736,12 +12733,34 @@ function createChatDom(opts = {}) {
 	attach.append(thumb, attachX);
 	const actions = document.createElement("div");
 	actions.className = "dsh-pet-chat-actions";
-	const closeBtn = iconButton("关闭对话", closeIcon());
-	closeBtn.setAttribute("data-close", "1");
 	const spacer = document.createElement("span");
 	spacer.className = "dsh-pet-chat-spacer";
-	actions.append(logBtn, pickBtn, shotBtn, micBtn, fileInput, attach, spacer, closeBtn);
-	root.append(input, actions, hint, err);
+	actions.append(pickBtn, shotBtn, micBtn, fileInput, attach, spacer);
+	const head = document.createElement("div");
+	head.className = "dsh-pet-chat-head";
+	const modes = document.createElement("div");
+	modes.className = "dsh-pet-chat-modes";
+	modes.setAttribute("role", "tablist");
+	const modeButton = (key, label, hint$1) => {
+		const btn = document.createElement("button");
+		btn.type = "button";
+		btn.className = "dsh-pet-chat-mode";
+		btn.dataset.mode = key;
+		btn.textContent = label;
+		btn.title = hint$1;
+		btn.setAttribute("role", "tab");
+		btn.setAttribute("aria-selected", "false");
+		return btn;
+	};
+	const chatModeBtn = modeButton("chat", "对话", "带着记录聊，发完可以接着说");
+	const cmdModeBtn = modeButton("cmd", "指令", "只说一句要她做的事，发完就收起来");
+	modes.append(chatModeBtn, cmdModeBtn);
+	const headSpacer = document.createElement("span");
+	headSpacer.className = "dsh-pet-chat-spacer";
+	const closeBtn = iconButton("关闭对话", closeIcon());
+	closeBtn.setAttribute("data-close", "1");
+	head.append(modes, headSpacer, closeBtn);
+	root.append(head, input, actions, hint, err);
 	document.body.appendChild(root);
 	const resizeInput = enableAutoResize(input, root);
 	let attachment;
@@ -12822,7 +12841,10 @@ function createChatDom(opts = {}) {
 		input,
 		err,
 		shotBtn,
-		logBtn,
+		modeBtns: {
+			chat: chatModeBtn,
+			cmd: cmdModeBtn
+		},
 		closeBtn,
 		resizeInput,
 		clearAttach,
@@ -13168,7 +13190,6 @@ function mountChatDialog(opts) {
 		baseUrl,
 		onChange: () => {
 			root.dataset.log = log$3.isOpen() ? "1" : "0";
-			dom.logBtn.dataset.on = root.dataset.log;
 			place();
 		}
 	});
@@ -13211,17 +13232,39 @@ function mountChatDialog(opts) {
 	};
 	unbindDismiss = bindDismiss(root, () => closed, close);
 	dom.closeBtn.addEventListener("click", close);
-	dom.logBtn.addEventListener("click", () => {
-		log$3.toggle();
-		if (log$3.isOpen()) input.focus();
-	});
+	let mode = opts.mode ?? (opts.logOpen === false ? "cmd" : "chat");
+	const setMode = (next, keepOpen = false) => {
+		const changed = next !== mode;
+		mode = next;
+		root.dataset.mode = next;
+		for (const [key, btn] of [["chat", dom.modeBtns.chat], ["cmd", dom.modeBtns.cmd]]) {
+			btn.dataset.on = key === next ? "1" : "0";
+			btn.setAttribute("aria-selected", key === next ? "true" : "false");
+		}
+		if (next === "chat") {
+			if (changed || keepOpen) log$3.open();
+		} else log$3.close();
+		root.dataset.log = log$3.isOpen() ? "1" : "0";
+		dom.resizeInput();
+		place();
+	};
+	dom.modeBtns.chat.addEventListener("click", () => setMode("chat", true));
+	dom.modeBtns.cmd.addEventListener("click", () => setMode("cmd"));
 	bindSend({
 		input,
 		err,
 		url: withPet,
 		isClosed: () => closed,
 		onOk: () => {
-			close();
+			if (mode === "cmd") close();
+			else {
+				input.value = "";
+				dom.clearAttach();
+				log$3.refresh();
+				dom.resizeInput();
+				place();
+				input.focus();
+			}
 			if (onSent) onSent();
 		},
 		attachment: () => dom.getAttachment(),
@@ -13229,7 +13272,7 @@ function mountChatDialog(opts) {
 		notify: (text) => dom.flash(text)
 	});
 	dom.resizeInput();
-	if (opts.logOpen !== false) log$3.open();
+	setMode(mode, true);
 	place();
 	if (opts.initialImage) dom.setImageFile(opts.initialImage);
 	if (opts.initialEncoded) dom.setEncoded(opts.initialEncoded);

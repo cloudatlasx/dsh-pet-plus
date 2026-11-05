@@ -24,10 +24,20 @@ export const CHAT_CSS = [
   'resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}',
   '.dsh-pet-chat-input::placeholder{color:rgba(43,43,43,.45)}',
   '.dsh-pet-chat-input:disabled{opacity:.55}',
-  // 操作行：记录 / 上传 / 截屏 / 按住说话，最右是关闭（撑开的空白由 spacer 占住）
+  // 顶栏：左边「对话 / 指令」两档，右边关闭。关闭必须待在右上角——手会本能地往那儿摸，
+  // 放在动作行最右只会点错一次再重开一遍。
+  '.dsh-pet-chat-head{display:flex;align-items:center;gap:6px;padding:6px 6px 2px 8px}',
+  '.dsh-pet-chat-modes{display:inline-flex;align-items:center;gap:2px;background:rgba(0,0,0,.05);',
+  'border-radius:8px;padding:2px}',
+  '.dsh-pet-chat-mode{border:none;background:transparent;color:rgba(43,43,43,.55);font-size:12px;',
+  'line-height:1;padding:4px 9px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap}',
+  '.dsh-pet-chat-mode:hover{color:rgba(43,43,43,.85)}',
+  '.dsh-pet-chat-mode[data-on="1"]{background:#fff;color:rgba(43,43,43,.92);',
+  'box-shadow:0 1px 3px rgba(0,0,0,.12)}',
+  // 操作行：上传 / 截屏 / 按住说话（撑开的空白由 spacer 占住；关闭在顶栏）
   '.dsh-pet-chat-actions{display:flex;align-items:center;gap:6px;padding:0 8px 7px}',
   '.dsh-pet-chat-spacer{flex:1 1 auto;min-width:0}',
-  // 关闭按钮：独立底色，悬停变红一点，别和「往消息里加东西」的动作混在一起
+  // 关闭按钮：悬停变红一点，别和「往消息里加东西」的动作混在一起
   '.dsh-pet-chat-btn[data-close="1"]{color:rgba(43,43,43,.5)}',
   '.dsh-pet-chat-btn[data-close="1"]:hover{background:rgba(229,72,77,.12);color:#d94f3d}',
   '.dsh-pet-chat-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;',
