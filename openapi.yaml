@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.13.0
+  version: 0.14.0
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -3849,7 +3849,7 @@ paths:
                   const: true
       responses:
         "200":
-          description: '`{ ok: true }`'
+          description: "`{ ok: true }`"
           content:
             application/json:
               schema:
@@ -3857,7 +3857,7 @@ paths:
                   - $ref: "#/components/schemas/OkResponse"
                   - $ref: "#/components/schemas/FailureResponse"
         "400":
-          description: '请求体不是合法 JSON 或没带 `clear:true`：`400` + 失败实体'
+          description: "请求体不是合法 JSON 或没带 `clear:true`：`400` + 失败实体"
           content:
             application/json:
               schema:

@@ -1,8 +1,8 @@
 /**
  * 对话输入弹窗的挂载与生命周期：定位、关闭、发送。
  * 两端共用同一份实现；它只经注入的 baseUrl/surface 说话，不读配置、不读写记忆。
- * 回复不经响应回传展示：POST 的响应里也有正文，但本组件不用它——回复统一从 /state 的
- * pets.<id>.say 走气泡展示，onSent 只用来催促调用方取一拍。
+ * 回复的主展示路径仍是 /state 的 pets.<id>.say（气泡）；只有「指令」档会把这一轮的
+ * 回复正文当场写进窗内的结果区——那一档要的正是「她做完了什么」。
  * @module dsh-pet/src/shared/chat/dialog
  */
 import { ROUTE_PATH } from '../constants.ts';
@@ -41,8 +41,8 @@ interface SendBinding {
   /** 已含 `?pet=&surface=` 的对话地址。 */
   readonly url: string;
   readonly isClosed: () => boolean;
-  /** 发送成功（弹窗尚未关闭）。 */
-  readonly onOk: () => void;
+  /** 发送成功（弹窗尚未关闭）；`reply` 是这一轮她的回复正文（宿主没给正文时为 undefined）。 */
+  readonly onOk: (reply?: string) => void;
   /** 待发送的图片；没有就发纯文本。 */
   readonly attachment: () => ChatAttachment | undefined;
   /** 是否还在压缩图片：是的话先提示，别发出去把图丢掉。 */
@@ -83,7 +83,7 @@ function bindSend(binding: SendBinding): void {
     binding.input.disabled = true;
     sendChat(binding.url, text, binding.attachment())
       .then((state) => {
-        if (state.ok) binding.onOk();
+        if (state.ok) binding.onOk(state.text);
         else {
           binding.err.textContent = '对话失败：' + (state.message ?? state.reason);
           binding.err.style.display = 'block';
@@ -130,7 +130,7 @@ export interface ChatDialogOptions {
   surface: 'web' | 'desktop';
   x: number;
   y: number;
-  /** 发送成功后调用（弹窗此时已关闭）：回复本身不从这里回传，数据只有 /state 一个出口。 */
+  /** 发送成功后调用（弹窗此时仍开着）：`chat` 档用来刷新记录，`cmd` 档用来把结果摆进窗里。 */
   onSent?: () => void;
   onClose?: () => void;
   /** 弹窗允许占用的矩形（视口局部坐标）；缺省 = 整个视口。 */
@@ -140,9 +140,9 @@ export interface ChatDialogOptions {
    * 不会把宠物整个盖住；缺省退回 `x`/`y` 当左上角的旧行为。
    */
   anchor?: { x: number; y: number; w: number; h: number };
-  /** 打开时的档：`chat` 带记录、发完留下继续聊；`cmd` 只发一条指令、发完自动收起。 */
+  /** 开哪一种窗：`chat` 带记录、聊完留下继续聊；`cmd` 只发一条指令、结果留在窗里等她自己收。 */
   mode?: 'chat' | 'cmd';
-  /** 打开时就展开对话记录（旧的入口参数；显式传 false 等于 `mode: 'cmd'`）。 */
+  /** 打开时就展开对话记录（旧入口参数；显式传 false 等于 `mode: 'cmd'`）。 */
   logOpen?: boolean;
   /** 打开时就带着的图片（拖拽落到宠物身上走的这条）；缺省 = 空弹窗。 */
   initialImage?: File;
@@ -158,8 +158,9 @@ export interface ChatDialogOptions {
 }
 
 /** 挂载一个对话输入弹窗（两端共用；位置为视口坐标，超出 clamp 矩形自动夹回）。
- *  顶栏是「对话 / 指令」两档 + 右上角关闭，下面一行图标按钮（上传 / 截屏 / 按住说话）与图片预览。
- *  「对话」带记录、发完留下继续聊；「指令」不显示记录、发完即收起。
+ *  顶栏是标题（「对话」/「指令」）+ 右上角关闭，下面一行图标按钮（上传 / 截屏 / 按住说话）与图片预览。
+ *  档位由调用方决定（右键菜单两个独立入口）：`chat` 带记录、发完留下继续聊；
+ *  `cmd` 发完不关窗，把她的回复写进窗内的结果区，等用户自己按 ✕ 收。
  *  Esc 或点弹窗外关闭；生成失败留在弹窗内显式提示。
  *  clamp 由调用方给：桌面传「窗口 ∩ 工作区」，宠物贴边时弹窗照样完整显示、窗口零移动。 */
 export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
@@ -176,18 +177,37 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   const dom = createChatDom({ capture: opts.capture, hearUrl: opts.hearUrl ?? hearUrlOf(baseUrl) });
   const { root, input, err } = dom;
 
-  // 对话记录面板：插在输入框上方（就地回看）；「对话」档展开，「指令」档收起。
-  // 只读宿主已有的记忆，不另存一份；「保存」把整条历史导出成 Markdown。
-  const log = createChatLog({
-    petId,
-    baseUrl,
-    onChange: () => {
-      // 面板自己的 ✕ 也能收起记录：dataset 与落点都要跟上，否则弹窗还按展开时的宽度留白
-      root.dataset.log = log.isOpen() ? '1' : '0';
-      place();
-    },
-  });
-  root.insertBefore(log.root, input);
+  // 档位在开窗时就定死：右键菜单是「对话」「指令」两个独立入口，窗内不再切换。
+  //  chat = 带记录、聊完还能接着聊；cmd = 只说一件事、结果当场摆在窗里，等她自己按 ✕ 收。
+  const mode: 'chat' | 'cmd' = opts.mode ?? (opts.logOpen === false ? 'cmd' : 'chat');
+  root.dataset.mode = mode;
+  dom.title.textContent = mode === 'cmd' ? '指令' : '对话';
+  if (mode === 'cmd') input.placeholder = '让她去做点什么…';
+
+  // 对话记录面板：插在输入框上方（就地回看）。只在「对话」档建——「指令」窗要的是
+  // 这一条指令的结果，历史列表只会把它挤下去。
+  let log: ReturnType<typeof createChatLog> | undefined;
+  if (mode === 'chat') {
+    log = createChatLog({
+      petId,
+      baseUrl,
+      onChange: () => {
+        // 面板自己的 ✕ 也能收起记录：dataset 与落点都要跟上，否则弹窗还按展开时的宽度留白
+        root.dataset.log = log?.isOpen() ? '1' : '0';
+        place();
+      },
+    });
+    root.insertBefore(log.root, input);
+  }
+
+  // 「指令」窗的结果区：发完不关窗，把她的回复当场写在这里，看得见就不用再回头翻记录。
+  let result: HTMLDivElement | undefined;
+  if (mode === 'cmd') {
+    result = document.createElement('div');
+    result.className = 'dsh-pet-chat-result';
+    result.style.display = 'none';
+    root.insertBefore(result, input);
+  }
 
   /**
    * 落点：有 `anchor` 就按「宠物贴哪边、弹窗朝另一边长」摆（见 ./place.ts），
@@ -218,7 +238,7 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
     closed = true;
     ro.disconnect();
     unbindDismiss();
-    log.dispose();
+    log?.dispose();
     dom.dispose();
     dom.clearAttach();
     root.remove();
@@ -227,44 +247,29 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   unbindDismiss = bindDismiss(root, () => closed, close);
   // 关闭按钮：桌面窗口是透明+穿透的，点弹窗外那一下到不了 DOM；这颗按钮在哪一端都关得掉。
   dom.closeBtn.addEventListener('click', close);
-  // 两档：「对话」带记录、发完留着；「指令」不显示记录、发完即收。
-  // 记录面板的尺寸变化经 ResizeObserver 统一重新落点，贴边也跑不出屏幕。
-  let mode: 'chat' | 'cmd' = opts.mode ?? (opts.logOpen === false ? 'cmd' : 'chat');
-  const setMode = (next: 'chat' | 'cmd', keepOpen = false): void => {
-    const changed = next !== mode;
-    mode = next;
-    root.dataset.mode = next;
-    for (const [key, btn] of [
-      ['chat', dom.modeBtns.chat],
-      ['cmd', dom.modeBtns.cmd],
-    ] as const) {
-      btn.dataset.on = key === next ? '1' : '0';
-      btn.setAttribute('aria-selected', key === next ? 'true' : 'false');
-    }
-    if (next === 'chat') {
-      if (changed || keepOpen) log.open();
-    } else {
-      log.close();
-    }
-    root.dataset.log = log.isOpen() ? '1' : '0';
-    dom.resizeInput();
-    place();
-  };
-  dom.modeBtns.chat.addEventListener('click', () => setMode('chat', true));
-  dom.modeBtns.cmd.addEventListener('click', () => setMode('cmd'));
   bindSend({
     input,
     err,
     url: withPet,
     isClosed: () => closed,
-    onOk: () => {
-      // 指令档：说完就走，回复照样由 /state 走气泡，弹窗留着只会挡住宠物和右键菜单。
-      // 对话档：留下并刷新记录——「边聊边看」正是这一档存在的理由，关窗交给右上角 ✕ / Esc。
-      if (mode === 'cmd') close();
-      else {
+    onOk: (reply) => {
+      if (mode === 'cmd') {
+        // 指令：**不关窗**。她做完的事要当场看得见，看完自己按 ✕ 收。
+        if (result) {
+          result.textContent = reply ?? '做完了，没留话。';
+          result.dataset.thinking = '0';
+          result.style.display = 'block';
+        }
         input.value = '';
         dom.clearAttach();
-        log.refresh();
+        dom.resizeInput();
+        place();
+        input.focus();
+      } else {
+        // 对话：留下并刷新记录——「边聊边看」正是这一档存在的理由，关窗交给右上角 ✕ / Esc。
+        input.value = '';
+        dom.clearAttach();
+        log?.refresh();
         dom.resizeInput();
         place();
         input.focus();
@@ -278,8 +283,11 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   // 截屏按钮的接线在 dom 里（依赖注入的 capture），这里只负责发送与关闭
 
   dom.resizeInput(); // append 后再量一次（此时样式已生效）
-  // 先按档位收放记录再落点，否则第一帧按收起时的小尺寸挑边、展开后又挤出去
-  setMode(mode, true);
+  // 先展开记录再落点，否则第一帧按收起时的小尺寸挑边、展开后又挤出去
+  if (log) {
+    log.open();
+    root.dataset.log = log.isOpen() ? '1' : '0';
+  }
   place();
   if (opts.initialImage) void dom.setImageFile(opts.initialImage);
   if (opts.initialEncoded) dom.setEncoded(opts.initialEncoded);

@@ -5291,6 +5291,11 @@ const MENU_TOOL_ACTIONS = [
 		hint: "在宠物身上打开对话窗，输入框贴上就能说"
 	},
 	{
+		action: "command",
+		label: "指令",
+		hint: "让她去做一件事；结果留在窗里，看完自己关"
+	},
+	{
 		action: "show-balance",
 		label: "查看余额",
 		hint: "拉一次余额并弹气泡"
@@ -10335,6 +10340,10 @@ function createMenuActions(deps) {
 			deps.openChat();
 			return;
 		}
+		if (leaf$1.action === "command") {
+			deps.openCommand();
+			return;
+		}
 		if (leaf$1.action === "todo") {
 			deps.openTodo();
 			return;
@@ -12583,13 +12592,12 @@ const CHAT_CSS = [
 	".dsh-pet-chat-input::placeholder{color:rgba(43,43,43,.45)}",
 	".dsh-pet-chat-input:disabled{opacity:.55}",
 	".dsh-pet-chat-head{display:flex;align-items:center;gap:6px;padding:6px 6px 2px 8px}",
-	".dsh-pet-chat-modes{display:inline-flex;align-items:center;gap:2px;background:rgba(0,0,0,.05);",
-	"border-radius:8px;padding:2px}",
-	".dsh-pet-chat-mode{border:none;background:transparent;color:rgba(43,43,43,.55);font-size:12px;",
-	"line-height:1;padding:4px 9px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap}",
-	".dsh-pet-chat-mode:hover{color:rgba(43,43,43,.85)}",
-	".dsh-pet-chat-mode[data-on=\"1\"]{background:#fff;color:rgba(43,43,43,.92);",
-	"box-shadow:0 1px 3px rgba(0,0,0,.12)}",
+	".dsh-pet-chat-title{font-size:12px;font-weight:600;color:rgba(43,43,43,.78);",
+	"letter-spacing:.02em;user-select:none}",
+	".dsh-pet-chat[data-mode=\"cmd\"] .dsh-pet-chat-title{color:#7c5cd6}",
+	".dsh-pet-chat-result{max-height:min(200px,38vh);overflow-y:auto;margin:0 8px 6px;",
+	"padding:7px 9px;border-radius:9px;background:#f2f4f8;border:1px solid rgba(0,0,0,.07);",
+	"font-size:13px;line-height:1.5;color:rgba(43,43,43,.9);white-space:pre-wrap;overflow-wrap:break-word}",
 	".dsh-pet-chat-actions{display:flex;align-items:center;gap:6px;padding:0 8px 7px}",
 	".dsh-pet-chat-spacer{flex:1 1 auto;min-width:0}",
 	".dsh-pet-chat-btn[data-close=\"1\"]{color:rgba(43,43,43,.5)}",
@@ -12738,28 +12746,13 @@ function createChatDom(opts = {}) {
 	actions.append(pickBtn, shotBtn, micBtn, fileInput, attach, spacer);
 	const head = document.createElement("div");
 	head.className = "dsh-pet-chat-head";
-	const modes = document.createElement("div");
-	modes.className = "dsh-pet-chat-modes";
-	modes.setAttribute("role", "tablist");
-	const modeButton = (key, label, hint$1) => {
-		const btn = document.createElement("button");
-		btn.type = "button";
-		btn.className = "dsh-pet-chat-mode";
-		btn.dataset.mode = key;
-		btn.textContent = label;
-		btn.title = hint$1;
-		btn.setAttribute("role", "tab");
-		btn.setAttribute("aria-selected", "false");
-		return btn;
-	};
-	const chatModeBtn = modeButton("chat", "对话", "带着记录聊，发完可以接着说");
-	const cmdModeBtn = modeButton("cmd", "指令", "只说一句要她做的事，发完就收起来");
-	modes.append(chatModeBtn, cmdModeBtn);
+	const title = document.createElement("span");
+	title.className = "dsh-pet-chat-title";
 	const headSpacer = document.createElement("span");
 	headSpacer.className = "dsh-pet-chat-spacer";
 	const closeBtn = iconButton("关闭对话", closeIcon());
 	closeBtn.setAttribute("data-close", "1");
-	head.append(modes, headSpacer, closeBtn);
+	head.append(title, headSpacer, closeBtn);
 	root.append(head, input, actions, hint, err);
 	document.body.appendChild(root);
 	const resizeInput = enableAutoResize(input, root);
@@ -12841,10 +12834,7 @@ function createChatDom(opts = {}) {
 		input,
 		err,
 		shotBtn,
-		modeBtns: {
-			chat: chatModeBtn,
-			cmd: cmdModeBtn
-		},
+		title,
 		closeBtn,
 		resizeInput,
 		clearAttach,
@@ -13101,7 +13091,10 @@ async function sendChat(baseUrl, text, attachment) {
 		reason: o.reason === "provider-missing" || o.reason === "generate-error" || o.reason === "config-error" ? o.reason : "bad-request",
 		message: typeof o.message === "string" ? o.message : void 0
 	};
-	return { ok: true };
+	return {
+		ok: true,
+		text: typeof o.text === "string" ? o.text : void 0
+	};
 }
 
 //#endregion
@@ -13136,7 +13129,7 @@ function bindSend(binding) {
 		sending = true;
 		binding.input.disabled = true;
 		sendChat(binding.url, text, binding.attachment()).then((state) => {
-			if (state.ok) binding.onOk();
+			if (state.ok) binding.onOk(state.text);
 			else {
 				binding.err.textContent = "对话失败：" + (state.message ?? state.reason);
 				binding.err.style.display = "block";
@@ -13185,15 +13178,29 @@ function mountChatDialog(opts) {
 		hearUrl: opts.hearUrl ?? hearUrlOf(baseUrl)
 	});
 	const { root, input, err } = dom;
-	const log$3 = createChatLog({
-		petId,
-		baseUrl,
-		onChange: () => {
-			root.dataset.log = log$3.isOpen() ? "1" : "0";
-			place();
-		}
-	});
-	root.insertBefore(log$3.root, input);
+	const mode = opts.mode ?? (opts.logOpen === false ? "cmd" : "chat");
+	root.dataset.mode = mode;
+	dom.title.textContent = mode === "cmd" ? "指令" : "对话";
+	if (mode === "cmd") input.placeholder = "让她去做点什么…";
+	let log$3;
+	if (mode === "chat") {
+		log$3 = createChatLog({
+			petId,
+			baseUrl,
+			onChange: () => {
+				root.dataset.log = log$3?.isOpen() ? "1" : "0";
+				place();
+			}
+		});
+		root.insertBefore(log$3.root, input);
+	}
+	let result;
+	if (mode === "cmd") {
+		result = document.createElement("div");
+		result.className = "dsh-pet-chat-result";
+		result.style.display = "none";
+		root.insertBefore(result, input);
+	}
 	/**
 	* 落点：有 `anchor` 就按「宠物贴哪边、弹窗朝另一边长」摆（见 ./place.ts），
 	* 否则保持旧行为——以 (x,y) 为左上角、超出 clamp 夹回。
@@ -13224,7 +13231,7 @@ function mountChatDialog(opts) {
 		closed = true;
 		ro.disconnect();
 		unbindDismiss();
-		log$3.dispose();
+		log$3?.dispose();
 		dom.dispose();
 		dom.clearAttach();
 		root.remove();
@@ -13232,35 +13239,27 @@ function mountChatDialog(opts) {
 	};
 	unbindDismiss = bindDismiss(root, () => closed, close);
 	dom.closeBtn.addEventListener("click", close);
-	let mode = opts.mode ?? (opts.logOpen === false ? "cmd" : "chat");
-	const setMode = (next, keepOpen = false) => {
-		const changed = next !== mode;
-		mode = next;
-		root.dataset.mode = next;
-		for (const [key, btn] of [["chat", dom.modeBtns.chat], ["cmd", dom.modeBtns.cmd]]) {
-			btn.dataset.on = key === next ? "1" : "0";
-			btn.setAttribute("aria-selected", key === next ? "true" : "false");
-		}
-		if (next === "chat") {
-			if (changed || keepOpen) log$3.open();
-		} else log$3.close();
-		root.dataset.log = log$3.isOpen() ? "1" : "0";
-		dom.resizeInput();
-		place();
-	};
-	dom.modeBtns.chat.addEventListener("click", () => setMode("chat", true));
-	dom.modeBtns.cmd.addEventListener("click", () => setMode("cmd"));
 	bindSend({
 		input,
 		err,
 		url: withPet,
 		isClosed: () => closed,
-		onOk: () => {
-			if (mode === "cmd") close();
-			else {
+		onOk: (reply) => {
+			if (mode === "cmd") {
+				if (result) {
+					result.textContent = reply ?? "做完了，没留话。";
+					result.dataset.thinking = "0";
+					result.style.display = "block";
+				}
 				input.value = "";
 				dom.clearAttach();
-				log$3.refresh();
+				dom.resizeInput();
+				place();
+				input.focus();
+			} else {
+				input.value = "";
+				dom.clearAttach();
+				log$3?.refresh();
 				dom.resizeInput();
 				place();
 				input.focus();
@@ -13272,7 +13271,10 @@ function mountChatDialog(opts) {
 		notify: (text) => dom.flash(text)
 	});
 	dom.resizeInput();
-	setMode(mode, true);
+	if (log$3) {
+		log$3.open();
+		root.dataset.log = log$3.isOpen() ? "1" : "0";
+	}
 	place();
 	if (opts.initialImage) dom.setImageFile(opts.initialImage);
 	if (opts.initialEncoded) dom.setEncoded(opts.initialEncoded);
@@ -13446,13 +13448,14 @@ function createCardEntry(rt) {
 			}
 		}, []);
 		/** 挂载对话弹窗：按宠物所在半边挑一侧弹出（宠物贴右就往左长），超出视口夹回。 */
-		const mountChat = (seed) => {
+		const mountChat = (seed, mode = "chat") => {
 			if (chatRef.current) chatRef.current.close();
 			const hitRect = stage()?.querySelector(".dsh-pet-hit")?.getBoundingClientRect();
 			chatRef.current = mountChatDialog({
 				petId: cfgRef.current.id,
 				baseUrl: ROUTE_PATH + "/chat",
 				surface: "web",
+				mode,
 				x: hitRect ? hitRect.right + 6 : window.innerWidth - 256,
 				y: hitRect ? hitRect.top + 6 : 8,
 				...hitRect ? { anchor: {
@@ -13474,6 +13477,8 @@ function createCardEntry(rt) {
 		};
 		/** 打开对话（菜单、悬停 L、拖拽都走这条）；带图时直接进入待发送状态。 */
 		const openChat = (image) => mountChat(image ? { image } : {});
+		/** 打开「指令」窗：同一个组件、另一种档位——说一件事，结果留在窗里不自动收。 */
+		const openCommand = () => mountChat({}, "cmd");
 		/** 把一张图送进对话：已开着就塞进去（不丢写了一半的字），没开就带图打开。 */
 		const openChatWithImage = (file) => {
 			const existing = chatRef.current;
@@ -13654,6 +13659,10 @@ function createCardEntry(rt) {
 						action: "chat",
 						hint: CHAT_HOTKEY_HINT
 					};
+					case "command": return {
+						label: "指令",
+						action: "command"
+					};
 					case "show-balance": return {
 						label: "查看余额",
 						action: "show-balance"
@@ -13715,6 +13724,7 @@ function createCardEntry(rt) {
 				card.actions.setTipOn(false);
 			},
 			openChat,
+			openCommand,
 			openTodo,
 			placeTip,
 			toggleHistory: openHistory
@@ -15077,6 +15087,7 @@ function createCardRuntime(rt) {
 			faceLeft: () => actions.setFacing("left"),
 			isFacingRight: () => card.facingRef.current === "right",
 			openChat: () => entryRef.current?.openChat(),
+			openCommand: () => entryRef.current?.openCommand(),
 			openHistory: () => entryRef.current?.toggleHistory(),
 			openTodo: () => entryRef.current?.openTodo(),
 			petId: cfg.id,

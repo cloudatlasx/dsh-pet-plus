@@ -8,9 +8,15 @@ export interface ChatAttachment {
     readonly mediaType: string;
     readonly data: string;
 }
-/** 发送回执：本类型只声明消费方用到的 ok，正文展示一律走 /state 的 pets.<id>.say。 */
+/**
+ * 发送回执。
+ *
+ * `text` 是这一轮她的回复正文：气泡照旧走 /state 的 pets.<id>.say，
+ * 「指令」窗要当场把结果摆出来，所以这里顺手回传一份，省掉再取一拍状态。
+ */
 export type ChatSendState = {
     ok: true;
+    text?: string;
 } | {
     ok: false;
     reason: 'provider-missing' | 'generate-error' | 'config-error' | 'bad-request';

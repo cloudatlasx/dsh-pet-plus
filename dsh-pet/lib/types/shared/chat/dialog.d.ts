@@ -27,7 +27,7 @@ export interface ChatDialogOptions {
     surface: 'web' | 'desktop';
     x: number;
     y: number;
-    /** 发送成功后调用（弹窗此时已关闭）：回复本身不从这里回传，数据只有 /state 一个出口。 */
+    /** 发送成功后调用（弹窗此时仍开着）：`chat` 档用来刷新记录，`cmd` 档用来把结果摆进窗里。 */
     onSent?: () => void;
     onClose?: () => void;
     /** 弹窗允许占用的矩形（视口局部坐标）；缺省 = 整个视口。 */
@@ -47,9 +47,9 @@ export interface ChatDialogOptions {
         w: number;
         h: number;
     };
-    /** 打开时的档：`chat` 带记录、发完留下继续聊；`cmd` 只发一条指令、发完自动收起。 */
+    /** 开哪一种窗：`chat` 带记录、聊完留下继续聊；`cmd` 只发一条指令、结果留在窗里等她自己收。 */
     mode?: 'chat' | 'cmd';
-    /** 打开时就展开对话记录（旧的入口参数；显式传 false 等于 `mode: 'cmd'`）。 */
+    /** 打开时就展开对话记录（旧入口参数；显式传 false 等于 `mode: 'cmd'`）。 */
     logOpen?: boolean;
     /** 打开时就带着的图片（拖拽落到宠物身上走的这条）；缺省 = 空弹窗。 */
     initialImage?: File;
@@ -64,8 +64,9 @@ export interface ChatDialogOptions {
     hearUrl?: string;
 }
 /** 挂载一个对话输入弹窗（两端共用；位置为视口坐标，超出 clamp 矩形自动夹回）。
- *  顶栏是「对话 / 指令」两档 + 右上角关闭，下面一行图标按钮（上传 / 截屏 / 按住说话）与图片预览。
- *  「对话」带记录、发完留下继续聊；「指令」不显示记录、发完即收起。
+ *  顶栏是标题（「对话」/「指令」）+ 右上角关闭，下面一行图标按钮（上传 / 截屏 / 按住说话）与图片预览。
+ *  档位由调用方决定（右键菜单两个独立入口）：`chat` 带记录、发完留下继续聊；
+ *  `cmd` 发完不关窗，把她的回复写进窗内的结果区，等用户自己按 ✕ 收。
  *  Esc 或点弹窗外关闭；生成失败留在弹窗内显式提示。
  *  clamp 由调用方给：桌面传「窗口 ∩ 工作区」，宠物贴边时弹窗照样完整显示、窗口零移动。 */
 export declare function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount;

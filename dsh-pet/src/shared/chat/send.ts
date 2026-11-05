@@ -10,9 +10,14 @@ export interface ChatAttachment {
   readonly data: string;
 }
 
-/** 发送回执：本类型只声明消费方用到的 ok，正文展示一律走 /state 的 pets.<id>.say。 */
+/**
+ * 发送回执。
+ *
+ * `text` 是这一轮她的回复正文：气泡照旧走 /state 的 pets.<id>.say，
+ * 「指令」窗要当场把结果摆出来，所以这里顺手回传一份，省掉再取一拍状态。
+ */
 export type ChatSendState =
-  | { ok: true }
+  | { ok: true; text?: string }
   | { ok: false; reason: 'provider-missing' | 'generate-error' | 'config-error' | 'bad-request'; message?: string };
 
 /** 对话要等 LLM 生成回复，比碎碎念（30s）放宽一倍 */
@@ -50,5 +55,5 @@ export async function sendChat(baseUrl: string, text: string, attachment?: ChatA
       message: typeof o.message === 'string' ? o.message : undefined,
     };
   }
-  return { ok: true };
+  return { ok: true, text: typeof o.text === 'string' ? o.text : undefined };
 }

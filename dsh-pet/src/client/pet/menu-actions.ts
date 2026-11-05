@@ -33,6 +33,8 @@ export interface MenuActionDeps {
   resetPosition: () => void;
   /** 打开对话弹窗。 */
   openChat: () => void;
+  /** 打开「指令」窗（发完不自动关，结果留在窗里）。 */
+  openCommand: () => void;
   /** 打开待办面板。 */
   openTodo: () => void;
   /** 开关折叠台账面板（最近推过的通知摘要）。 */
@@ -158,6 +160,10 @@ export function createMenuActions(deps: MenuActionDeps): MenuActions {
     }
     if (leaf.action === 'chat') {
       deps.openChat();
+      return;
+    }
+    if (leaf.action === 'command') {
+      deps.openCommand();
       return;
     }
     if (leaf.action === 'todo') {

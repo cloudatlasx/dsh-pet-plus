@@ -20745,7 +20745,10 @@ async function sendChat(baseUrl, text, attachment) {
 		reason: o.reason === "provider-missing" || o.reason === "generate-error" || o.reason === "config-error" ? o.reason : "bad-request",
 		message: typeof o.message === "string" ? o.message : void 0
 	};
-	return { ok: true };
+	return {
+		ok: true,
+		text: typeof o.text === "string" ? o.text : void 0
+	};
 }
 
 //#endregion

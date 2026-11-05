@@ -36,6 +36,7 @@ function harness(overrides: Partial<MenuActionDeps> = {}) {
     playOnce: (anim, playbackId) => calls.push(`playOnce:${anim}:${playbackId ?? 'null'}`),
     resetPosition: () => calls.push('resetPosition'),
     openChat: () => calls.push('openChat'),
+    openCommand: () => calls.push('openCommand'),
     openHistory: () => calls.push('openHistory'),
     openTodo: () => calls.push('openTodo'),
     report: (id, status, reason) => calls.push(`report:${id}:${status}:${reason}`),

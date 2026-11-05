@@ -27,13 +27,13 @@ export const CHAT_CSS = [
   // 顶栏：左边「对话 / 指令」两档，右边关闭。关闭必须待在右上角——手会本能地往那儿摸，
   // 放在动作行最右只会点错一次再重开一遍。
   '.dsh-pet-chat-head{display:flex;align-items:center;gap:6px;padding:6px 6px 2px 8px}',
-  '.dsh-pet-chat-modes{display:inline-flex;align-items:center;gap:2px;background:rgba(0,0,0,.05);',
-  'border-radius:8px;padding:2px}',
-  '.dsh-pet-chat-mode{border:none;background:transparent;color:rgba(43,43,43,.55);font-size:12px;',
-  'line-height:1;padding:4px 9px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap}',
-  '.dsh-pet-chat-mode:hover{color:rgba(43,43,43,.85)}',
-  '.dsh-pet-chat-mode[data-on="1"]{background:#fff;color:rgba(43,43,43,.92);',
-  'box-shadow:0 1px 3px rgba(0,0,0,.12)}',
+  '.dsh-pet-chat-title{font-size:12px;font-weight:600;color:rgba(43,43,43,.78);',
+  'letter-spacing:.02em;user-select:none}',
+  '.dsh-pet-chat[data-mode="cmd"] .dsh-pet-chat-title{color:#7c5cd6}',
+  // 指令窗的结果区：发完不关窗，她的回复摆在这儿（长了就在区内滚动，不把窗撑到屏幕外）
+  '.dsh-pet-chat-result{max-height:min(200px,38vh);overflow-y:auto;margin:0 8px 6px;',
+  'padding:7px 9px;border-radius:9px;background:#f2f4f8;border:1px solid rgba(0,0,0,.07);',
+  'font-size:13px;line-height:1.5;color:rgba(43,43,43,.9);white-space:pre-wrap;overflow-wrap:break-word}',
   // 操作行：上传 / 截屏 / 按住说话（撑开的空白由 spacer 占住；关闭在顶栏）
   '.dsh-pet-chat-actions{display:flex;align-items:center;gap:6px;padding:0 8px 7px}',
   '.dsh-pet-chat-spacer{flex:1 1 auto;min-width:0}',

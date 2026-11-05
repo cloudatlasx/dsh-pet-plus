@@ -19,8 +19,8 @@ export interface ChatDom {
   readonly input: HTMLTextAreaElement;
   readonly err: HTMLDivElement;
   readonly shotBtn: HTMLButtonElement;
-  /** 「对话 / 指令」两档按钮：行为在 dialog 里（切档要收放记录面板、发完要不要关都在那边）。 */
-  readonly modeBtns: { readonly chat: HTMLButtonElement; readonly cmd: HTMLButtonElement };
+  /** 顶栏标题（「对话」/「指令」）：文案由 dialog 按档改，这里只提供元素。 */
+  readonly title: HTMLSpanElement;
   /** 关闭按钮：行为在 dialog 里（点它要触发整个弹窗的清理）。 */
   readonly closeBtn: HTMLButtonElement;
   /** 输入框与根宽度随文本自适应；挂到文档后调用一次，输入时自动重算。 */
@@ -142,34 +142,20 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
   spacer.className = 'dsh-pet-chat-spacer';
   actions.append(pickBtn, shotBtn, micBtn, fileInput, attach, spacer);
 
-  // 顶栏：对话 / 指令 两档 + 右上角关闭。
-  // 「对话」= 带记录、聊完还能接着说；「指令」= 不显示记录、说完就走（发完自动收起）。
+  // 顶栏：标题 + 右上角关闭。
+  // 档位不进这里——「对话」「指令」是右键菜单上两个独立入口，开窗时就定了，
+  // 窗内不再提供切换（切档等于换一个窗，两套行为塞进一颗按钮只会互相扯）。
   const head = document.createElement('div');
   head.className = 'dsh-pet-chat-head';
-  const modes = document.createElement('div');
-  modes.className = 'dsh-pet-chat-modes';
-  modes.setAttribute('role', 'tablist');
-  const modeButton = (key: 'chat' | 'cmd', label: string, hint: string): HTMLButtonElement => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'dsh-pet-chat-mode';
-    btn.dataset.mode = key;
-    btn.textContent = label;
-    btn.title = hint;
-    btn.setAttribute('role', 'tab');
-    btn.setAttribute('aria-selected', 'false');
-    return btn;
-  };
-  const chatModeBtn = modeButton('chat', '对话', '带着记录聊，发完可以接着说');
-  const cmdModeBtn = modeButton('cmd', '指令', '只说一句要她做的事，发完就收起来');
-  modes.append(chatModeBtn, cmdModeBtn);
+  const title = document.createElement('span');
+  title.className = 'dsh-pet-chat-title';
   const headSpacer = document.createElement('span');
   headSpacer.className = 'dsh-pet-chat-spacer';
   // 关闭：右上角（手会本能地往那儿摸）。桌面窗口是透明+穿透的，点弹窗外那一下根本到不了 DOM，
   // 光靠「点外面 / Esc」关不掉时，必须有一颗看得见的按钮。
   const closeBtn = iconButton('关闭对话', closeIcon());
   closeBtn.setAttribute('data-close', '1');
-  head.append(modes, headSpacer, closeBtn);
+  head.append(title, headSpacer, closeBtn);
 
   root.append(head, input, actions, hint, err);
   document.body.appendChild(root);
@@ -260,7 +246,7 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
     input,
     err,
     shotBtn,
-    modeBtns: { chat: chatModeBtn, cmd: cmdModeBtn },
+    title,
     closeBtn,
     resizeInput,
     clearAttach,

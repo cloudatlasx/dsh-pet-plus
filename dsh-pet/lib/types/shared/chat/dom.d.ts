@@ -11,11 +11,8 @@ export interface ChatDom {
     readonly input: HTMLTextAreaElement;
     readonly err: HTMLDivElement;
     readonly shotBtn: HTMLButtonElement;
-    /** 「对话 / 指令」两档按钮：行为在 dialog 里（切档要收放记录面板、发完要不要关都在那边）。 */
-    readonly modeBtns: {
-        readonly chat: HTMLButtonElement;
-        readonly cmd: HTMLButtonElement;
-    };
+    /** 顶栏标题（「对话」/「指令」）：文案由 dialog 按档改，这里只提供元素。 */
+    readonly title: HTMLSpanElement;
     /** 关闭按钮：行为在 dialog 里（点它要触发整个弹窗的清理）。 */
     readonly closeBtn: HTMLButtonElement;
     /** 输入框与根宽度随文本自适应；挂到文档后调用一次，输入时自动重算。 */

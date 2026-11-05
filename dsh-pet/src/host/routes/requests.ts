@@ -7,6 +7,7 @@
  */
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { PetRouteDeps, RouteInput } from './types.ts';
+import { readReminder } from '../../shared/request.ts';
 import type { ReminderAction, ReminderEnvelope } from '../../shared/request.ts';
 import type { RouteResult } from '../http.ts';
 import { MUTE_DEFAULT_MS, MUTE_MAX_MS, clearHistory, muteFor, publishReminder } from '../request-hub.ts';
@@ -92,6 +93,21 @@ function rememberReminder(reminder: ReminderEnvelope): void {
 function minutesOf(value: unknown, fallbackMs: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallbackMs;
   return Math.min(value * 60 * 1000, MUTE_MAX_MS);
+}
+
+/**
+ * 「等会儿」要原样重排一条提醒，先得把它找出来。
+ *
+ * 先查本进程经 `/announce` 记下的那些；找不到再看当前挂在气泡上的这条——对话里
+ * 约的提醒由 `pet-reminders` 直接写 section，不经过 `/announce`，也就从没进过
+ * `recentReminders`。少了这条回退，聊天提醒上点「等会儿」只会得到一句
+ * unknown reminder，按钮看着就是「点了没反应」。
+ */
+function snoozeSource(deps: PetRouteDeps, id: string): ReminderEnvelope | undefined {
+  const remembered = recentReminders.get(id);
+  if (remembered) return remembered;
+  const live = readReminder(deps.state.read().sections.reminder);
+  return live && live.id === id ? live : undefined;
 }
 
 /** 收窄明细数组：去空、截断、限条数。 */
@@ -259,7 +275,7 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
     }
     const id = textOf(parsed?.id);
     if (id === '') return failResult('bad-request', 'id 必填');
-    const reminder = recentReminders.get(id);
+    const reminder = snoozeSource(deps, id);
     if (!reminder) return failResult('bad-request', 'unknown reminder');
     const delay = minutesOf(parsed?.minutes, 15 * 60 * 1000);
     recentReminders.delete(id); // 同一个 id 只排一次延后，重复点不该叠出多条

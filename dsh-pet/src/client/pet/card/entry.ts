@@ -84,6 +84,8 @@ export interface CardEntry {
   handleContextMenu: (e: ReactNS.MouseEvent<HTMLDivElement>) => void;
   /** 打开对话弹窗：菜单里「对话」那一项走这里；带图时直接进入待发送状态（拖拽用）。 */
   openChat: (image?: File) => void;
+  /** 打开「指令」窗：菜单里「指令」那一项走这里（发完不自动关，结果留在窗里）。 */
+  openCommand: () => void;
   /** 打开待办面板（右键菜单入口）。 */
   openTodo: () => void;
   /** 开关最近记录面板（右键菜单入口）。 */
@@ -155,13 +157,14 @@ export function createCardEntry(rt: CardEntryRuntime) {
     );
 
     /** 挂载对话弹窗：按宠物所在半边挑一侧弹出（宠物贴右就往左长），超出视口夹回。 */
-    const mountChat = (seed: { image?: File; encoded?: EncodedImage }): void => {
+    const mountChat = (seed: { image?: File; encoded?: EncodedImage }, mode: 'chat' | 'cmd' = 'chat'): void => {
       if (chatRef.current) chatRef.current.close();
       const hitRect = stage()?.querySelector('.dsh-pet-hit')?.getBoundingClientRect();
       chatRef.current = mountChatDialog({
         petId: cfgRef.current.id,
         baseUrl: ROUTE_PATH + '/chat',
         surface: 'web',
+        mode,
         x: hitRect ? hitRect.right + 6 : window.innerWidth - 256,
         y: hitRect ? hitRect.top + 6 : 8,
         ...(hitRect ? { anchor: { x: hitRect.x, y: hitRect.y, w: hitRect.width, h: hitRect.height } } : {}),
@@ -181,6 +184,9 @@ export function createCardEntry(rt: CardEntryRuntime) {
 
     /** 打开对话（菜单、悬停 L、拖拽都走这条）；带图时直接进入待发送状态。 */
     const openChat = (image?: File): void => mountChat(image ? { image } : {});
+
+    /** 打开「指令」窗：同一个组件、另一种档位——说一件事，结果留在窗里不自动收。 */
+    const openCommand = (): void => mountChat({}, 'cmd');
 
     /** 把一张图送进对话：已开着就塞进去（不丢写了一半的字），没开就带图打开。 */
     const openChatWithImage = (file: File): void => {
@@ -379,6 +385,9 @@ export function createCardEntry(rt: CardEntryRuntime) {
         switch (action) {
           case 'chat':
             return { label: '对话', action: 'chat', hint: CHAT_HOTKEY_HINT };
+          case 'command':
+            // 与「对话」并列的独立入口：一发一收，结果留在窗里给她自己关。
+            return { label: '指令', action: 'command' };
           case 'show-balance':
             return { label: '查看余额', action: 'show-balance' };
           case 'todo':
@@ -445,6 +454,7 @@ export function createCardEntry(rt: CardEntryRuntime) {
         card.actions.setTipOn(false);
       },
       openChat,
+      openCommand,
       openTodo,
       placeTip,
       toggleHistory: openHistory,

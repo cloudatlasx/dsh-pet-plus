@@ -48,6 +48,8 @@ export interface CardEntry {
     handleContextMenu: (e: ReactNS.MouseEvent<HTMLDivElement>) => void;
     /** 打开对话弹窗：菜单里「对话」那一项走这里；带图时直接进入待发送状态（拖拽用）。 */
     openChat: (image?: File) => void;
+    /** 打开「指令」窗：菜单里「指令」那一项走这里（发完不自动关，结果留在窗里）。 */
+    openCommand: () => void;
     /** 打开待办面板（右键菜单入口）。 */
     openTodo: () => void;
     /** 开关最近记录面板（右键菜单入口）。 */

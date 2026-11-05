@@ -5466,6 +5466,56 @@ function ReasoningEffortId(id) {
 }
 
 //#endregion
+//#region src/shared/request.ts
+/** 从字符串数组里挑出非空字符串。 */
+function labelsOf(value) {
+	if (!Array.isArray(value)) return [];
+	const out = [];
+	for (const item of value) if (typeof item === "string" && item.trim() !== "") out.push(item);
+	return out;
+}
+function readReminder(leaf) {
+	if (!leaf.data || typeof leaf.data !== "object") return null;
+	const d = leaf.data;
+	if (d.closed === true) return null;
+	if (typeof d.id !== "string" || d.id === "") return null;
+	if (d.kind !== "schedule" && d.kind !== "announce" && d.kind !== "chat") return null;
+	if (typeof d.title !== "string" || d.title.trim() === "") return null;
+	const lines = labelsOf(d.lines);
+	const actions = actionsOf$1(d.actions);
+	return {
+		id: d.id,
+		kind: d.kind,
+		ts: typeof d.ts === "number" && Number.isFinite(d.ts) ? d.ts : Date.now(),
+		title: d.title,
+		prompt: typeof d.prompt === "string" && d.prompt.trim() !== "" ? d.prompt : void 0,
+		lines: lines.length > 0 ? lines : void 0,
+		hint: typeof d.hint === "string" && d.hint.trim() !== "" ? d.hint : void 0,
+		sessionId: typeof d.sessionId === "string" && d.sessionId.trim() !== "" ? d.sessionId : void 0,
+		ttlMs: typeof d.ttlMs === "number" && Number.isFinite(d.ttlMs) && d.ttlMs > 0 ? d.ttlMs : void 0,
+		scheduledAt: typeof d.scheduledAt === "string" ? d.scheduledAt : void 0,
+		actions: actions.length > 0 ? actions : void 0
+	};
+}
+/** 收窄快捷动作数组：跳过坏形状，`label` 与 `text` 都得非空。 */
+function actionsOf$1(value) {
+	if (!Array.isArray(value)) return [];
+	const out = [];
+	for (const item of value) {
+		if (!item || typeof item !== "object") continue;
+		const a = item;
+		const label = typeof a.label === "string" ? a.label.trim() : "";
+		const text = typeof a.text === "string" ? a.text.trim() : "";
+		if (label === "" || text === "") continue;
+		out.push({
+			label,
+			text
+		});
+	}
+	return out;
+}
+
+//#endregion
 //#region src/host/request-hub.ts
 /** 审批等待上限：到点撤气泡并回落到 DSH 面板。 */
 const APPROVAL_TIMEOUT_MS = 180 * 1e3;
@@ -6065,6 +6115,20 @@ function minutesOf(value, fallbackMs) {
 	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return fallbackMs;
 	return Math.min(value * 60 * 1e3, MUTE_MAX_MS);
 }
+/**
+* 「等会儿」要原样重排一条提醒，先得把它找出来。
+*
+* 先查本进程经 `/announce` 记下的那些；找不到再看当前挂在气泡上的这条——对话里
+* 约的提醒由 `pet-reminders` 直接写 section，不经过 `/announce`，也就从没进过
+* `recentReminders`。少了这条回退，聊天提醒上点「等会儿」只会得到一句
+* unknown reminder，按钮看着就是「点了没反应」。
+*/
+function snoozeSource(deps, id) {
+	const remembered = recentReminders.get(id);
+	if (remembered) return remembered;
+	const live = readReminder(deps.state.read().sections.reminder);
+	return live && live.id === id ? live : void 0;
+}
 /** 收窄明细数组：去空、截断、限条数。 */
 function linesOf(value) {
 	if (!Array.isArray(value)) return [];
@@ -6218,7 +6282,7 @@ async function handleRequestRoutes(deps, input) {
 		}
 		const id = textOf$1(parsed?.id);
 		if (id === "") return failResult("bad-request", "id 必填");
-		const reminder = recentReminders.get(id);
+		const reminder = snoozeSource(deps, id);
 		if (!reminder) return failResult("bad-request", "unknown reminder");
 		const delay = minutesOf(parsed?.minutes, 15 * 60 * 1e3);
 		recentReminders.delete(id);
