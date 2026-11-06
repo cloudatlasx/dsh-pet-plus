@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.15.2
+  version: 0.15.3
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -4213,10 +4213,11 @@ components:
             `pets[].size` 已按「当前尺寸 × 倍率」写回配置。
         moved:
           type: string
-          enum: [top-left, top-right, bottom-left, bottom-right]
+          enum: [top-left, top-right, bottom-left, bottom-right, center]
           description: |
-            本轮真的换到的角落（回复里带 `[位置:…]` 且写盘成功时才有）：
-            `pets[].position.corner` 已写回配置。
+            本轮真的动过的位置（回复里带 `[位置:…]` 时才有）：四个角落会写回
+            `pets[].position.corner`；`center` 是「游到 DSH 所在那块屏的正中间」，
+            一次性动作、不改配置。
       description: |
         生成成功。文本**仍然**照旧写进 `pets.<id>.say`——其它消费端（网页、桌面、第三方监听）
         继续从 `/state` 读；返回值只是让发起的这一方省一次往返，不改变任何现有展示链路。

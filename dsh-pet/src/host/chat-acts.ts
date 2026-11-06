@@ -45,6 +45,12 @@ const CORNERS: Record<string, PetCorner> = {
   'bottom-right': 'bottom-right',
 };
 
+/**
+ * 「去屏幕中间」的说法。中间不是一个 corner——它不写进配置（下次启动仍回原来的角落），
+ * 只是一次性的位置指令：游过去、待在那儿，等下一次位置指令或重启再回角落。
+ */
+const CENTER_WORDS = new Set(['中间', '中央', '正中', '中心', '屏幕中间', '桌面中间', '屏幕中央', '中间一点']);
+
 /** 一条「记住」的长度上限（字）。 */
 export const ACT_REMEMBER_MAX = 200;
 
@@ -60,6 +66,8 @@ export interface ChatActs {
   size?: number;
   /** 换到的角落。 */
   corner?: PetCorner;
+  /** 要游到屏幕中间（一次性位置指令，不写配置）。 */
+  center?: true;
 }
 
 /** 把模型写出来的名字整理成能落盘的形式：去引号/空白/句末标点，限长。 */
@@ -92,6 +100,7 @@ export function extractChatActs(text: string): ChatActs {
   let remember: string | undefined;
   let size: number | undefined;
   let corner: PetCorner | undefined;
+  let center: true | undefined;
   const stripped = text
     .replace(RENAME_RE, (_match, raw: string) => {
       const name = cleanName(raw);
@@ -111,8 +120,10 @@ export function extractChatActs(text: string): ChatActs {
       return '';
     })
     .replace(CORNER_RE, (_match, raw: string) => {
-      const mapped = CORNERS[raw.trim()];
+      const value = raw.trim();
+      const mapped = CORNERS[value];
       if (mapped !== undefined) corner = mapped;
+      else if (CENTER_WORDS.has(value)) center = true;
       return '';
     })
     .trim();
@@ -122,6 +133,7 @@ export function extractChatActs(text: string): ChatActs {
     ...(remember !== undefined ? { remember } : {}),
     ...(size !== undefined ? { size } : {}),
     ...(corner !== undefined ? { corner } : {}),
+    ...(center !== undefined ? { center } : {}),
   };
 }
 
@@ -138,6 +150,7 @@ export function actInstruction(): string {
     '- 主人要你长久记住一件事 → 回复末尾附 [记住:一句话]\n' +
     '- 主人说你太大/太小、让你变大变小 → 回复末尾附 [大小:倍率]（相对现在，0.5 到 3；「一点」约 1.2，「很多」约 1.5）\n' +
     '- 主人让你换个角落待着 → 回复末尾附 [位置:左上|右上|左下|右下]\n' +
+    '- 主人让你到屏幕中间 / 桌面中间 → 回复末尾附 [位置:中间]\n' +
     '「变大一点」「挪到左上角」这类就是明确要求，必须附标记——只嘴上答应、不附标记，等于没做。\n' +
     '标记写在回复最后一行，正文照常自然地说，不要向主人解释标记本身。闲聊不要加。'
   );

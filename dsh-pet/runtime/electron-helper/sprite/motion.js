@@ -200,11 +200,44 @@ Object.assign(PetSprite.prototype, {
 
   /** 行进中的轻微浮动（CSS 动画，reduce-motion 时由样式表自己关掉）。 */
   startGlide() {
-    if (this.el) this.el.classList.add('is-gliding');
+    if (!this.el) return;
+    this.el.classList.add('is-gliding');
+    // 变身小鱼：视频淡出、鱼淡入（样式见 index.html 的 .pet-fish）。
+    // --swim-dir 决定鱼头朝哪边，由 startGlide 的调用方（moveToCenter）在出发前写好。
+    this.el.classList.add('is-swimming');
   },
 
   stopGlide() {
-    if (this.el) this.el.classList.remove('is-gliding');
+    if (!this.el) return;
+    this.el.classList.remove('is-gliding', 'is-swimming');
+  },
+
+  /**
+   * 提醒气泡弹出：变身小鱼游到 DSH 那块屏的正中间。
+   *
+   * 只记第一次的出发位置——同一条提醒重画（重连、宿主重写信封）不该再出发一次；
+   * 用户在中间自己拖走则以拖拽优先，不硬拽回来。
+   */
+  swimToCenterForReminder(id) {
+    if (this.dragState.active) return;
+    if (this.reminderSwimHome === null) {
+      this.reminderSwimHome = { rx: this.currentCenterX() / VIEW.w, ry: this.currentCenterY() / VIEW.h };
+    }
+    const first = this.reminderSwimId !== id;
+    this.reminderSwimId = id;
+    if (!first) return;
+    this.moveToCenter(0.5, 0.5, 'line', 1600, 'anchor');
+  },
+
+  /** 确认（或收起/超时）之后游回提醒前的位置；没游出去过就什么都不做。 */
+  swimBackFromReminder() {
+    const home = this.reminderSwimHome;
+    this.reminderSwimHome = null;
+    this.reminderSwimId = null;
+    if (home === null) return;
+    if (this.dragState.active) return;
+    // 回程按并集比例解释（home 就是这么记的），与「游过来」的 anchor 不是同一套参照系
+    this.moveToCenter(home.rx, home.ry, 'line', 1100, 'view');
   },
 
   /**
@@ -289,6 +322,8 @@ Object.assign(PetSprite.prototype, {
       const fromY = this.pos.y;
       const t0 = performance.now();
       // 起身与落地都要有过渡：光是一条匀速直线看着像被瞬移改造过，两头加缓动才像「游过去」
+      // 鱼头朝着游的方向：往右游 dir=1，往左游 dir=-1（鱼默认朝右画）
+      if (this.el) this.el.style.setProperty('--swim-dir', px < fromX ? '-1' : '1');
       this.startGlide();
       const step = () => {
         if (this.posFollowToken !== token) return;

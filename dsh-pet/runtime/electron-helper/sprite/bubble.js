@@ -66,6 +66,9 @@ Object.assign(PetSprite.prototype, {
     window.__dshPetDebug.tooltipOn = this.tipOn;
   },
   renderBubble() {
+    // 提醒气泡收起了（点「知道了」/「等会儿」/静音/宿主超时都走这里）：小鱼游回原位。
+    // 放在最前面：下面任何一支提前 return 都不会漏掉「回家」。
+    if (this.reminderSwimId !== null && !this.reminderEnvelope) this.swimBackFromReminder();
     // 审批/提问请求优先级最高：它是等用户回话的，不接管就会卡住 DSH 那一轮。
     if (this.requestEnvelope) {
       this.renderRequestBubble();
@@ -82,7 +85,9 @@ Object.assign(PetSprite.prototype, {
       return;
     }
     // 定时任务提醒：到点由宿主写 sections.reminder，展示期间盖过工作/碎碎念气泡（它本来就是来抢注意的）。
+    // 弹出时变身小鱼游到屏幕中间；收起后（上面的分支）再游回去。
     if (this.reminderEnvelope) {
+      this.swimToCenterForReminder(this.reminderEnvelope.id);
       this.renderReminderBubble();
       return;
     }

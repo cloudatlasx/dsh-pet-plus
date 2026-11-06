@@ -145,6 +145,11 @@ Object.assign(PetSprite.prototype, {
     this.reminderEnvelope = null;
     this.reminderTimer = null;
     this.reminderSoundTimer = null;
+    // 「提醒时游到屏幕中间」记下的出发位置（归一化中心）；null = 现在不在中间催。
+    // 只在渲染端记：多显示器/自定义布局下宿主算不出「原位」。
+    this.reminderSwimHome = null;
+    // 已经因为哪条提醒游过去了：同一条提醒重画时不要反复出发（会一直重启动画）。
+    this.reminderSwimId = null;
   },
 
   /** 建 DOM 并把首帧位置落到窗口；布局数值全部来自上面算好的 geometry。 */
@@ -220,8 +225,19 @@ Object.assign(PetSprite.prototype, {
     this.tip.className = S.TOOLTIP_CLASS;
     this.tip.setAttribute('aria-hidden', 'true');
 
+    // 小鱼形态：位置指令游动的过程中顶替视频（样式在 index.html，显隐由 motion.js 的 is-swimming 控制）
+    this.fish = document.createElement('div');
+    this.fish.className = 'pet-fish';
+    this.fish.setAttribute('aria-hidden', 'true');
+    this.fish.innerHTML =
+      '<div class="pet-fish__tail"></div>' +
+      '<div class="pet-fish__body"><div class="pet-fish__eye"></div><div class="pet-fish__fin"></div></div>' +
+      '<div class="pet-fish__bubble"></div>' +
+      '<div class="pet-fish__bubble pet-fish__bubble--2"></div>';
+
     stage.appendChild(this.videoA);
     stage.appendChild(this.videoB);
+    stage.appendChild(this.fish);
     stage.appendChild(this.hit);
     this.el.appendChild(this.bubble);
     this.el.appendChild(this.tip);

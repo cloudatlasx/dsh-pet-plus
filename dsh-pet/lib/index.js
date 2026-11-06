@@ -8691,6 +8691,20 @@ const CORNERS = {
 	"bottom-left": "bottom-left",
 	"bottom-right": "bottom-right"
 };
+/**
+* 「去屏幕中间」的说法。中间不是一个 corner——它不写进配置（下次启动仍回原来的角落），
+* 只是一次性的位置指令：游过去、待在那儿，等下一次位置指令或重启再回角落。
+*/
+const CENTER_WORDS = new Set([
+	"中间",
+	"中央",
+	"正中",
+	"中心",
+	"屏幕中间",
+	"桌面中间",
+	"屏幕中央",
+	"中间一点"
+]);
 const ACT_REMEMBER_MAX = 200;
 /** 把模型写出来的名字整理成能落盘的形式：去引号/空白/句末标点，限长。 */
 function cleanName(raw) {
@@ -8707,6 +8721,7 @@ function extractChatActs(text) {
 	let remember;
 	let size;
 	let corner;
+	let center;
 	const stripped = text.replace(RENAME_RE, (_match, raw) => {
 		const name$1 = cleanName(raw);
 		if (name$1 !== "") rename$1 = name$1;
@@ -8720,8 +8735,10 @@ function extractChatActs(text) {
 		if (Number.isFinite(value) && value > 0) size = Math.min(ACT_SIZE_MAX, Math.max(ACT_SIZE_MIN, value));
 		return "";
 	}).replace(CORNER_RE, (_match, raw) => {
-		const mapped = CORNERS[raw.trim()];
+		const value = raw.trim();
+		const mapped = CORNERS[value];
 		if (mapped !== void 0) corner = mapped;
+		else if (CENTER_WORDS.has(value)) center = true;
 		return "";
 	}).trim();
 	return {
@@ -8729,11 +8746,12 @@ function extractChatActs(text) {
 		...rename$1 !== void 0 ? { rename: rename$1 } : {},
 		...remember !== void 0 ? { remember } : {},
 		...size !== void 0 ? { size } : {},
-		...corner !== void 0 ? { corner } : {}
+		...corner !== void 0 ? { corner } : {},
+		...center !== void 0 ? { center } : {}
 	};
 }
 function actInstruction() {
-	return "\n\n【你能真的做事】你不只会说话，还能真的改变自己（写了标记就会立刻生效，主人看得见）：\n- 主人给你取新名字 → 回复末尾附 [改名:新名字]\n- 主人要你长久记住一件事 → 回复末尾附 [记住:一句话]\n- 主人说你太大/太小、让你变大变小 → 回复末尾附 [大小:倍率]（相对现在，0.5 到 3；「一点」约 1.2，「很多」约 1.5）\n- 主人让你换个角落待着 → 回复末尾附 [位置:左上|右上|左下|右下]\n「变大一点」「挪到左上角」这类就是明确要求，必须附标记——只嘴上答应、不附标记，等于没做。\n标记写在回复最后一行，正文照常自然地说，不要向主人解释标记本身。闲聊不要加。";
+	return "\n\n【你能真的做事】你不只会说话，还能真的改变自己（写了标记就会立刻生效，主人看得见）：\n- 主人给你取新名字 → 回复末尾附 [改名:新名字]\n- 主人要你长久记住一件事 → 回复末尾附 [记住:一句话]\n- 主人说你太大/太小、让你变大变小 → 回复末尾附 [大小:倍率]（相对现在，0.5 到 3；「一点」约 1.2，「很多」约 1.5）\n- 主人让你换个角落待着 → 回复末尾附 [位置:左上|右上|左下|右下]\n- 主人让你到屏幕中间 / 桌面中间 → 回复末尾附 [位置:中间]\n「变大一点」「挪到左上角」这类就是明确要求，必须附标记——只嘴上答应、不附标记，等于没做。\n标记写在回复最后一行，正文照常自然地说，不要向主人解释标记本身。闲聊不要加。";
 }
 
 //#endregion
@@ -9475,7 +9493,8 @@ async function generateWith$1(ctx, once) {
 		...acts.rename !== void 0 ? { rename: acts.rename } : {},
 		...acts.remember !== void 0 ? { remember: acts.remember } : {},
 		...acts.size !== void 0 ? { size: acts.size } : {},
-		...acts.corner !== void 0 ? { corner: acts.corner } : {}
+		...acts.corner !== void 0 ? { corner: acts.corner } : {},
+		...acts.center !== void 0 ? { center: acts.center } : {}
 	};
 }
 
@@ -9996,6 +10015,18 @@ function createChatMemory(deps) {
 			}
 			log.info(`[dsh-pet] 对话里改外形 pet=${petId}（${configured ? "已写盘" : "写盘失败"}）：${JSON.stringify(patch)}`);
 		}
+		let movedToCenter = false;
+		if (generated.center === true) {
+			state.writePet(petId, "position", {
+				x: .5,
+				y: .5,
+				mode: "line",
+				duration: 1600,
+				frame: "anchor"
+			});
+			movedToCenter = true;
+			log.info(`[dsh-pet] 对话里让她到屏幕中间 pet=${petId}`);
+		}
 		let rememberedText;
 		if (generated.remember !== void 0) {
 			const saved = await appendGrowth(userRoot, generated.remember, new Date(now));
@@ -10027,7 +10058,7 @@ function createChatMemory(deps) {
 			...renamedName !== void 0 ? { renamed: renamedName } : {},
 			...rememberedText !== void 0 ? { remembered: rememberedText } : {},
 			...resized !== void 0 ? { resized } : {},
-			...moved !== void 0 ? { moved } : {}
+			...movedToCenter ? { moved: "center" } : moved !== void 0 ? { moved } : {}
 		};
 	});
 	/** 删除某只宠物的对话记忆：`ts` 缺省 = 清空全部，给了 ts = 只删命中的轮（一轮两条共享 ts，成对删）。

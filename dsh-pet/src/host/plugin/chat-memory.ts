@@ -258,8 +258,8 @@ export function createChatMemory(deps: ChatMemoryInput) {
         remembered?: string;
         /** 成功改掉的缩放倍率 */
         resized?: number;
-        /** 成功换到的角落 */
-        moved?: PetCorner;
+        /** 成功换到的角落；`center` = 去屏幕中间（一次性，不写配置） */
+        moved?: PetCorner | 'center';
       }
     | { ok: false; reason: 'provider-missing' | 'generate-error' | 'unknown-pet'; message?: string }
   > =>
@@ -380,6 +380,21 @@ export function createChatMemory(deps: ChatMemoryInput) {
           `[dsh-pet] 对话里改外形 pet=${petId}（${configured ? '已写盘' : '写盘失败'}）：${JSON.stringify(patch)}`,
         );
       }
+      // 「到屏幕中间来」：一次性的位置指令，不写配置——下次启动仍回角落。
+      // 与 POST /position 同一条叶子（line + anchor）：双屏横排时并集中心正好落在屏缝，
+      // 必须按 DSH 所在那块屏换算，才是「桌面中间」。
+      let movedToCenter = false;
+      if (generated.center === true) {
+        state.writePet(petId, 'position', {
+          x: 0.5,
+          y: 0.5,
+          mode: 'line',
+          duration: 1600,
+          frame: 'anchor',
+        });
+        movedToCenter = true;
+        log.info(`[dsh-pet] 对话里让她到屏幕中间 pet=${petId}`);
+      }
       let rememberedText: string | undefined;
       if (generated.remember !== undefined) {
         const saved = await appendGrowth(userRoot, generated.remember, new Date(now));
@@ -413,7 +428,7 @@ export function createChatMemory(deps: ChatMemoryInput) {
         ...(renamedName !== undefined ? { renamed: renamedName } : {}),
         ...(rememberedText !== undefined ? { remembered: rememberedText } : {}),
         ...(resized !== undefined ? { resized } : {}),
-        ...(moved !== undefined ? { moved } : {}),
+        ...(movedToCenter ? { moved: 'center' as const } : moved !== undefined ? { moved } : {}),
       };
     });
 

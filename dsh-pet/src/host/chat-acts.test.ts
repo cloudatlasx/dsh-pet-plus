@@ -74,6 +74,20 @@ describe('extractChatActs —— 剥标记', () => {
     assert.equal(bad.corner, undefined);
   });
 
+  test('「中间」类说法走 center，不写配置也不丢正文', () => {
+    for (const word of ['中间', '中央', '屏幕中间', '桌面中间']) {
+      const result = extractChatActs(`好呀。[位置:${word}]`);
+      assert.equal(result.center, true);
+      assert.equal(result.corner, undefined);
+      assert.equal(result.text, '好呀。');
+    }
+    // 位置词之外的非法值仍然只剥标记、不产生动作
+    const unknown = extractChatActs('好呀。[位置:随便哪]');
+    assert.equal(unknown.center, undefined);
+    assert.equal(unknown.corner, undefined);
+    assert.equal(unknown.text, '好呀。');
+  });
+
   test('超长名字截到上限，超长「记住」也截断', () => {
     const result = extractChatActs(`[改名:${'名'.repeat(40)}][记住:${'字'.repeat(ACT_REMEMBER_MAX + 50)}]`);
     assert.equal(result.rename?.length, ACT_NAME_MAX);
@@ -88,6 +102,7 @@ describe('actInstruction —— 告诉模型它能真的做事', () => {
     assert.match(text, /\[记住:一句话\]/);
     assert.match(text, /\[大小:倍率\]/);
     assert.match(text, /\[位置:左上\|右上\|左下\|右下\]/);
+    assert.match(text, /\[位置:中间\]/);
     assert.match(text, /必须附标记/);
     assert.match(text, /闲聊不要加/);
   });

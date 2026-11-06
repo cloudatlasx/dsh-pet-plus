@@ -38,6 +38,8 @@ export type ChatGenerateResult =
       size?: number;
       /** 对话里要求换角落（`[位置:右下]`）：由 ./plugin/chat-memory 写进配置 */
       corner?: PetCorner;
+      /** 对话里要求到屏幕中间（`[位置:中间]`）：一次性位置指令，不写配置 */
+      center?: true;
     }
   | { ok: false; reason: 'provider-missing' | 'generate-error'; message?: string };
 
@@ -283,5 +285,6 @@ async function generateWith(ctx: { llm?: unknown }, once: GenerateOnce): Promise
     ...(acts.remember !== undefined ? { remember: acts.remember } : {}),
     ...(acts.size !== undefined ? { size: acts.size } : {}),
     ...(acts.corner !== undefined ? { corner: acts.corner } : {}),
+    ...(acts.center !== undefined ? { center: acts.center } : {}),
   };
 }

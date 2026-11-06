@@ -67,8 +67,8 @@ export declare function createChatMemory(deps: ChatMemoryInput): {
         remembered?: string;
         /** 成功改掉的缩放倍率 */
         resized?: number;
-        /** 成功换到的角落 */
-        moved?: PetCorner;
+        /** 成功换到的角落；`center` = 去屏幕中间（一次性，不写配置） */
+        moved?: PetCorner | "center";
     } | {
         ok: false;
         reason: "provider-missing" | "generate-error" | "unknown-pet";

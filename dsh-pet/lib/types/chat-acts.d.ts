@@ -31,6 +31,8 @@ export interface ChatActs {
     size?: number;
     /** 换到的角落。 */
     corner?: PetCorner;
+    /** 要游到屏幕中间（一次性位置指令，不写配置）。 */
+    center?: true;
 }
 /**
  * 从模型回复里剥出「改名 / 记住」标记。
