@@ -6,7 +6,7 @@
 import { type EncodedImage, encodeImageFile } from './encode.ts';
 import { createHearControl } from './hear-control.ts';
 import { IMAGE_ACCEPT, firstImageFromClipboard, isImageFile } from './image-pick.ts';
-import { cameraIcon, closeIcon, micIcon, pictureIcon } from './icons.ts';
+import { cameraIcon, closeIcon, micIcon, pictureIcon, saveIcon } from './icons.ts';
 import type { ChatAttachment } from './send.ts';
 import { CHAT_H_PAD, CHAT_MAX_W, CHAT_MIN_W } from './styles.ts';
 
@@ -21,6 +21,8 @@ export interface ChatDom {
   readonly shotBtn: HTMLButtonElement;
   /** 顶栏标题（「对话」/「指令」）：文案由 dialog 按档改，这里只提供元素。 */
   readonly title: HTMLSpanElement;
+  /** 导出按钮（把整条对话历史存成 Markdown）：只在「对话」档显示，行为在 dialog 里。 */
+  readonly exportBtn: HTMLButtonElement;
   /** 关闭按钮：行为在 dialog 里（点它要触发整个弹窗的清理）。 */
   readonly closeBtn: HTMLButtonElement;
   /** 输入框与根宽度随文本自适应；挂到文档后调用一次，输入时自动重算。 */
@@ -142,7 +144,7 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
   spacer.className = 'dsh-pet-chat-spacer';
   actions.append(pickBtn, shotBtn, micBtn, fileInput, attach, spacer);
 
-  // 顶栏：标题 + 右上角关闭。
+  // 顶栏：标题 + 导出 + 右上角关闭。
   // 档位不进这里——「对话」「指令」是右键菜单上两个独立入口，开窗时就定了，
   // 窗内不再提供切换（切档等于换一个窗，两套行为塞进一颗按钮只会互相扯）。
   const head = document.createElement('div');
@@ -151,11 +153,15 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
   title.className = 'dsh-pet-chat-title';
   const headSpacer = document.createElement('span');
   headSpacer.className = 'dsh-pet-chat-spacer';
+  // 导出：把整条对话历史存成 Markdown 文件。只在「对话」档显示——「指令」窗不看历史。
+  const exportBtn = iconButton('保存对话到文件', saveIcon());
+  exportBtn.setAttribute('data-export', '1');
+  exportBtn.hidden = true;
   // 关闭：右上角（手会本能地往那儿摸）。桌面窗口是透明+穿透的，点弹窗外那一下根本到不了 DOM，
   // 光靠「点外面 / Esc」关不掉时，必须有一颗看得见的按钮。
   const closeBtn = iconButton('关闭对话', closeIcon());
   closeBtn.setAttribute('data-close', '1');
-  head.append(title, headSpacer, closeBtn);
+  head.append(title, headSpacer, exportBtn, closeBtn);
 
   root.append(head, input, actions, hint, err);
   document.body.appendChild(root);
@@ -247,6 +253,7 @@ export function createChatDom(opts: { capture?: () => Promise<EncodedImage>; hea
     err,
     shotBtn,
     title,
+    exportBtn,
     closeBtn,
     resizeInput,
     clearAttach,

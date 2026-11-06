@@ -140,9 +140,9 @@ export interface ChatDialogOptions {
    * 不会把宠物整个盖住；缺省退回 `x`/`y` 当左上角的旧行为。
    */
   anchor?: { x: number; y: number; w: number; h: number };
-  /** 开哪一种窗：`chat` 带记录、聊完留下继续聊；`cmd` 只发一条指令、结果留在窗里等她自己收。 */
+  /** 开哪一种窗：`chat` 带常驻记录、聊完留下继续聊；`cmd` 只发一条指令、结果留在窗里等她自己收。 */
   mode?: 'chat' | 'cmd';
-  /** 打开时就展开对话记录（旧入口参数；显式传 false 等于 `mode: 'cmd'`）。 */
+  /** @deprecated 旧入口参数，仅用于推断档位：显式传 false 等于 `mode: 'cmd'`。 */
   logOpen?: boolean;
   /** 打开时就带着的图片（拖拽落到宠物身上走的这条）；缺省 = 空弹窗。 */
   initialImage?: File;
@@ -184,20 +184,15 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   dom.title.textContent = mode === 'cmd' ? '指令' : '对话';
   if (mode === 'cmd') input.placeholder = '让她去做点什么…';
 
-  // 对话记录面板：插在输入框上方（就地回看）。只在「对话」档建——「指令」窗要的是
-  // 这一条指令的结果，历史列表只会把它挤下去。
+  // 对话记录：常驻在输入框上方，打开就能看见说过什么。只有「对话」档建它——
+  // 「指令」窗要的是这一条指令的结果，历史列表只会把它挤下去。
   let log: ReturnType<typeof createChatLog> | undefined;
   if (mode === 'chat') {
-    log = createChatLog({
-      petId,
-      baseUrl,
-      onChange: () => {
-        // 面板自己的 ✕ 也能收起记录：dataset 与落点都要跟上，否则弹窗还按展开时的宽度留白
-        root.dataset.log = log?.isOpen() ? '1' : '0';
-        place();
-      },
-    });
+    log = createChatLog({ petId, baseUrl });
     root.insertBefore(log.root, input);
+    // 导出按钮住在顶栏：只在「对话」档露出来（它导出的正是下面这块记录）
+    dom.exportBtn.hidden = false;
+    dom.exportBtn.addEventListener('click', () => log?.save());
   }
 
   // 「指令」窗的结果区：发完不关窗，把她的回复当场写在这里，看得见就不用再回头翻记录。
@@ -283,11 +278,8 @@ export function mountChatDialog(opts: ChatDialogOptions): ChatDialogMount {
   // 截屏按钮的接线在 dom 里（依赖注入的 capture），这里只负责发送与关闭
 
   dom.resizeInput(); // append 后再量一次（此时样式已生效）
-  // 先展开记录再落点，否则第一帧按收起时的小尺寸挑边、展开后又挤出去
-  if (log) {
-    log.open();
-    root.dataset.log = log.isOpen() ? '1' : '0';
-  }
+  // 记录先拉一次（异步填列表，ResizeObserver 会跟着重新落点）
+  log?.refresh();
   place();
   if (opts.initialImage) void dom.setImageFile(opts.initialImage);
   if (opts.initialEncoded) dom.setEncoded(opts.initialEncoded);

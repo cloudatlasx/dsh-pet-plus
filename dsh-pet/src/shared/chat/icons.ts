@@ -66,6 +66,22 @@ export function logIcon(size = 16): SVGElement {
   return svg;
 }
 
+/** 保存图标：向下的箭头落进托盘（导出对话记录）。 */
+export function saveIcon(size = 16): SVGElement {
+  const svg = svgNode('svg', {
+    viewBox: '0 0 24 24',
+    width: String(size),
+    height: String(size),
+    ...ICON_ATTRS,
+  });
+  svg.append(
+    svgNode('path', { d: 'M12 3v11' }),
+    svgNode('path', { d: 'M7.5 9.5L12 14l4.5-4.5' }),
+    svgNode('path', { d: 'M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2' }),
+  );
+  return svg;
+}
+
 /** 关闭图标：两条交叉线（弹窗右上角的 ✕ 用它，不依赖字体里的乘号字形）。 */
 export function closeIcon(size = 16): SVGElement {
   const svg = svgNode('svg', {

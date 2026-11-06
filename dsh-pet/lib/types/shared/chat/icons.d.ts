@@ -9,6 +9,8 @@ export declare function pictureIcon(size?: number): SVGElement;
 export declare function micIcon(size?: number): SVGElement;
 /** 记录图标：一叠横线（对话列表），左上角留一个标题点。 */
 export declare function logIcon(size?: number): SVGElement;
+/** 保存图标：向下的箭头落进托盘（导出对话记录）。 */
+export declare function saveIcon(size?: number): SVGElement;
 /** 关闭图标：两条交叉线（弹窗右上角的 ✕ 用它，不依赖字体里的乘号字形）。 */
 export declare function closeIcon(size?: number): SVGElement;
 /** 相机图标：机身 + 镜头。 */

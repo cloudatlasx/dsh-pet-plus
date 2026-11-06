@@ -61,21 +61,12 @@ export const CHAT_CSS = [
   '.dsh-pet-chat-attach-x:hover{background:rgba(0,0,0,.08);color:rgba(43,43,43,.85)}',
   '.dsh-pet-chat-hint{display:none;color:rgba(43,43,43,.55);font-size:12px;padding:0 12px 8px}',
   '.dsh-pet-chat-err{color:#d94f3d;font-size:12px;padding:0 12px 8px;white-space:pre-wrap;overflow-wrap:anywhere}',
-  // 对话记录面板：展开时占输入框上方一块，列表自己滚（最新在下方），头与脚不随列表滚。
-  // 面板开着时弹窗至少 300px 宽——一行行气泡挤在 160px 里读起来太难受。
-  '.dsh-pet-chat[data-log="1"]{min-width:min(300px,80vw)}',
-  '.dsh-pet-chat-log{display:block;border-bottom:1px solid rgba(0,0,0,.08);',
-  'background:rgba(0,0,0,.022);border-radius:10px 10px 0 0}',
-  '.dsh-pet-chat-log[hidden]{display:none}',
-  '.dsh-pet-chat-log-head{display:flex;align-items:center;gap:6px;padding:6px 8px 4px}',
-  '.dsh-pet-chat-log-title{font-size:12px;font-weight:600;color:rgba(43,43,43,.8)}',
-  '.dsh-pet-chat-log-count{font-size:11px;color:rgba(43,43,43,.45);margin-right:auto;',
-  'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-  '.dsh-pet-chat-log-btn{border:none;background:transparent;color:rgba(43,43,43,.6);font-size:11px;',
-  'line-height:1;padding:4px 6px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap}',
-  '.dsh-pet-chat-log-btn:hover{background:rgba(0,0,0,.07);color:rgba(43,43,43,.9)}',
-  '.dsh-pet-chat-log-btn:disabled{opacity:.45;cursor:default}',
-  '.dsh-pet-chat-log-list{max-height:min(240px,45vh);overflow-y:auto;padding:2px 8px 8px;',
+  // 对话记录：常驻在输入框上方的一整块（没有标题栏、没有收起按钮——宠物对话就一个聊天框）。
+  // 列表自己滚（最新在下方），脚注放「已保存到…」这类一句话结果。
+  '.dsh-pet-chat[data-mode="chat"]{min-width:min(300px,80vw)}',
+  '.dsh-pet-chat-log{display:block;border-top:1px solid rgba(0,0,0,.08);',
+  'background:rgba(0,0,0,.018)}',
+  '.dsh-pet-chat-log-list{max-height:min(260px,46vh);overflow-y:auto;padding:8px;',
   'display:flex;flex-direction:column;gap:6px;user-select:text}',
   '.dsh-pet-chat-log-row{display:flex;flex-direction:column;gap:1px;font-size:12px;line-height:1.45;max-width:100%}',
   '.dsh-pet-chat-log-row[data-role="user"]{align-items:flex-end}',
@@ -88,8 +79,8 @@ export const CHAT_CSS = [
   'overflow-wrap:anywhere;user-select:text}',
   '.dsh-pet-chat-log-note[data-err="1"]{color:#d94f3d}',
   '.dsh-pet-chat-log-empty{padding:10px 2px;font-size:12px;color:rgba(43,43,43,.4);text-align:center}',
-  // 记录按钮开着时给个淡底，提示「这块是展开状态」
-  '.dsh-pet-chat-btn[data-on="1"]{background:rgba(0,0,0,.07);color:rgba(43,43,43,.9)}',
+  // 隐藏的图标按钮（「指令」窗不需要导出）
+  '.dsh-pet-chat-btn[hidden]{display:none}',
 ].join('');
 
 /** 输入框宽度自适应参数：初始小宽，随文本增宽，封顶后折行增高。 */

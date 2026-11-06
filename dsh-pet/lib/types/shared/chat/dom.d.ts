@@ -13,6 +13,8 @@ export interface ChatDom {
     readonly shotBtn: HTMLButtonElement;
     /** 顶栏标题（「对话」/「指令」）：文案由 dialog 按档改，这里只提供元素。 */
     readonly title: HTMLSpanElement;
+    /** 导出按钮（把整条对话历史存成 Markdown）：只在「对话」档显示，行为在 dialog 里。 */
+    readonly exportBtn: HTMLButtonElement;
     /** 关闭按钮：行为在 dialog 里（点它要触发整个弹窗的清理）。 */
     readonly closeBtn: HTMLButtonElement;
     /** 输入框与根宽度随文本自适应；挂到文档后调用一次，输入时自动重算。 */

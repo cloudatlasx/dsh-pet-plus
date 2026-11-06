@@ -47,9 +47,9 @@ export interface ChatDialogOptions {
         w: number;
         h: number;
     };
-    /** 开哪一种窗：`chat` 带记录、聊完留下继续聊；`cmd` 只发一条指令、结果留在窗里等她自己收。 */
+    /** 开哪一种窗：`chat` 带常驻记录、聊完留下继续聊；`cmd` 只发一条指令、结果留在窗里等她自己收。 */
     mode?: 'chat' | 'cmd';
-    /** 打开时就展开对话记录（旧入口参数；显式传 false 等于 `mode: 'cmd'`）。 */
+    /** @deprecated 旧入口参数，仅用于推断档位：显式传 false 等于 `mode: 'cmd'`。 */
     logOpen?: boolean;
     /** 打开时就带着的图片（拖拽落到宠物身上走的这条）；缺省 = 空弹窗。 */
     initialImage?: File;

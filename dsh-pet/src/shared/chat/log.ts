@@ -1,5 +1,8 @@
 /**
- * 对话记录面板：在对话弹窗里就地展开「我和她说过什么」，并提供一键导出。
+ * 对话记录：对话弹窗里常驻的一块「我和她说过什么」，最新在下方，自己滚。
+ *
+ * 只有一块列表，没有标题栏、没有收起按钮——宠物对话就该只有一个聊天框：
+ * 打开窗就能看见上下文，不必再点一次「记录」。导出按钮在弹窗顶栏（见 ./dom 与 ./dialog）。
  *
  * 数据全部来自宿主 `GET /chat?rounds=`（记忆文件的唯一读写方），本模块只读不写；
  * 「保存」打 `POST /chat/export`，由宿主把**整条**历史写成 Markdown（不受这里的 200 轮上限影响），
@@ -24,16 +27,10 @@ interface LogMessage {
 export interface ChatLogPanel {
   /** 根元素（由对话弹窗插到输入框上方）。 */
   readonly root: HTMLDivElement;
-  /** 展开或收起。 */
-  readonly toggle: () => void;
-  /** 展开（已展开则刷新）。 */
-  readonly open: () => void;
-  /** 收起。 */
-  readonly close: () => void;
-  /** 此刻是否展开。 */
-  readonly isOpen: () => boolean;
-  /** 重新拉一次历史（发送成功后调，保持面板与记忆一致）。 */
+  /** 重新拉一次历史（开窗与发送成功后调，保持面板与记忆一致）。 */
   readonly refresh: () => void;
+  /** 把整条历史导出成 Markdown 文件。 */
+  readonly save: () => void;
   /** 释放（停掉未落地的请求回调，移除元素）。 */
   readonly dispose: () => void;
 }
@@ -54,57 +51,27 @@ function clockOf(ts: number, today: Date): string {
   return sameDay ? hm : `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${hm}`;
 }
 
-/** 造一枚小按钮（样式与对话弹窗的图标按钮同族）。 */
-function textButton(label: string, cls: string): HTMLButtonElement {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'dsh-pet-chat-log-btn ' + cls;
-  btn.textContent = label;
-  return btn;
-}
-
 /**
- * 建对话记录面板。
+ * 建对话记录面板。根元素始终可见——它就是这个聊天框的上半截。
  *
  * @param opts.petId - 宠物 id（GET/POST 都要）。
  * @param opts.baseUrl - 已含挂载前缀、**不含查询串**的对话地址（如 `.../dsh-pet-7340/chat`）。
- * @returns 面板句柄；根元素默认隐藏，由调用方决定插到哪儿。
+ * @returns 面板句柄；根元素始终可见，由调用方插到输入框上方。
  */
-export function createChatLog(opts: {
-  petId: string;
-  baseUrl: string;
-  /** 展开/收起后通知调用方（弹窗要按新尺寸重新挑落点）。 */
-  onChange?: (open: boolean) => void;
-}): ChatLogPanel {
+export function createChatLog(opts: { petId: string; baseUrl: string }): ChatLogPanel {
   const { petId, baseUrl } = opts;
 
   const root = document.createElement('div');
   root.className = 'dsh-pet-chat-log';
-  root.hidden = true;
-
-  const head = document.createElement('div');
-  head.className = 'dsh-pet-chat-log-head';
-  const title = document.createElement('span');
-  title.className = 'dsh-pet-chat-log-title';
-  title.textContent = '对话记录';
-  const count = document.createElement('span');
-  count.className = 'dsh-pet-chat-log-count';
-  const saveBtn = textButton('保存到文件', 'dsh-pet-chat-log-save');
-  saveBtn.title = '把整条对话历史导出成 Markdown 文件';
-  const closeBtn = textButton('✕', 'dsh-pet-chat-log-x');
-  closeBtn.title = '收起记录';
-  closeBtn.setAttribute('aria-label', '收起记录');
-  head.append(title, count, saveBtn, closeBtn);
 
   const list = document.createElement('div');
   list.className = 'dsh-pet-chat-log-list';
   const note = document.createElement('div');
   note.className = 'dsh-pet-chat-log-note';
-  root.append(head, list, note);
+  root.append(list, note);
 
-  let open = false;
   let disposed = false;
-  /** 请求序号：连续展开/刷新时只认最后一次的响应，避免旧响应把新列表盖掉。 */
+  /** 请求序号：连续刷新时只认最后一次的响应，避免旧响应把新列表盖掉。 */
   let seq = 0;
 
   const setNote = (text: string, isErr = false): void => {
@@ -167,11 +134,10 @@ export function createChatLog(opts: {
         if (messages.length === 0) {
           const empty = document.createElement('div');
           empty.className = 'dsh-pet-chat-log-empty';
-          empty.textContent = '还没有聊过天。';
+          empty.textContent = '还没聊过，说第一句吧。';
           list.appendChild(empty);
         }
-        count.textContent = messages.length === 0 ? '' : `共 ${messages.length} 条 · 最近 ${LOG_ROUNDS} 轮`;
-        setNote(messages.length >= LOG_ROUNDS * 2 ? '这里只显示最近的记录；保存会导出全部。' : '');
+        setNote(messages.length >= LOG_ROUNDS * 2 ? '这里只显示最近的记录；导出会包含全部。' : '');
         list.scrollTop = list.scrollHeight;
       })
       .catch((e: unknown) => {
@@ -182,7 +148,6 @@ export function createChatLog(opts: {
 
   const save = (): void => {
     if (disposed) return;
-    saveBtn.disabled = true;
     setNote('正在保存…');
     const url = baseUrl + '/export?pet=' + encodeURIComponent(petId);
     fetch(url, { method: 'POST', signal: AbortSignal.timeout(LOG_TIMEOUT_MS) })
@@ -199,46 +164,17 @@ export function createChatLog(opts: {
       .catch((e: unknown) => {
         if (disposed) return;
         setNote('保存失败：' + (e instanceof Error ? e.message : String(e)), true);
-      })
-      .finally(() => {
-        saveBtn.disabled = false;
       });
   };
 
-  const panel: ChatLogPanel = {
+  return {
     root,
-    toggle: () => {
-      if (open) panel.close();
-      else panel.open();
-    },
-    open: () => {
-      if (open) {
-        refresh();
-        return;
-      }
-      open = true;
-      root.hidden = false;
-      root.dataset.open = '1';
-      refresh();
-      if (opts.onChange) opts.onChange(true);
-    },
-    close: () => {
-      const was = open;
-      open = false;
-      root.hidden = true;
-      root.dataset.open = '0';
-      if (was && opts.onChange) opts.onChange(false);
-    },
-    isOpen: () => open,
     refresh,
+    save,
     dispose: () => {
       disposed = true;
       seq += 1;
       root.remove();
     },
   };
-
-  closeBtn.addEventListener('click', () => panel.close());
-  saveBtn.addEventListener('click', save);
-  return panel;
 }

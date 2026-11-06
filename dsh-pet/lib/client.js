@@ -12532,6 +12532,16 @@ function micIcon(size = 16) {
 	}), svgNode("path", { d: "M5.5 11a6.5 6.5 0 0 0 13 0" }), svgNode("path", { d: "M12 17.5V21" }), svgNode("path", { d: "M8.5 21h7" }));
 	return svg;
 }
+function saveIcon(size = 16) {
+	const svg = svgNode("svg", {
+		viewBox: "0 0 24 24",
+		width: String(size),
+		height: String(size),
+		...ICON_ATTRS
+	});
+	svg.append(svgNode("path", { d: "M12 3v11" }), svgNode("path", { d: "M7.5 9.5L12 14l4.5-4.5" }), svgNode("path", { d: "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" }));
+	return svg;
+}
 function closeIcon(size = 16) {
 	const svg = svgNode("svg", {
 		viewBox: "0 0 24 24",
@@ -12601,19 +12611,10 @@ const CHAT_CSS = [
 	".dsh-pet-chat-attach-x:hover{background:rgba(0,0,0,.08);color:rgba(43,43,43,.85)}",
 	".dsh-pet-chat-hint{display:none;color:rgba(43,43,43,.55);font-size:12px;padding:0 12px 8px}",
 	".dsh-pet-chat-err{color:#d94f3d;font-size:12px;padding:0 12px 8px;white-space:pre-wrap;overflow-wrap:anywhere}",
-	".dsh-pet-chat[data-log=\"1\"]{min-width:min(300px,80vw)}",
-	".dsh-pet-chat-log{display:block;border-bottom:1px solid rgba(0,0,0,.08);",
-	"background:rgba(0,0,0,.022);border-radius:10px 10px 0 0}",
-	".dsh-pet-chat-log[hidden]{display:none}",
-	".dsh-pet-chat-log-head{display:flex;align-items:center;gap:6px;padding:6px 8px 4px}",
-	".dsh-pet-chat-log-title{font-size:12px;font-weight:600;color:rgba(43,43,43,.8)}",
-	".dsh-pet-chat-log-count{font-size:11px;color:rgba(43,43,43,.45);margin-right:auto;",
-	"white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-	".dsh-pet-chat-log-btn{border:none;background:transparent;color:rgba(43,43,43,.6);font-size:11px;",
-	"line-height:1;padding:4px 6px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap}",
-	".dsh-pet-chat-log-btn:hover{background:rgba(0,0,0,.07);color:rgba(43,43,43,.9)}",
-	".dsh-pet-chat-log-btn:disabled{opacity:.45;cursor:default}",
-	".dsh-pet-chat-log-list{max-height:min(240px,45vh);overflow-y:auto;padding:2px 8px 8px;",
+	".dsh-pet-chat[data-mode=\"chat\"]{min-width:min(300px,80vw)}",
+	".dsh-pet-chat-log{display:block;border-top:1px solid rgba(0,0,0,.08);",
+	"background:rgba(0,0,0,.018)}",
+	".dsh-pet-chat-log-list{max-height:min(260px,46vh);overflow-y:auto;padding:8px;",
 	"display:flex;flex-direction:column;gap:6px;user-select:text}",
 	".dsh-pet-chat-log-row{display:flex;flex-direction:column;gap:1px;font-size:12px;line-height:1.45;max-width:100%}",
 	".dsh-pet-chat-log-row[data-role=\"user\"]{align-items:flex-end}",
@@ -12626,7 +12627,7 @@ const CHAT_CSS = [
 	"overflow-wrap:anywhere;user-select:text}",
 	".dsh-pet-chat-log-note[data-err=\"1\"]{color:#d94f3d}",
 	".dsh-pet-chat-log-empty{padding:10px 2px;font-size:12px;color:rgba(43,43,43,.4);text-align:center}",
-	".dsh-pet-chat-btn[data-on=\"1\"]{background:rgba(0,0,0,.07);color:rgba(43,43,43,.9)}"
+	".dsh-pet-chat-btn[hidden]{display:none}"
 ].join("");
 const CHAT_MIN_W = 160;
 const CHAT_MAX_W = 340;
@@ -12730,9 +12731,12 @@ function createChatDom(opts = {}) {
 	title.className = "dsh-pet-chat-title";
 	const headSpacer = document.createElement("span");
 	headSpacer.className = "dsh-pet-chat-spacer";
+	const exportBtn = iconButton("保存对话到文件", saveIcon());
+	exportBtn.setAttribute("data-export", "1");
+	exportBtn.hidden = true;
 	const closeBtn = iconButton("关闭对话", closeIcon());
 	closeBtn.setAttribute("data-close", "1");
-	head.append(title, headSpacer, closeBtn);
+	head.append(title, headSpacer, exportBtn, closeBtn);
 	root.append(head, input, actions, hint, err);
 	document.body.appendChild(root);
 	const resizeInput = enableAutoResize(input, root);
@@ -12815,6 +12819,7 @@ function createChatDom(opts = {}) {
 		err,
 		shotBtn,
 		title,
+		exportBtn,
 		closeBtn,
 		resizeInput,
 		clearAttach,
@@ -12873,40 +12878,17 @@ function clockOf$1(ts, today) {
 	const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
 	return sameDay ? hm : `${pad$1(d.getMonth() + 1)}-${pad$1(d.getDate())} ${hm}`;
 }
-/** 造一枚小按钮（样式与对话弹窗的图标按钮同族）。 */
-function textButton(label, cls) {
-	const btn = document.createElement("button");
-	btn.type = "button";
-	btn.className = "dsh-pet-chat-log-btn " + cls;
-	btn.textContent = label;
-	return btn;
-}
 function createChatLog(opts) {
 	const { petId, baseUrl } = opts;
 	const root = document.createElement("div");
 	root.className = "dsh-pet-chat-log";
-	root.hidden = true;
-	const head = document.createElement("div");
-	head.className = "dsh-pet-chat-log-head";
-	const title = document.createElement("span");
-	title.className = "dsh-pet-chat-log-title";
-	title.textContent = "对话记录";
-	const count = document.createElement("span");
-	count.className = "dsh-pet-chat-log-count";
-	const saveBtn = textButton("保存到文件", "dsh-pet-chat-log-save");
-	saveBtn.title = "把整条对话历史导出成 Markdown 文件";
-	const closeBtn = textButton("✕", "dsh-pet-chat-log-x");
-	closeBtn.title = "收起记录";
-	closeBtn.setAttribute("aria-label", "收起记录");
-	head.append(title, count, saveBtn, closeBtn);
 	const list = document.createElement("div");
 	list.className = "dsh-pet-chat-log-list";
 	const note = document.createElement("div");
 	note.className = "dsh-pet-chat-log-note";
-	root.append(head, list, note);
-	let open = false;
+	root.append(list, note);
 	let disposed = false;
-	/** 请求序号：连续展开/刷新时只认最后一次的响应，避免旧响应把新列表盖掉。 */
+	/** 请求序号：连续刷新时只认最后一次的响应，避免旧响应把新列表盖掉。 */
 	let seq = 0;
 	const setNote = (text, isErr = false) => {
 		note.textContent = text;
@@ -12963,11 +12945,10 @@ function createChatLog(opts) {
 			if (messages.length === 0) {
 				const empty = document.createElement("div");
 				empty.className = "dsh-pet-chat-log-empty";
-				empty.textContent = "还没有聊过天。";
+				empty.textContent = "还没聊过，说第一句吧。";
 				list.appendChild(empty);
 			}
-			count.textContent = messages.length === 0 ? "" : `共 ${messages.length} 条 · 最近 ${LOG_ROUNDS} 轮`;
-			setNote(messages.length >= LOG_ROUNDS * 2 ? "这里只显示最近的记录；保存会导出全部。" : "");
+			setNote(messages.length >= LOG_ROUNDS * 2 ? "这里只显示最近的记录；导出会包含全部。" : "");
 			list.scrollTop = list.scrollHeight;
 		}).catch((e) => {
 			if (disposed || mine !== seq) return;
@@ -12976,7 +12957,6 @@ function createChatLog(opts) {
 	};
 	const save = () => {
 		if (disposed) return;
-		saveBtn.disabled = true;
 		setNote("正在保存…");
 		const url = baseUrl + "/export?pet=" + encodeURIComponent(petId);
 		fetch(url, {
@@ -12990,45 +12970,18 @@ function createChatLog(opts) {
 		}).catch((e) => {
 			if (disposed) return;
 			setNote("保存失败：" + (e instanceof Error ? e.message : String(e)), true);
-		}).finally(() => {
-			saveBtn.disabled = false;
 		});
 	};
-	const panel = {
+	return {
 		root,
-		toggle: () => {
-			if (open) panel.close();
-			else panel.open();
-		},
-		open: () => {
-			if (open) {
-				refresh();
-				return;
-			}
-			open = true;
-			root.hidden = false;
-			root.dataset.open = "1";
-			refresh();
-			if (opts.onChange) opts.onChange(true);
-		},
-		close: () => {
-			const was = open;
-			open = false;
-			root.hidden = true;
-			root.dataset.open = "0";
-			if (was && opts.onChange) opts.onChange(false);
-		},
-		isOpen: () => open,
 		refresh,
+		save,
 		dispose: () => {
 			disposed = true;
 			seq += 1;
 			root.remove();
 		}
 	};
-	closeBtn.addEventListener("click", () => panel.close());
-	saveBtn.addEventListener("click", save);
-	return panel;
 }
 
 //#endregion
@@ -13166,13 +13119,11 @@ function mountChatDialog(opts) {
 	if (mode === "chat") {
 		log$3 = createChatLog({
 			petId,
-			baseUrl,
-			onChange: () => {
-				root.dataset.log = log$3?.isOpen() ? "1" : "0";
-				place();
-			}
+			baseUrl
 		});
 		root.insertBefore(log$3.root, input);
+		dom.exportBtn.hidden = false;
+		dom.exportBtn.addEventListener("click", () => log$3?.save());
 	}
 	let result;
 	if (mode === "cmd") {
@@ -13251,10 +13202,7 @@ function mountChatDialog(opts) {
 		notify: (text) => dom.flash(text)
 	});
 	dom.resizeInput();
-	if (log$3) {
-		log$3.open();
-		root.dataset.log = log$3.isOpen() ? "1" : "0";
-	}
+	log$3?.refresh();
 	place();
 	if (opts.initialImage) dom.setImageFile(opts.initialImage);
 	if (opts.initialEncoded) dom.setEncoded(opts.initialEncoded);
