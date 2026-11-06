@@ -246,6 +246,10 @@ Object.assign(PetSprite.prototype, {
       this.chatOpen ||
       this.todoOpen ||
       !!this.requestEnvelope ||
+      // 提醒气泡（schedule / chat / todo / announce）同样带按钮与可滚动内容：漏了它，气泡一旦
+      // 移出宠物身体判定区，窗口 400ms 后就恢复穿透——「知道了 / 等会儿」点不动，内容区的滚动条
+      // 也拖不起来（2026-11-05 用户实测：待办到点提醒点不了、滚动条拖不动）。
+      !!this.reminderEnvelope ||
       this.balanceClickable() ||
       this.workClickable()
     );

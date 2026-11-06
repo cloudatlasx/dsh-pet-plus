@@ -79,6 +79,26 @@ describe('decideWindowIgnore —— 兜底通道的判定规则（issue #55 报�
     assert.equal(decideWindowIgnore(bounds, margin, true, true, OFF_BODY_RELEASE_MS * 100), false);
   });
 
+  test('提醒气泡的按钮区：busy + 控件矩形覆盖余量区 → 翻成可交互（0.15.1 的回归）', () => {
+    // 0.15.0 的提醒气泡悬在宠物头顶的余量区，渲染端却又没把 reminderEnvelope 算进租约：
+    // 窗口只要已经沉降成穿透，气泡上的「知道了 / 等会儿」与内容区滚动条就全都点不到、拖不动。
+    const point = { x: bounds.x + 30, y: bounds.y + 30 };
+    const rect = { x: 20, y: 20, width: 220, height: 120 }; // 窗口内坐标（与 pet:input-regions 同口径）
+    assert.equal(
+      decideWindowIgnore(bounds, point, true, true, 0, { dragging: false, rects: [rect] }),
+      false,
+      'busy 且光标落在登记的控件矩形里 → 必须可交互，哪怕此前是穿透',
+    );
+    assert.equal(
+      decideWindowIgnore(bounds, { x: bounds.x + 400, y: bounds.y + 30 }, true, true, 0, {
+        dragging: false,
+        rects: [rect],
+      }),
+      true,
+      '同一租约下，矩形外仍要穿透（不挡桌面）',
+    );
+  });
+
   test('超时不越界：身体上不因超时穿透，窗外不因零时长保持可交互', () => {
     const r = spriteHitRect(bounds);
     const center = { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
@@ -314,6 +334,15 @@ describe('守卫：渲染端的输入租约必须在位（helper 随包发行，
     for (const flag of ['dragState.active', 'menuOpen', 'chatOpen']) {
       assert.ok(body.includes(flag), `租约必须包含 ${flag}`);
     }
+  });
+
+  test('提醒气泡也算占用输入：漏了它，按钮与滚动条都会点不动', () => {
+    const m = /inputBusy\(\)\s*\{([\s\S]*?)\n {2}\}/.exec(sprite);
+    assert.ok(m, 'sprite.js 里找不到 inputBusy()');
+    assert.ok(
+      m[1].includes('this.reminderEnvelope'),
+      '提醒气泡（待办到点 / 定时任务 / 聊天提醒）展示期间必须持有输入租约',
+    );
   });
 
   test('建立点：拖拽成立 / 菜单开 / 弹窗开都上报', () => {
