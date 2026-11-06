@@ -2947,7 +2947,7 @@ async function handleAssetsRoutes(deps, input) {
 		};
 	}
 	if (scope === "swim") {
-		const swimRoot = join(PACKAGE_ROOT, "assets", "swim");
+		const swimRoot = join(PACKAGE_ROOT, "assets", "webm");
 		const swimFile = resolveExisting(swimRoot, restParts.join("/"));
 		if (swimFile === void 0) return {
 			kind: "text",

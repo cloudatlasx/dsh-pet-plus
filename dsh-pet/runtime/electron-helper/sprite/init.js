@@ -253,7 +253,8 @@ Object.assign(PetSprite.prototype, {
     this.fishVideo.playsInline = true;
     this.fishVideo.preload = 'auto';
     this.fishVideo.setAttribute('aria-hidden', 'true');
-    this.fishVideo.src = BASE + '/swim/whale.webm';
+    // 和「动作」共用同一份 `assets/webm/鲸鱼游动.webm`：动作池、游动过渡都读这一份，不另存副本。
+    this.fishVideo.src = BASE + '/swim/' + encodeURIComponent('鲸鱼游动') + '.webm';
     this.fish.appendChild(this.fishVideo);
     this.fishVideo.addEventListener('loadeddata', () => {
       this.fish.classList.add('is-video');

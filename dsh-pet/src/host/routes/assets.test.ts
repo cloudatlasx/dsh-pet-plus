@@ -57,16 +57,17 @@ describe('handleAssetsRoutes —— 路径归属', () => {
 });
 
 describe('handleAssetsRoutes —— /swim/<file>', () => {
-  test('包内有素材时回 video/webm；源码形态取不到包内目录则 404', async () => {
+  test('从 assets/webm 取动作视频（与动作池同一份）；源码形态取不到包内目录则 404', async () => {
     // PACKAGE_ROOT 由 import.meta.url 推断：构建产物里是包根，源码形态指向 src/，
     // 所以这里按「素材是否可达」两分支断言，两种形态都不误报。
-    const asset = join(PACKAGE_ROOT, 'assets', 'swim', 'whale.webm');
-    const result = await readAsset('swim/whale.webm');
+    const name = encodeURIComponent('鲸鱼游动') + '.webm';
+    const asset = join(PACKAGE_ROOT, 'assets', 'webm', '鲸鱼游动.webm');
+    const result = await readAsset('swim/' + name);
     assert.ok(result !== undefined);
     if (existsSync(asset)) {
       assert.equal(result.kind, 'file');
       assert.equal(result.contentType, 'video/webm');
-      assert.match(result.file, /assets[\\/]swim[\\/]whale\.webm$/);
+      assert.match(result.file, /assets[\\/]webm[\\/]鲸鱼游动\.webm$/);
     } else {
       assert.equal(result.kind, 'text');
       assert.equal(result.status, 404);
