@@ -273,8 +273,24 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
     }
     const id = textOf(parsed?.id);
     if (id === '') return failResult('bad-request', 'id 必填');
+    // 「知道了」对待办提醒就是「这件事办完了」：先按现成的信封认出它，把待办勾掉再收气泡。
+    // 不勾掉的话，逾期待办会按 30 分钟档一直重弹——用户会觉得「点了几次它还在催」。
+    const live = snoozeSource(deps, id);
+    let todoDone: string | undefined;
+    if (live !== undefined && live.kind === 'todo' && live.ref !== undefined) {
+      try {
+        const updated = await deps.todos.update(live.ref, { done: true });
+        if (updated !== null) {
+          todoDone = live.ref;
+          deps.log.info('[dsh-pet] 待办已勾掉 todo=' + live.ref);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        deps.log.warn('dsh-pet: 勾掉待办失败 todo=' + live.ref + ' ' + message);
+      }
+    }
     deps.state.writeSection('reminder', { id, kind: 'announce', ts: Date.now(), title: '', closed: true });
-    return okResult({ ok: true });
+    return okResult({ ok: true, ...(todoDone === undefined ? {} : { todoDone }) });
   }
 
   // 「等会儿」：先收起，过 N 分钟原样再弹一次。不是关掉——用户的意思通常是「我现在正忙」。

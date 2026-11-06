@@ -25,6 +25,7 @@ import { handleScheduleRoutes } from './schedule.ts';
 import { handleSessionRoutes } from './session.ts';
 import { handleStateRoutes } from './state.ts';
 import { handleSleepRoutes } from './sleep.ts';
+import { handleTaskRoutes } from './tasks.ts';
 import { handleTodoRoutes } from './todos.ts';
 import { handleVoiceRoutes } from './voice.ts';
 import type { PetRouteDeps, RouteHandler } from './types.ts';
@@ -48,6 +49,7 @@ const HANDLERS: readonly RouteHandler[] = [
   handleChatRoutes,
   handleAttachmentRoutes,
   handleTodoRoutes,
+  handleTaskRoutes,
   handleVoiceRoutes,
   handleAvatarRoutes,
   handleAssetsRoutes,

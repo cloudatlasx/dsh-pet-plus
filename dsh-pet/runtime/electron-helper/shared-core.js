@@ -1630,6 +1630,11 @@ const MENU_TOOL_ACTIONS = [
 		hint: "打开待办面板"
 	},
 	{
+		action: "task",
+		label: "任务",
+		hint: "打开任务面板：新建待办、完成定时任务"
+	},
+	{
 		action: "history",
 		label: "最近记录",
 		hint: "翻看弹过的提醒与推送"
@@ -3981,6 +3986,7 @@ function sortTodoItems(list) {
 //#endregion
 //#region src/shared/todo/api.ts
 const TODOS_PATH = ROUTE_PATH + "/todos";
+const TASKS_PATH = ROUTE_PATH + "/tasks";
 /** 发一次请求并收窄最外层：协议失败、业务失败、非 JSON 都归成失败。 */
 async function send(url, method, body) {
 	try {
@@ -4069,6 +4075,50 @@ async function removeTodo(id, baseUrl = TODOS_PATH) {
 	return {
 		ok: true,
 		value: typeof result.body.removed === "number" ? result.body.removed : 0
+	};
+}
+/** 收窄一条任务；缺 id 或标题视为坏行。 */
+function readTask(value) {
+	if (value === null || typeof value !== "object") return null;
+	const row = value;
+	const text = (key) => typeof row[key] === "string" ? row[key] : "";
+	const id = text("id");
+	const title = text("title");
+	if (id === "" || title === "") return null;
+	return {
+		id,
+		title,
+		kind: text("kind"),
+		scheduledAt: text("scheduledAt"),
+		status: text("status")
+	};
+}
+async function loadTasks(baseUrl = TASKS_PATH) {
+	const result = await send(baseUrl, "GET");
+	if (result.failed) return {
+		ok: false,
+		message: result.message
+	};
+	const rows = Array.isArray(result.body.tasks) ? result.body.tasks : [];
+	const tasks = [];
+	for (const row of rows) {
+		const task = readTask(row);
+		if (task !== null) tasks.push(task);
+	}
+	return {
+		ok: true,
+		value: tasks
+	};
+}
+async function completeTask(id, baseUrl = TASKS_PATH) {
+	const result = await send(baseUrl + "/complete", "POST", { id });
+	if (result.failed) return {
+		ok: false,
+		message: result.message
+	};
+	return {
+		ok: true,
+		value: null
 	};
 }
 
@@ -4416,7 +4466,7 @@ const WEEKDAYS = [
 	"周六"
 ];
 /** 两位补零。 */
-function pad2(value) {
+function pad2$1(value) {
 	return String(value).padStart(2, "0");
 }
 /** 当天零点的时间戳：跨日比较用它，避开夏令时造成的 23/25 小时日。 */
@@ -4437,7 +4487,7 @@ function spanText(ms) {
 function dueLabel(dueAt, now) {
 	if (dueAt === null) return "无期限";
 	const due = new Date(dueAt);
-	const clock = `${pad2(due.getHours())}:${pad2(due.getMinutes())}`;
+	const clock = `${pad2$1(due.getHours())}:${pad2$1(due.getMinutes())}`;
 	const days = dayDiff(due, new Date(now));
 	if (days === 0) return `今天 ${clock}`;
 	if (days === 1) return `明天 ${clock}`;
@@ -4467,7 +4517,7 @@ function metaLabel(todo, now) {
 }
 function formatDateTimeLocal(ms) {
 	const date = new Date(ms);
-	return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+	return `${date.getFullYear()}-${pad2$1(date.getMonth() + 1)}-${pad2$1(date.getDate())}T${pad2$1(date.getHours())}:${pad2$1(date.getMinutes())}`;
 }
 function parseDateTimeLocal(value) {
 	const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value.trim());
@@ -4540,7 +4590,12 @@ function createTodoPanelParts() {
 		list,
 		hint
 	]));
-	root.append(head, form, lower);
+	const tasks = element("div", "dsh-pet-todo-tasks");
+	const tasksHead = element("div", "dsh-pet-todo-tasksHead", "定时任务");
+	const taskList = element("ul", "dsh-pet-todo-list dsh-pet-todo-taskList");
+	tasks.append(tasksHead, taskList);
+	tasks.hidden = true;
+	root.append(head, form, lower, tasks);
 	return {
 		root,
 		form,
@@ -4550,7 +4605,9 @@ function createTodoPanelParts() {
 		count,
 		closeButton,
 		error,
-		hint
+		hint,
+		tasks,
+		taskList
 	};
 }
 /**
@@ -4580,6 +4637,51 @@ function renderTodoList(parts, todos, handlers, now) {
 	parts.empty.hidden = todos.length > 0;
 	for (const todo of todos) parts.list.appendChild(renderItem(todo, handlers, now));
 	capListHeight(parts.list);
+}
+/** 任务种类的中文说法；未认识的原样显示。 */
+const TASK_KINDS = {
+	at: "一次",
+	after: "稍后一次",
+	daily: "每天",
+	weekly: "每周",
+	every: "每隔一段",
+	cron: "按计划"
+};
+/** 两位补零。 */
+function pad2(value) {
+	return value < 10 ? "0" + String(value) : String(value);
+}
+/** 下一次触发时刻：`M/D HH:mm`；解析不出来就给空串。 */
+function stampOf(iso) {
+	const at = Date.parse(iso);
+	if (!Number.isFinite(at)) return "";
+	const date = new Date(at);
+	return `${date.getMonth() + 1}/${date.getDate()} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+function taskMetaLabel(task) {
+	const kind = TASK_KINDS[task.kind] ?? task.kind;
+	const when = stampOf(task.scheduledAt);
+	const parts = [kind];
+	if (when !== "") parts.push(when);
+	if (task.status === "inactive") parts.push("已停用");
+	return parts.join(" · ");
+}
+function renderTaskList(parts, tasks, handlers) {
+	parts.taskList.textContent = "";
+	parts.tasks.hidden = tasks.length === 0;
+	for (const task of tasks) {
+		const item = element("li", "dsh-pet-todo-item is-task" + (task.status === "inactive" ? " is-done" : ""));
+		const main = element("div", "dsh-pet-todo-main");
+		const text = element("div", "dsh-pet-todo-text", task.title);
+		const meta = element("div", "dsh-pet-todo-meta", taskMetaLabel(task));
+		main.append(text, meta);
+		const done = element("button", "dsh-pet-todo-done", "完成");
+		done.type = "button";
+		done.setAttribute("aria-label", "完成任务：" + task.title);
+		done.addEventListener("click", () => handlers.onComplete(task));
+		item.append(main, done);
+		parts.taskList.appendChild(item);
+	}
 }
 /** 渲染一条；未完成项带紧迫度，已完成项划线。 */
 function renderItem(todo, handlers, now) {
@@ -4686,7 +4788,16 @@ const TODO_CSS = [
 	"font-size:.923em;white-space:pre-wrap;overflow-wrap:anywhere}",
 	".dsh-pet-todo-err[hidden]{display:none}",
 	".dsh-pet-todo-hint{margin-top:auto;padding:calc(var(--t)*0.462) calc(var(--t)*0.923) calc(var(--t)*0.692);",
-	"color:rgba(43,43,43,.4);font-size:.846em;text-align:center}"
+	"color:rgba(43,43,43,.4);font-size:.846em;text-align:center}",
+	".dsh-pet-todo-tasks{border-top:1px solid rgba(0,0,0,.07);padding-top:calc(var(--t)*0.462)}",
+	".dsh-pet-todo-tasks[hidden]{display:none}",
+	".dsh-pet-todo-tasksHead{padding:0 calc(var(--t)*0.923) calc(var(--t)*0.231);font-size:.923em;",
+	"color:rgba(43,43,43,.5)}",
+	".dsh-pet-todo-taskList{max-height:calc(var(--t)*6.2)}",
+	".dsh-pet-todo-done{border:1px solid rgba(64,128,255,.35);background:rgba(64,128,255,.08);",
+	"color:#3f6fd8;font-family:inherit;font-size:.846em;line-height:1;padding:calc(var(--t)*0.308) calc(var(--t)*0.462);",
+	"border-radius:.462em;cursor:pointer;flex:0 0 auto}",
+	".dsh-pet-todo-done:hover{background:rgba(64,128,255,.16)}"
 ].join("");
 let todoCssInjected = false;
 function injectTodoCss() {
@@ -4714,23 +4825,27 @@ function createTodoPanel(options = {}) {
 	let disposed = false;
 	let busy = false;
 	let todos = [];
+	let tasks = [];
 	const handlers = {
 		onToggle: (todo, done) => void mutate(() => patchTodo(todo.id, { done }, baseUrl)),
 		onDelete: (todo) => void mutate(() => removeTodo(todo.id, baseUrl))
 	};
+	const taskHandlers = { onComplete: (task) => void mutate(() => completeTask(task.id, TASKS_PATH)) };
 	/** 重新拉整张清单：修改一律以宿主返回为准，不在本地猜结果。 */
 	async function reload() {
-		const result = await loadTodos(baseUrl);
+		const [todoResult, taskResult] = await Promise.all([loadTodos(baseUrl), loadTasks(TASKS_PATH)]);
 		if (disposed) return;
-		if (!result.ok) {
-			setTodoError(parts, result.message);
+		if (!todoResult.ok) {
+			setTodoError(parts, todoResult.message);
 			parts.empty.textContent = "清单加载失败，关掉面板再开一次试试";
 			parts.empty.hidden = false;
 			return;
 		}
-		todos = result.value;
+		todos = todoResult.value;
+		tasks = taskResult.ok ? taskResult.value : [];
 		setTodoError(parts, null);
 		renderTodoList(parts, todos, handlers, Date.now());
+		renderTaskList(parts, tasks, taskHandlers);
 	}
 	/** 串行执行一次修改：请求在途时禁止再次提交，成功后统一重拉。 */
 	async function mutate(task) {

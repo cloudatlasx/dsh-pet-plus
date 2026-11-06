@@ -11,6 +11,9 @@ import { parseTodoItem, parseTodoList, type TodoItem } from './types.ts';
 /** 待办接口的基址（与宿主路由同一前缀）。 */
 export const TODOS_PATH = ROUTE_PATH + '/todos';
 
+/** 定时任务接口的基址（DSH 调度器里的任务）。 */
+export const TASKS_PATH = ROUTE_PATH + '/tasks';
+
 /** 一次调用的结论：成功带解析后的值，失败带一句能直接展示的中文原因。 */
 export type TodoResult<T> = { ok: true; value: T } | { ok: false; message: string };
 
@@ -77,4 +80,44 @@ export async function removeTodo(id: string, baseUrl = TODOS_PATH): Promise<Todo
   const result = await send(baseUrl + '/' + encodeURIComponent(id), 'DELETE');
   if (result.failed) return { ok: false, message: result.message };
   return { ok: true, value: typeof result.body.removed === 'number' ? result.body.removed : 0 };
+}
+
+/** 一条 DSH 定时任务：面板只展示、只允许完成，不在面板里新建。 */
+export interface PetTask {
+  id: string;
+  title: string;
+  kind: string;
+  scheduledAt: string;
+  status: string;
+}
+
+/** 收窄一条任务；缺 id 或标题视为坏行。 */
+function readTask(value: unknown): PetTask | null {
+  if (value === null || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const text = (key: string): string => (typeof row[key] === 'string' ? (row[key] as string) : '');
+  const id = text('id');
+  const title = text('title');
+  if (id === '' || title === '') return null;
+  return { id, title, kind: text('kind'), scheduledAt: text('scheduledAt'), status: text('status') };
+}
+
+/** 读 DSH 定时任务清单。 */
+export async function loadTasks(baseUrl = TASKS_PATH): Promise<TodoResult<PetTask[]>> {
+  const result = await send(baseUrl, 'GET');
+  if (result.failed) return { ok: false, message: result.message };
+  const rows = Array.isArray(result.body.tasks) ? result.body.tasks : [];
+  const tasks: PetTask[] = [];
+  for (const row of rows) {
+    const task = readTask(row);
+    if (task !== null) tasks.push(task);
+  }
+  return { ok: true, value: tasks };
+}
+
+/** 完成（删除）一条定时任务：周期任务只有删掉才算不再打扰。 */
+export async function completeTask(id: string, baseUrl = TASKS_PATH): Promise<TodoResult<null>> {
+  const result = await send(baseUrl + '/complete', 'POST', { id });
+  if (result.failed) return { ok: false, message: result.message };
+  return { ok: true, value: null };
 }

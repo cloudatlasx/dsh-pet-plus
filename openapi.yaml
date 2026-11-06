@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.15.9
+  version: 0.16.0
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -3360,6 +3360,83 @@ paths:
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
 
+  /dsh-pet-7340/tasks:
+    get:
+      tags: [Action]
+      operationId: listTasks
+      summary: 读取 DSH 调度器里的定时任务
+      description: |
+        把 DSH `schedule` 服务的目录收窄成面板能画的行：`id` / `title` / `kind` /
+        `scheduledAt` / `status`（`active` | `inactive`），缺 id 或标题的行直接丢掉。
+        桌面右键菜单「任务」与设置页用的都是这一份。
+
+        **完成 = 删除**：DSH 的定时任务没有「已完成」状态，一次性任务跑完自然退场，
+        周期任务只有删掉才算不再打扰，所以 `POST /tasks/complete` 走的就是 `schedule.delete`。
+        宿主不读写 `storages/schedule.json`：调度器启动时把整张表载入内存，手改文件会被覆盖。
+      responses:
+        "200":
+          description: |
+            任务清单（按 `scheduledAt` 升序）。`schedule` 服务不可用时回 `ok: false` + `unsupported`。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                  tasks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TaskRow"
+                  reason:
+                    type: string
+                  message:
+                    type: string
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /dsh-pet-7340/tasks/complete:
+    post:
+      tags: [Action]
+      operationId: completeTask
+      summary: 完成（删除）一条定时任务
+      description: |
+        按 id 在目录里找到该行，用行上的 `sessionId` 调 `schedule.delete({sessionId, id})`：
+        会话不能猜，行里没有绑定就明确失败。删掉之后不会再被调度，也从 /tasks 消失。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  example: schedule-3b458999-eaca-46ed-94de-02027e706b14
+      responses:
+        "200":
+          description: |
+            成功回 `{ok:true, id}`；id 不存在 / 行里没有会话 / 调度器报 `schedule_not_found`
+            回 `ok: false` + `bad-request`（文案已转成用户能看懂的说法）。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+                  reason:
+                    type: string
+                  message:
+                    type: string
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
   /dsh-pet-7340/request/diag:
     get:
       tags: [Request]
@@ -5561,4 +5638,25 @@ components:
         removed:
           type: integer
           description: 删掉的条数；0 = 本来就没有（幂等）
+
+    TaskRow:
+      type: object
+      required: [id, title, kind, scheduledAt, status]
+      properties:
+        id:
+          type: string
+          description: 调度器里的任务 id（`schedule-…`），`POST /tasks/complete` 用它定位
+        title:
+          type: string
+        kind:
+          type: string
+          enum: [after, at, every, daily, weekly, cron]
+          description: 一次性（`after` / `at`）还是周期任务
+        scheduledAt:
+          type: string
+          description: ISO 时间；下一次（或唯一一次）被投递的时刻
+        status:
+          type: string
+          enum: [active, inactive]
+          description: inactive = 已经结束/过期，只剩一条记录
 

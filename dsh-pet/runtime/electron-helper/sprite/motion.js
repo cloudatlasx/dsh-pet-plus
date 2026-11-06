@@ -392,6 +392,8 @@ Object.assign(PetSprite.prototype, {
     this.moveToCenter(rx, ry, mode, duration, frame, opts);
     this.returnHomeAfter = returnAfter > 0 ? returnAfter : 0;
     this.returnHomeAt = this.returnHomeAfter > 0 ? home : null;
+    // 出发位置也记一份：用户一拍板就立刻回去（returnHomeNow），不必等 returnAfter 到点。
+    this.awayHome = this.returnHomeAt;
     // instant 一帧到位、不会再走「到位」分支，这里补一次排期
     if (mode === 'instant') this.armReturnHome();
     // 落地的同一拍再闪一次气泡：走过去要 1 秒多，起点就闪的话等它到了动画早放完了
@@ -405,6 +407,20 @@ Object.assign(PetSprite.prototype, {
     this.returnHomeToken = 0;
     this.returnHomeAfter = 0;
     this.returnHomeAt = null;
+    this.awayHome = null;
+  },
+
+  /**
+   * 用户已经拍板：立刻回到出发位置，不等 returnAfter 到点。
+   *
+   * 请求气泡一消失（选完 / 取消 / 超时）就调它——「催完还在原地杵着」比不催更怪。
+   * 没出去过（awayHome 为空）或用户正按着宠物时什么都不做。
+   */
+  returnHomeNow() {
+    const home = this.awayHome;
+    this.cancelReturnHome();
+    if (home === null || this.dragState.active) return;
+    this.moveToCenter(home.rx, home.ry, 'line', 900, 'view', { action: 'swim' });
   },
 
   /**

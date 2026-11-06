@@ -51,6 +51,8 @@ Object.assign(PetSprite.prototype, {
     this.returnTimer = null;
     this.returnHomeToken = 0;
     this.returnSeq = 0;
+    // 出发位置（归一化并集比例）：请求气泡上「知道了/选完」就立刻按它回去，不等 returnAfter 到点。
+    this.awayHome = null;
     this.space = null; // 抛掷空间（逐屏 AABB）缓存；显示器变化时由 relayout() 置空重建
     // Q 弹挤压（点击回应 / 抛掷落地）：rAF + 待压标记（等新动画成为前台再压，压新首帧）
     this.squashRef = null;
@@ -156,6 +158,8 @@ Object.assign(PetSprite.prototype, {
     this.reminderSwimHome = null;
     // 已经因为哪条提醒游过去了：同一条提醒重画时不要反复出发（会一直重启动画）。
     this.reminderSwimId = null;
+    // 这批审批/提问是全屏游过去催的：气泡一消失就立刻按 awayHome 回去（见 bubble.renderBubble）。
+    this.requestAway = false;
   },
 
   /** 建 DOM 并把首帧位置落到窗口；布局数值全部来自上面算好的 geometry。 */

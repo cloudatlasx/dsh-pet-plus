@@ -4,14 +4,27 @@
  * 依赖 ./api 的 HTTP、./render 的骨架与 ./styles 的样式；清理只摘自己的节点与监听，不碰容器。
  * @module dsh-pet/src/shared/todo/panel
  */
-import { TODOS_PATH, addTodo, loadTodos, patchTodo, removeTodo, type TodoResult } from './api.ts';
+import {
+  TASKS_PATH,
+  TODOS_PATH,
+  addTodo,
+  completeTask,
+  loadTasks,
+  loadTodos,
+  patchTodo,
+  removeTodo,
+  type PetTask,
+  type TodoResult,
+} from './api.ts';
 import { parseNaturalTimeInSentence } from './natural-time.ts';
 import {
   createTodoPanelParts,
+  renderTaskList,
   renderTodoList,
   setTodoBusy,
   setTodoError,
   TODO_HINT_TEXT,
+  type TaskListHandlers,
   type TodoListHandlers,
 } from './render.ts';
 import { injectTodoCss } from './styles.ts';
@@ -48,6 +61,7 @@ export function createTodoPanel(options: TodoPanelOptions = {}): TodoPanel {
   let disposed = false;
   let busy = false;
   let todos: TodoItem[] = [];
+  let tasks: PetTask[] = [];
 
   // 三个函数互相引用（列表回调 → 修改 → 重拉 → 渲染）：mutate / reload 用函数声明提升，
   // 回调里引用它们不会在构造期求值，也就不存在初始化顺序问题。
@@ -55,21 +69,28 @@ export function createTodoPanel(options: TodoPanelOptions = {}): TodoPanel {
     onToggle: (todo, done) => void mutate(() => patchTodo(todo.id, { done }, baseUrl)),
     onDelete: (todo) => void mutate(() => removeTodo(todo.id, baseUrl)),
   };
+  const taskHandlers: TaskListHandlers = {
+    // 「完成」= 删除：DSH 的定时任务没有已完成状态，删掉才算不再打扰。
+    onComplete: (task) => void mutate(() => completeTask(task.id, TASKS_PATH)),
+  };
 
   /** 重新拉整张清单：修改一律以宿主返回为准，不在本地猜结果。 */
   async function reload(): Promise<void> {
-    const result = await loadTodos(baseUrl);
+    const [todoResult, taskResult] = await Promise.all([loadTodos(baseUrl), loadTasks(TASKS_PATH)]);
     if (disposed) return;
-    if (!result.ok) {
-      setTodoError(parts, result.message);
+    if (!todoResult.ok) {
+      setTodoError(parts, todoResult.message);
       // 加载失败时别让空态一直停在「加载中…」。
       parts.empty.textContent = '清单加载失败，关掉面板再开一次试试';
       parts.empty.hidden = false;
       return;
     }
-    todos = result.value;
+    todos = todoResult.value;
+    // 定时任务读失败只是少一块内容，不该让整张清单报错。
+    tasks = taskResult.ok ? taskResult.value : [];
     setTodoError(parts, null);
     renderTodoList(parts, todos, handlers, Date.now());
+    renderTaskList(parts, tasks, taskHandlers);
   }
 
   /** 串行执行一次修改：请求在途时禁止再次提交，成功后统一重拉。 */

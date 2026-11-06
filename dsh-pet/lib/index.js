@@ -2828,10 +2828,20 @@ function savePetAvatar(avatarDir, petId, bytes) {
 
 //#endregion
 //#region src/host/routes/assets.ts
+/** 素材路由认的 scope；其余路径必须放给后面的业务路由。 */
+const ASSET_SCOPES = new Set([
+	"logo",
+	"font",
+	"pic",
+	"sound",
+	"swim",
+	"thumb"
+]);
 async function handleAssetsRoutes(deps, input) {
 	const { assetRootFor, memeDirsFor, petConfigDir, userRootFor } = deps;
 	const { rest, url } = input;
 	const [scope, ...restParts] = rest.split("/");
+	if (!ASSET_SCOPES.has(scope)) return void 0;
 	if (scope === "logo") {
 		if (restParts.length > 0) return {
 			kind: "text",
@@ -2951,11 +2961,7 @@ async function handleAssetsRoutes(deps, input) {
 			contentType: MIME[ext$1] ?? "application/octet-stream"
 		};
 	}
-	if (scope !== "thumb") return {
-		kind: "text",
-		status: 400,
-		body: "dsh-pet: expected /dsh-pet-7340/thumb/<petId>/<file>"
-	};
+	if (scope !== "thumb") return void 0;
 	const [petId, ...nameParts] = restParts;
 	if (!petId || nameParts.length === 0) return {
 		kind: "text",
@@ -5462,6 +5468,7 @@ function readReminder(leaf) {
 		lines: lines.length > 0 ? lines : void 0,
 		hint: typeof d.hint === "string" && d.hint.trim() !== "" ? d.hint : void 0,
 		sessionId: typeof d.sessionId === "string" && d.sessionId.trim() !== "" ? d.sessionId : void 0,
+		ref: typeof d.ref === "string" && d.ref.trim() !== "" ? d.ref : void 0,
 		ttlMs: typeof d.ttlMs === "number" && Number.isFinite(d.ttlMs) && d.ttlMs > 0 ? d.ttlMs : void 0,
 		scheduledAt: typeof d.scheduledAt === "string" ? d.scheduledAt : void 0,
 		actions: actions.length > 0 ? actions : void 0
@@ -6055,8 +6062,8 @@ function actionsOf(value) {
 	for (const item of value) {
 		if (!item || typeof item !== "object") continue;
 		const a = item;
-		const label = textOf$1(a.label);
-		const text = textOf$1(a.text);
+		const label = textOf$2(a.label);
+		const text = textOf$2(a.text);
 		if (label === "" || text === "") continue;
 		out.push({
 			label: label.length > MAX_ACTION_LABEL ? label.slice(0, MAX_ACTION_LABEL - 1) + "…" : label,
@@ -6067,7 +6074,7 @@ function actionsOf(value) {
 	return out;
 }
 /** 取一个修剪过的字符串；非字符串给空串。 */
-function textOf$1(value) {
+function textOf$2(value) {
 	return typeof value === "string" ? value.trim() : "";
 }
 /** 记住一条推送过的提醒（超量丢最旧的），供「等会儿」原样重发。 */
@@ -6104,7 +6111,7 @@ function linesOf(value) {
 	if (!Array.isArray(value)) return [];
 	const out = [];
 	for (const item of value) {
-		const line = textOf$1(item);
+		const line = textOf$2(item);
 		if (line === "") continue;
 		out.push(line.length > MAX_LINE_CHARS ? line.slice(0, MAX_LINE_CHARS - 1) + "…" : line);
 		if (out.length >= MAX_ANNOUNCE_LINES) break;
@@ -6159,13 +6166,13 @@ async function handleRequestRoutes(deps, input) {
 			return invalidJson();
 		}
 		if (!parsed || typeof parsed !== "object") return failResult("bad-request", "body 必须是对象");
-		const title = textOf$1(parsed.title);
+		const title = textOf$2(parsed.title);
 		const lines = linesOf(parsed.lines);
-		const text = textOf$1(parsed.text);
+		const text = textOf$2(parsed.text);
 		if (title === "" && lines.length === 0 && text === "") return failResult("bad-request", "title / lines / text 至少要有一个");
 		const id = "a-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
-		const hint = textOf$1(parsed.hint);
-		const sessionId = textOf$1(parsed.sessionId);
+		const hint = textOf$2(parsed.hint);
+		const sessionId = textOf$2(parsed.sessionId);
 		const actions = sessionId === "" ? [] : actionsOf(parsed.actions);
 		const ttl = typeof parsed.ttlMs === "number" && Number.isFinite(parsed.ttlMs) && parsed.ttlMs > 0 ? parsed.ttlMs : ANNOUNCE_TTL_MS;
 		const reminder = {
@@ -6197,8 +6204,8 @@ async function handleRequestRoutes(deps, input) {
 			return invalidJson();
 		}
 		if (!parsed || typeof parsed !== "object") return failResult("bad-request", "body 必须是对象");
-		const sessionId = textOf$1(parsed.sessionId);
-		const text = textOf$1(parsed.text);
+		const sessionId = textOf$2(parsed.sessionId);
+		const text = textOf$2(parsed.text);
 		if (sessionId === "") return failResult("bad-request", "sessionId 必填");
 		if (text === "") return failResult("bad-request", "text 必填");
 		if (Array.from(text).length > MAX_REPLY_TEXT$1) return failResult("bad-request", "text 太长");
@@ -6219,7 +6226,7 @@ async function handleRequestRoutes(deps, input) {
 			deps.log.warn("dsh-pet: reply failed: " + message);
 			return failResult("bad-request", message);
 		}
-		const reminderId = textOf$1(parsed.id);
+		const reminderId = textOf$2(parsed.id);
 		if (reminderId !== "") deps.state.writeSection("reminder", {
 			id: reminderId,
 			kind: "announce",
@@ -6237,8 +6244,20 @@ async function handleRequestRoutes(deps, input) {
 		} catch {
 			return invalidJson();
 		}
-		const id = textOf$1(parsed?.id);
+		const id = textOf$2(parsed?.id);
 		if (id === "") return failResult("bad-request", "id 必填");
+		const live = snoozeSource(deps, id);
+		let todoDone;
+		if (live !== void 0 && live.kind === "todo" && live.ref !== void 0) try {
+			const updated = await deps.todos.update(live.ref, { done: true });
+			if (updated !== null) {
+				todoDone = live.ref;
+				deps.log.info("[dsh-pet] 待办已勾掉 todo=" + live.ref);
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			deps.log.warn("dsh-pet: 勾掉待办失败 todo=" + live.ref + " " + message);
+		}
 		deps.state.writeSection("reminder", {
 			id,
 			kind: "announce",
@@ -6246,7 +6265,10 @@ async function handleRequestRoutes(deps, input) {
 			title: "",
 			closed: true
 		});
-		return okResult({ ok: true });
+		return okResult({
+			ok: true,
+			...todoDone === void 0 ? {} : { todoDone }
+		});
 	}
 	if (rest === "reminder/snooze") {
 		if (method !== "POST") return methodNotAllowed();
@@ -6256,7 +6278,7 @@ async function handleRequestRoutes(deps, input) {
 		} catch {
 			return invalidJson();
 		}
-		const id = textOf$1(parsed?.id);
+		const id = textOf$2(parsed?.id);
 		if (id === "") return failResult("bad-request", "id 必填");
 		const reminder = snoozeSource(deps, id);
 		if (!reminder) return failResult("bad-request", "unknown reminder");
@@ -6337,7 +6359,7 @@ const ROW_ONLY = new Set([
 	"deliveryHistory"
 ]);
 /** 取一个修剪过的字符串；非字符串给空串。 */
-function textOf(value) {
+function textOf$1(value) {
 	return typeof value === "string" ? value.trim() : "";
 }
 /** 解析 `{id,title?,prompt?}`；缺 id 或缺内容都算坏请求。 */
@@ -6350,10 +6372,10 @@ function readPatch$1(body) {
 	}
 	if (parsed === null || typeof parsed !== "object") return null;
 	const obj$1 = parsed;
-	const id = textOf(obj$1.id);
+	const id = textOf$1(obj$1.id);
 	if (id === "") return null;
-	const title = textOf(obj$1.title);
-	const prompt = textOf(obj$1.prompt);
+	const title = textOf$1(obj$1.title);
+	const prompt = textOf$1(obj$1.prompt);
 	if (title === "" && prompt === "") return null;
 	if (prompt.length > MAX_PROMPT_CHARS) return null;
 	return {
@@ -6377,9 +6399,9 @@ async function handleScheduleRoutes(deps, input) {
 			deps.log.warn("dsh-pet: schedule/catalog failed: " + message);
 			return failResult("internal-error", "读定时任务失败：" + message);
 		}
-		const row = Array.isArray(rows) ? rows.find((item) => textOf(item.id) === patch.id) : void 0;
+		const row = Array.isArray(rows) ? rows.find((item) => textOf$1(item.id) === patch.id) : void 0;
 		if (row === void 0) return failResult("bad-request", "没有这条定时任务：" + patch.id);
-		const sessionId = textOf(row.sessionId);
+		const sessionId = textOf$1(row.sessionId);
 		if (sessionId === "") return failResult("bad-request", "这条定时任务没有会话绑定");
 		const expected = {};
 		for (const [key, value] of Object.entries(row)) if (!ROW_ONLY.has(key)) expected[key] = value;
@@ -6397,8 +6419,8 @@ async function handleScheduleRoutes(deps, input) {
 		}
 		const answer = result ?? {};
 		if (answer.updated !== true) {
-			const code = textOf(answer.code);
-			const message = textOf(answer.message);
+			const code = textOf$1(answer.code);
+			const message = textOf$1(answer.message);
 			return failResult("bad-request", message !== "" ? message : code !== "" ? "调度器拒绝了这次修改：" + code : "调度器没有接受这次修改");
 		}
 		return okResult({
@@ -6700,6 +6722,105 @@ async function handleSleepRoutes(deps, input) {
 	} catch (e) {
 		return failResult("generate-error", e instanceof Error ? e.message : String(e));
 	}
+}
+
+//#endregion
+//#region src/host/routes/tasks.ts
+/** 取一个修剪过的字符串；非字符串给空串。 */
+function textOf(value) {
+	return typeof value === "string" ? value.trim() : "";
+}
+/** 把目录行收窄成面板能用的形状；缺 id 或标题的行直接丢。 */
+function readRows(value) {
+	if (!Array.isArray(value)) return [];
+	const out = [];
+	for (const item of value) {
+		if (item === null || typeof item !== "object") continue;
+		const row = item;
+		const id = textOf(row.id);
+		const title = textOf(row.title);
+		if (id === "" || title === "") continue;
+		out.push({
+			id,
+			title,
+			kind: textOf(row.kind),
+			scheduledAt: textOf(row.scheduledAt),
+			status: textOf(row.status)
+		});
+	}
+	return out;
+}
+/** 取调度服务；不可用时给出可展示的失败。 */
+function scheduleOf(deps) {
+	const service = deps.optionalService("schedule");
+	if (!service) return null;
+	return service;
+}
+async function handleTaskRoutes(deps, input) {
+	if (input.rest === "tasks") {
+		if (input.method !== "GET") return methodNotAllowed();
+		const service = scheduleOf(deps);
+		if (!service || typeof service.catalog !== "function") return failResult("unsupported", "DSH 的 schedule 服务不可用");
+		let rows;
+		try {
+			rows = await service.catalog();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			deps.log.warn("dsh-pet: tasks/catalog failed: " + message);
+			return failResult("internal-error", "读定时任务失败：" + message);
+		}
+		return okResult({
+			ok: true,
+			tasks: readRows(rows)
+		});
+	}
+	if (input.rest === "tasks/complete") {
+		if (input.method !== "POST") return methodNotAllowed();
+		let parsed;
+		try {
+			parsed = JSON.parse(input.body ?? "null");
+		} catch {
+			return invalidJson();
+		}
+		const id = textOf(parsed?.id);
+		if (id === "") return failResult("bad-request", "id 必填");
+		const service = scheduleOf(deps);
+		if (!service || typeof service.catalog !== "function" || typeof service.delete !== "function") return failResult("unsupported", "DSH 的 schedule 服务不可用");
+		let rows;
+		try {
+			rows = await service.catalog();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			deps.log.warn("dsh-pet: tasks/catalog failed: " + message);
+			return failResult("internal-error", "读定时任务失败：" + message);
+		}
+		const row = Array.isArray(rows) ? rows.find((item) => textOf(item.id) === id) : void 0;
+		if (row === void 0) return failResult("bad-request", "没有这条任务：" + id);
+		const sessionId = textOf(row.sessionId);
+		if (sessionId === "") return failResult("bad-request", "这条任务没有会话绑定");
+		let result;
+		try {
+			result = await service.delete({
+				sessionId,
+				id
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			deps.log.warn("dsh-pet: tasks/delete failed: " + message);
+			return failResult("internal-error", "完成任务失败：" + message);
+		}
+		const answer = result ?? {};
+		if (answer.deleted !== true) {
+			const code = textOf(answer.code);
+			return failResult("bad-request", code === "schedule_not_found" ? "这条任务已经不在日程里了" : "调度器没有删掉这条任务");
+		}
+		deps.log.info("[dsh-pet] 定时任务已完成 id=" + id);
+		return okResult({
+			ok: true,
+			id
+		});
+	}
+	return void 0;
 }
 
 //#endregion
@@ -7026,6 +7147,7 @@ const HANDLERS = [
 	handleChatRoutes,
 	handleAttachmentRoutes,
 	handleTodoRoutes,
+	handleTaskRoutes,
 	handleVoiceRoutes,
 	handleAvatarRoutes,
 	handleAssetsRoutes
@@ -11349,7 +11471,8 @@ async function tickTodoReminders(deps) {
 		ts: now,
 		title: due.todo.text,
 		prompt: text,
-		hint: "点「知道了」关掉；点「等会儿」15 分钟后再提醒。",
+		ref: due.todo.id,
+		hint: "点「知道了」就是办完了，我会把它勾掉；点「等会儿」15 分钟后再提醒。",
 		...due.todo.dueAt === null ? {} : { scheduledAt: new Date(due.todo.dueAt).toISOString() },
 		ttlMs: REMINDER_TTL_MS
 	}, () => now);

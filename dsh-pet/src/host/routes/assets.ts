@@ -14,6 +14,9 @@ import { existsSync } from 'node:fs';
 import type { PetRouteDeps, RouteInput } from './types.ts';
 import type { RouteResult } from '../http.ts';
 
+/** 素材路由认的 scope；其余路径必须放给后面的业务路由。 */
+const ASSET_SCOPES = new Set(['logo', 'font', 'pic', 'sound', 'swim', 'thumb']);
+
 /** 静态素材领域：未命中返回 undefined，命中返回应答。 */
 export async function handleAssetsRoutes(deps: PetRouteDeps, input: RouteInput): Promise<RouteResult | undefined> {
   const { assetRootFor, memeDirsFor, petConfigDir, userRootFor } = deps;
@@ -26,6 +29,9 @@ export async function handleAssetsRoutes(deps: PetRouteDeps, input: RouteInput):
   // 并把客户端播放常量 ANIMATION_EXT 改为 .mov。
   // font / pic 是扁平的 /<scope>/<file>，只有 thumb 是 /<scope>/<petId>/<file>：先拆 scope 再各自拆剩余段。
   const [scope, ...restParts] = rest.split('/');
+  // 归谁管要一口咬定：素材只有这几个 scope，别的路径（/tasks、/todos…）一律不认，
+  // 否则这里会把它们统统按「素材路径写错」回 400，后面的业务路由永远轮不到。
+  if (!ASSET_SCOPES.has(scope)) return undefined;
 
   // 插件 logo / 宠物头像：/logo → 包内 assets/logo.png。只放行这一个文件——不把 assets 根开放成静态目录
   // （同目录还有 config.jsonc）。对话面板拿它当宠物头像。
@@ -107,9 +113,9 @@ export async function handleAssetsRoutes(deps: PetRouteDeps, input: RouteInput):
     return { kind: 'file', file: swimFile, contentType: MIME[ext] ?? 'application/octet-stream' };
   }
 
-  if (scope !== 'thumb') {
-    return { kind: 'text', status: 400, body: 'dsh-pet: expected /dsh-pet-7340/thumb/<petId>/<file>' };
-  }
+  // 走到这里只剩 thumb（其余 scope 上面各有分支）。这道守卫既是兜底，
+  // 也让素材路由的静态扫描（check-openapi）能看到 thumb 分支。
+  if (scope !== 'thumb') return undefined;
 
   // thumb 是三段式：/<scope>/<petId>/<file>——从这里再拆宠物 id 与文件名
   const [petId, ...nameParts] = restParts;

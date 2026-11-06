@@ -124,6 +124,15 @@ dsh-pet 的宿主半侧向 DSH 自己的 Web 服务注册了**一条前缀路由
 | `PATCH /dsh-pet-7340/todos/{id}`  | 修改一条：`{ text?, dueAt?, done? }` 至少给一个              |
 | `DELETE /dsh-pet-7340/todos/{id}` | 删除一条（幂等，回 `removed` 条数）                          |
 
+## 十一、定时任务
+
+| 接口                               | 功能                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| `GET /dsh-pet-7340/tasks`          | 列出 DSH 调度器里的定时任务：`{ ok, tasks: [{ id, title, kind, scheduledAt, status }] }` |
+| `POST /dsh-pet-7340/tasks/complete` | 完成一条：`{ id }`，走 `schedule.delete`（**完成 = 删除**，删除后不再被调度）            |
+
+`kind` 是 `after` / `at`（一次性）或 `every` / `daily` / `weekly` / `cron`（周期）；`status` 为 `inactive` 表示已经结束、只剩记录。待办提醒气泡上点「知道了」等价于把这条待办勾掉（`PATCH /todos/{id}` → `done:true`），不会再按 30 分钟档重复催。
+
 ---
 
 ## state 详解

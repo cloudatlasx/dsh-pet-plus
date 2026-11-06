@@ -69,8 +69,16 @@ Object.assign(PetSprite.prototype, {
     // 提醒气泡收起了（点「知道了」/「等会儿」/静音/宿主超时都走这里）：小鱼游回原位。
     // 放在最前面：下面任何一支提前 return 都不会漏掉「回家」。
     if (this.reminderSwimId !== null && !this.reminderEnvelope) this.swimBackFromReminder();
+    // 审批/提问是把宠物「游到中间催一下」的那一支：气泡一消失（选完 / 取消 / 超时）就
+    // 立刻按出发位置回去，不等宿主 returnAfter 那个保底计时——用户点完它还杵在中间最怪。
+    // 没出去过（awayHome 为空）时 returnHomeNow 自己什么都不做。
+    if (!this.requestEnvelope && this.requestAway) {
+      this.requestAway = false;
+      this.returnHomeNow();
+    }
     // 审批/提问请求优先级最高：它是等用户回话的，不接管就会卡住 DSH 那一轮。
     if (this.requestEnvelope) {
+      if (this.awayHome !== null) this.requestAway = true;
       this.renderRequestBubble();
       return;
     }

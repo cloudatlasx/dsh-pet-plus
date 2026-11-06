@@ -48,6 +48,14 @@ function readAsset(rest: string): Promise<RouteResult | undefined> {
   return handleAssetsRoutes(deps(), { url: new URL('http://localhost/' + rest), rest, method: 'GET' });
 }
 
+describe('handleAssetsRoutes —— 路径归属', () => {
+  test('不是素材 scope 的路径 → undefined，留给后面的业务路由', async () => {
+    for (const rest of ['tasks', 'tasks/complete', 'todos', 'state', 'request/answer']) {
+      assert.equal(await readAsset(rest), undefined, rest);
+    }
+  });
+});
+
 describe('handleAssetsRoutes —— /swim/<file>', () => {
   test('包内有素材时回 video/webm；源码形态取不到包内目录则 404', async () => {
     // PACKAGE_ROOT 由 import.meta.url 推断：构建产物里是包根，源码形态指向 src/，

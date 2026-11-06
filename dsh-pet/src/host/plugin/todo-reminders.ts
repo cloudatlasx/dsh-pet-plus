@@ -126,7 +126,10 @@ export async function tickTodoReminders(deps: TodoReminderTickDeps): Promise<voi
       ts: now,
       title: due.todo.text,
       prompt: text,
-      hint: '点「知道了」关掉；点「等会儿」15 分钟后再提醒。',
+      // 「知道了」= 这件事办完了：带上待办 id，宿主收到关闭请求时直接标记完成，
+      // 它会从提醒队列里退场，不再按逾期间隔反复弹。
+      ref: due.todo.id,
+      hint: '点「知道了」就是办完了，我会把它勾掉；点「等会儿」15 分钟后再提醒。',
       ...(due.todo.dueAt === null ? {} : { scheduledAt: new Date(due.todo.dueAt).toISOString() }),
       ttlMs: REMINDER_TTL_MS,
     },

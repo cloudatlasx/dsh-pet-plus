@@ -15,7 +15,7 @@ export interface MenuLeaf {
      *  回到初始位置 / 重载配置（桌面端专属，重启桌面 Helper 并按最新配置重建窗口）/ 改显示位置
      *  （目标值见 display，两端都注入）/ 第三方菜单项（只把 owner 与 label 上报给注册方，具体做什么由它决定）。
      *  手动触发均不受 whisperEnabled 影响——那个字段只关自动轮询。 */
-    action?: 'open-site' | 'show-balance' | 'whisper' | 'chat' | 'todo' | 'history' | 'home' | 'reload' | 'set-display' | 'sleep' | 'wake' | 'third-party';
+    action?: 'open-site' | 'show-balance' | 'whisper' | 'chat' | 'todo' | 'task' | 'history' | 'home' | 'reload' | 'set-display' | 'sleep' | 'wake' | 'third-party';
     /** set-display 的目标显示位置（与设置页的下拉框同一套取值） */
     display?: PetDisplay;
     /** third-party：注册它的 owner（身份键，只用于回传，不显示）；同一个 owner 的项收在同一分组下，

@@ -5,6 +5,7 @@
  * @module dsh-pet/src/shared/todo/render
  */
 import { metaLabel, todoUrgency } from './format.ts';
+import type { PetTask } from './api.ts';
 import type { TodoItem } from './types.ts';
 
 /** 面板里需要被面板逻辑持有的元素。 */
@@ -27,6 +28,10 @@ export interface TodoPanelParts {
   error: HTMLDivElement;
   /** 底部提示行：没听出时间时会换一句话说明。 */
   hint: HTMLDivElement;
+  /** 定时任务区：没有任务时整块隐藏。 */
+  tasks: HTMLDivElement;
+  /** 定时任务清单容器。 */
+  taskList: HTMLUListElement;
 }
 
 /** 清单条目上的交互回调。 */
@@ -110,8 +115,16 @@ export function createTodoPanelParts(): TodoPanelParts {
   // 面板只要一个输入框：时间就在同一句话里说，其余控件都收进这句话。
   const lower = element('div', 'dsh-pet-todo-lower');
   lower.append(fold('is-list', [error, empty, list, hint]));
-  root.append(head, form, lower);
-  return { root, form, input, list, empty, count, closeButton, error, hint };
+
+  // 定时任务：DSH 调度器里的任务列在下面，只能「完成」（= 删除），不能在这里新建——
+  // 新建走对话（「每天早上八点提醒我…」）或 DSH 自己的界面。
+  const tasks = element('div', 'dsh-pet-todo-tasks');
+  const tasksHead = element('div', 'dsh-pet-todo-tasksHead', '定时任务');
+  const taskList = element('ul', 'dsh-pet-todo-list dsh-pet-todo-taskList');
+  tasks.append(tasksHead, taskList);
+  tasks.hidden = true;
+  root.append(head, form, lower, tasks);
+  return { root, form, input, list, empty, count, closeButton, error, hint, tasks, taskList };
 }
 
 /**
@@ -156,6 +169,72 @@ export function renderTodoList(
   parts.empty.hidden = todos.length > 0;
   for (const todo of todos) parts.list.appendChild(renderItem(todo, handlers, now));
   capListHeight(parts.list);
+}
+
+/** 定时任务行的交互回调。 */
+export interface TaskListHandlers {
+  /** 完成（= 删除）这条任务。 */
+  onComplete: (task: PetTask) => void;
+}
+
+/** 任务种类的中文说法；未认识的原样显示。 */
+const TASK_KINDS: Record<string, string> = {
+  at: '一次',
+  after: '稍后一次',
+  daily: '每天',
+  weekly: '每周',
+  every: '每隔一段',
+  cron: '按计划',
+};
+
+/** 两位补零。 */
+function pad2(value: number): string {
+  return value < 10 ? '0' + String(value) : String(value);
+}
+
+/** 下一次触发时刻：`M/D HH:mm`；解析不出来就给空串。 */
+function stampOf(iso: string): string {
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return '';
+  const date = new Date(at);
+  return `${date.getMonth() + 1}/${date.getDate()} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+/** 任务行的副标题：种类 + 下次时刻 + 停用标记。 */
+export function taskMetaLabel(task: PetTask): string {
+  const kind = TASK_KINDS[task.kind] ?? task.kind;
+  const when = stampOf(task.scheduledAt);
+  const parts = [kind];
+  if (when !== '') parts.push(when);
+  if (task.status === 'inactive') parts.push('已停用');
+  return parts.join(' · ');
+}
+
+/**
+ * 渲染定时任务清单：没有任务就整块隐藏，不占位置。
+ *
+ * @param parts - 面板元素。
+ * @param tasks - 调度器返回的任务。
+ * @param handlers - 完成回调。
+ */
+export function renderTaskList(parts: TodoPanelParts, tasks: readonly PetTask[], handlers: TaskListHandlers): void {
+  parts.taskList.textContent = '';
+  parts.tasks.hidden = tasks.length === 0;
+  for (const task of tasks) {
+    const item = element('li', 'dsh-pet-todo-item is-task' + (task.status === 'inactive' ? ' is-done' : ''));
+    const main = element('div', 'dsh-pet-todo-main');
+    const text = element('div', 'dsh-pet-todo-text', task.title);
+    const meta = element('div', 'dsh-pet-todo-meta', taskMetaLabel(task));
+    main.append(text, meta);
+
+    const done = element('button', 'dsh-pet-todo-done', '完成');
+    done.type = 'button';
+    done.setAttribute('aria-label', '完成任务：' + task.title);
+    done.addEventListener('click', () => handlers.onComplete(task));
+
+    item.append(main, done);
+    parts.taskList.appendChild(item);
+  }
 }
 
 /** 渲染一条；未完成项带紧迫度，已完成项划线。 */

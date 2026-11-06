@@ -108,6 +108,11 @@ export interface ReminderEnvelope {
   hint?: string;
   /** 相关会话 id：给了就在气泡上多一个「去会话」按钮。 */
   sessionId?: string;
+  /**
+   * 关联对象 id：待办提醒带上待办 id，用户点「知道了」就等于「这件事办完了」，
+   * 由宿主把它标记完成——否则逾期待办会按 30 分钟档一直重弹。
+   */
+  ref?: string;
   /** 停留时长（ms）；缺省按 kind 取默认值。 */
   ttlMs?: number;
   /** 计划时刻（RFC 3339 UTC）。 */
@@ -273,6 +278,7 @@ export function readReminder(leaf: StateLeaf): ReminderEnvelope | null {
     lines: lines.length > 0 ? lines : undefined,
     hint: typeof d.hint === 'string' && d.hint.trim() !== '' ? d.hint : undefined,
     sessionId: typeof d.sessionId === 'string' && d.sessionId.trim() !== '' ? d.sessionId : undefined,
+    ref: typeof d.ref === 'string' && d.ref.trim() !== '' ? d.ref : undefined,
     ttlMs: typeof d.ttlMs === 'number' && Number.isFinite(d.ttlMs) && d.ttlMs > 0 ? d.ttlMs : undefined,
     scheduledAt: typeof d.scheduledAt === 'string' ? d.scheduledAt : undefined,
     actions: actions.length > 0 ? actions : undefined,

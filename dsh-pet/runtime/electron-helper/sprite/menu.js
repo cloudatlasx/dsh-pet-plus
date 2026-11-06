@@ -40,6 +40,9 @@ Object.assign(PetSprite.prototype, {
         // 「待办事项」是待办面板的唯一入口（单击宠物不再弹面板）。
         case 'todo':
           return { label: '待办事项', action: 'todo', hint: S.TODO_HOTKEY_HINT };
+        // 「任务」打开同一块面板：上半截新建待办，下半截列出定时任务并能直接点「完成」。
+        case 'task':
+          return { label: '任务', action: 'task', hint: '新建待办或完成定时任务' };
         case 'whisper':
           return { label: '碎碎念', action: 'whisper' };
         case 'chat':
@@ -152,8 +155,8 @@ Object.assign(PetSprite.prototype, {
       this.showChatFromMenu(); // 打开对话弹窗（记忆经 host /chat 读写，浏览器/桌面同一实例共享）
       return;
     }
-    if (leaf.action === 'todo') {
-      this.toggleTodo(); // 打开待办面板（右键菜单入口）
+    if (leaf.action === 'todo' || leaf.action === 'task') {
+      this.toggleTodo(); // 打开任务面板（待办 + 定时任务；右键菜单两个入口进同一块）
       return;
     }
     if (leaf.action === 'home') {

@@ -100,6 +100,17 @@ export const TODO_CSS = [
   // margin-top:auto 把提示钉在下半区底部：清单只有两行时，多出来的空当留在中间而不是堆在提示下面。
   '.dsh-pet-todo-hint{margin-top:auto;padding:calc(var(--t)*0.462) calc(var(--t)*0.923) calc(var(--t)*0.692);',
   'color:rgba(43,43,43,.4);font-size:.846em;text-align:center}',
+  // 定时任务区：挂在待办清单下面，细线隔开；没有任务时整块隐藏（renderTaskList 写 hidden）。
+  // 清单高度不按两行截断，给它一个约五行的高度自己滚，任务多了也不把面板撑长。
+  '.dsh-pet-todo-tasks{border-top:1px solid rgba(0,0,0,.07);padding-top:calc(var(--t)*0.462)}',
+  '.dsh-pet-todo-tasks[hidden]{display:none}',
+  '.dsh-pet-todo-tasksHead{padding:0 calc(var(--t)*0.923) calc(var(--t)*0.231);font-size:.923em;',
+  'color:rgba(43,43,43,.5)}',
+  '.dsh-pet-todo-taskList{max-height:calc(var(--t)*6.2)}',
+  '.dsh-pet-todo-done{border:1px solid rgba(64,128,255,.35);background:rgba(64,128,255,.08);',
+  'color:#3f6fd8;font-family:inherit;font-size:.846em;line-height:1;padding:calc(var(--t)*0.308) calc(var(--t)*0.462);',
+  'border-radius:.462em;cursor:pointer;flex:0 0 auto}',
+  '.dsh-pet-todo-done:hover{background:rgba(64,128,255,.16)}',
 ].join('');
 
 let todoCssInjected = false;

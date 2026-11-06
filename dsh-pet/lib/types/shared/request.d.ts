@@ -109,6 +109,11 @@ export interface ReminderEnvelope {
     hint?: string;
     /** 相关会话 id：给了就在气泡上多一个「去会话」按钮。 */
     sessionId?: string;
+    /**
+     * 关联对象 id：待办提醒带上待办 id，用户点「知道了」就等于「这件事办完了」，
+     * 由宿主把它标记完成——否则逾期待办会按 30 分钟档一直重弹。
+     */
+    ref?: string;
     /** 停留时长（ms）；缺省按 kind 取默认值。 */
     ttlMs?: number;
     /** 计划时刻（RFC 3339 UTC）。 */

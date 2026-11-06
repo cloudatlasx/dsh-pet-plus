@@ -1,3 +1,4 @@
+import type { PetTask } from './api.ts';
 import type { TodoItem } from './types.ts';
 /** 面板里需要被面板逻辑持有的元素。 */
 export interface TodoPanelParts {
@@ -19,6 +20,10 @@ export interface TodoPanelParts {
     error: HTMLDivElement;
     /** 底部提示行：没听出时间时会换一句话说明。 */
     hint: HTMLDivElement;
+    /** 定时任务区：没有任务时整块隐藏。 */
+    tasks: HTMLDivElement;
+    /** 定时任务清单容器。 */
+    taskList: HTMLUListElement;
 }
 /** 清单条目上的交互回调。 */
 export interface TodoListHandlers {
@@ -44,6 +49,21 @@ export declare function createTodoPanelParts(): TodoPanelParts;
  * @param now - 当前时刻，用来生成「还剩多久」。
  */
 export declare function renderTodoList(parts: TodoPanelParts, todos: readonly TodoItem[], handlers: TodoListHandlers, now: number): void;
+/** 定时任务行的交互回调。 */
+export interface TaskListHandlers {
+    /** 完成（= 删除）这条任务。 */
+    onComplete: (task: PetTask) => void;
+}
+/** 任务行的副标题：种类 + 下次时刻 + 停用标记。 */
+export declare function taskMetaLabel(task: PetTask): string;
+/**
+ * 渲染定时任务清单：没有任务就整块隐藏，不占位置。
+ *
+ * @param parts - 面板元素。
+ * @param tasks - 调度器返回的任务。
+ * @param handlers - 完成回调。
+ */
+export declare function renderTaskList(parts: TodoPanelParts, tasks: readonly PetTask[], handlers: TaskListHandlers): void;
 /**
  * 显示 / 清除错误行。
  *
