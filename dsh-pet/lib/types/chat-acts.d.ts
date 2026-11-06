@@ -17,6 +17,14 @@ export declare const ACT_SIZE_MIN = 0.5;
 export declare const ACT_SIZE_MAX = 3;
 /** 一只宠物的落点。 */
 export type PetCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+/**
+ * 主人明说要「去中间」的确定性兜底。
+ *
+ * 模型偶尔会漏写 `[位置:中间]`——嘴上答应了、位置没动，用户就会觉得「让她到中间她不会过去」。
+ * 所以位置意图要有一次关键词兜底：同时出现「中间/中央」与一个移动词（或整句就以「中间」开头，
+ * 例如「中间一点」）才算，避免把「把待办放中间」这类普通聊天误判成移动指令。
+ */
+export declare function wantsCenter(text: string): boolean;
 /** 一条「记住」的长度上限（字）。 */
 export declare const ACT_REMEMBER_MAX = 200;
 /** 解析结果：剥掉标记后的正文 + 要执行的动作用。 */

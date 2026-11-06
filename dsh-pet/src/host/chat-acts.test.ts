@@ -13,6 +13,7 @@ import {
   ACT_SIZE_MIN,
   actInstruction,
   extractChatActs,
+  wantsCenter,
 } from './chat-acts.ts';
 
 describe('extractChatActs —— 剥标记', () => {
@@ -92,6 +93,17 @@ describe('extractChatActs —— 剥标记', () => {
     const result = extractChatActs(`[改名:${'名'.repeat(40)}][记住:${'字'.repeat(ACT_REMEMBER_MAX + 50)}]`);
     assert.equal(result.rename?.length, ACT_NAME_MAX);
     assert.equal(result.remember?.length, ACT_REMEMBER_MAX);
+  });
+});
+
+describe('wantsCenter —— 模型漏标记时的确定性兜底', () => {
+  test('明说要过去才认，普通聊天不误判', () => {
+    for (const text of ['到桌面中间去', '去屏幕中央待着', '游到中间来', '挪到正中', '中间一点']) {
+      assert.equal(wantsCenter(text), true, text);
+    }
+    for (const text of ['把待办放中间吧', '我喜欢中间那个颜色', '今天好累', '帮我记一下待办']) {
+      assert.equal(wantsCenter(text), false, text);
+    }
   });
 });
 

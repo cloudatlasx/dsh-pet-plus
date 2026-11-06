@@ -8705,6 +8705,12 @@ const CENTER_WORDS = new Set([
 	"屏幕中央",
 	"中间一点"
 ]);
+/** 粗筛句子里有没有「中间」类说法（兜底判意图用，不走标记）。 */
+const CENTER_TEXT_RE = /中间|中央|正中|中心/u;
+function wantsCenter(text) {
+	if (!CENTER_TEXT_RE.test(text)) return false;
+	return /^(?:中间|中央|正中|中心)/u.test(text.trim()) || /(?:去|到|游|挪|移|过去|过来|待在|停在|飞到|飘到)/u.test(text);
+}
 const ACT_REMEMBER_MAX = 200;
 /** 把模型写出来的名字整理成能落盘的形式：去引号/空白/句末标点，限长。 */
 function cleanName(raw) {
@@ -10015,8 +10021,9 @@ function createChatMemory(deps) {
 			}
 			log.info(`[dsh-pet] 对话里改外形 pet=${petId}（${configured ? "已写盘" : "写盘失败"}）：${JSON.stringify(patch)}`);
 		}
+		const wantsCenterMove = generated.center === true || generated.center === void 0 && generated.corner === void 0 && wantsCenter(text);
 		let movedToCenter = false;
-		if (generated.center === true) {
+		if (wantsCenterMove) {
 			state.writePet(petId, "position", {
 				x: .5,
 				y: .5,

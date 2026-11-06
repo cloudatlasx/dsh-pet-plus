@@ -16,6 +16,7 @@ import type { PetImageRef } from '../image-attachment.ts';
 import { limitPool, matchMeme, pickMeme, readMemePool } from '../memes.ts';
 import { appendGrowth, archiveConversation, ensureSoul, readGrowth, readSoul } from '../soul.ts';
 import type { PetCorner } from '../chat-acts.ts';
+import { wantsCenter } from '../chat-acts.ts';
 import { generateWhisper } from '../whisper.ts';
 import { createMemoryOrphans } from './memory-orphans.ts';
 import { configuredModel } from '../model-selection.ts';
@@ -383,8 +384,13 @@ export function createChatMemory(deps: ChatMemoryInput) {
       // 「到屏幕中间来」：一次性的位置指令，不写配置——下次启动仍回角落。
       // 与 POST /position 同一条叶子（line + anchor）：双屏横排时并集中心正好落在屏缝，
       // 必须按 DSH 所在那块屏换算，才是「桌面中间」。
+      // 模型偶尔会漏标记（嘴上答应了却不写 [位置:中间]），所以主人明说要「去中间/到中央」时兜底一次：
+      // 只在它没给任何位置标记的情况下兜底，绝不覆盖它自己给的角落落点。
+      const wantsCenterMove =
+        generated.center === true ||
+        (generated.center === undefined && generated.corner === undefined && wantsCenter(text));
       let movedToCenter = false;
-      if (generated.center === true) {
+      if (wantsCenterMove) {
         state.writePet(petId, 'position', {
           x: 0.5,
           y: 0.5,

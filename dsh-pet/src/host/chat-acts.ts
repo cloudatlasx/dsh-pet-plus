@@ -51,6 +51,23 @@ const CORNERS: Record<string, PetCorner> = {
  */
 const CENTER_WORDS = new Set(['中间', '中央', '正中', '中心', '屏幕中间', '桌面中间', '屏幕中央', '中间一点']);
 
+/** 粗筛句子里有没有「中间」类说法（兜底判意图用，不走标记）。 */
+const CENTER_TEXT_RE = /中间|中央|正中|中心/u;
+
+/**
+ * 主人明说要「去中间」的确定性兜底。
+ *
+ * 模型偶尔会漏写 `[位置:中间]`——嘴上答应了、位置没动，用户就会觉得「让她到中间她不会过去」。
+ * 所以位置意图要有一次关键词兜底：同时出现「中间/中央」与一个移动词（或整句就以「中间」开头，
+ * 例如「中间一点」）才算，避免把「把待办放中间」这类普通聊天误判成移动指令。
+ */
+export function wantsCenter(text: string): boolean {
+  if (!CENTER_TEXT_RE.test(text)) return false;
+  return (
+    /^(?:中间|中央|正中|中心)/u.test(text.trim()) || /(?:去|到|游|挪|移|过去|过来|待在|停在|飞到|飘到)/u.test(text)
+  );
+}
+
 /** 一条「记住」的长度上限（字）。 */
 export const ACT_REMEMBER_MAX = 200;
 
