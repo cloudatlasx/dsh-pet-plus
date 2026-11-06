@@ -34,8 +34,7 @@ export interface MenuToolAction {
 export const MENU_TOOL_ACTIONS: readonly MenuToolAction[] = [
   { action: 'chat', label: '对话', hint: '在宠物身上打开对话窗，输入框贴上就能说' },
   { action: 'show-balance', label: '查看余额', hint: '拉一次余额并弹气泡' },
-  { action: 'todo', label: '待办事项', hint: '打开待办面板' },
-  { action: 'task', label: '任务', hint: '打开任务面板：新建待办、完成定时任务' },
+  { action: 'todo', label: '待办事项', hint: '打开待办面板：新建待办、完成定时任务' },
   { action: 'history', label: '最近记录', hint: '翻看弹过的提醒与推送' },
   { action: 'whisper', label: '碎碎念', hint: '立刻说一句' },
   { action: 'sleep', label: '睡觉', hint: '只在配了睡觉动作时出现；睡着时自动变成「起来」' },

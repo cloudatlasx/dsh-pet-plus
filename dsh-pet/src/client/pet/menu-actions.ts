@@ -162,8 +162,8 @@ export function createMenuActions(deps: MenuActionDeps): MenuActions {
       deps.openChat();
       return;
     }
-    // 「任务」与「待办事项」打开同一块面板：面板上半截是待办（可新建），下半截是定时任务（可完成）。
-    if (leaf.action === 'todo' || leaf.action === 'task') {
+    // 待办面板是唯一入口：上半截是待办（可新建），下半截是定时任务（可完成）。
+    if (leaf.action === 'todo') {
       deps.openTodo();
       return;
     }

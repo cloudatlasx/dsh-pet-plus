@@ -11,7 +11,10 @@ import { handleRequestRoutes } from './requests.ts';
 import type { PetRouteDeps } from './types.ts';
 
 /** 只满足 reminder/close 分支的依赖：section 里挂着一条给定提醒，外加一个记账的待办表。 */
-function harness(reminder: Record<string, unknown> | null, options: { updateResult?: unknown } = {}) {
+function harness(
+  reminder: Record<string, unknown> | null,
+  options: { updateResult?: unknown; todos?: unknown[] } = {},
+) {
   const patches: { id: string; patch: Record<string, unknown> }[] = [];
   const writes: { name: string; data: unknown }[] = [];
   let current = reminder;
@@ -25,6 +28,7 @@ function harness(reminder: Record<string, unknown> | null, options: { updateResu
       waiterCount: () => 1,
     },
     todos: {
+      list: async () => options.todos ?? [],
       update: async (id: string, patch: Record<string, unknown>) => {
         patches.push({ id, patch });
         return options.updateResult === undefined ? { id, ...patch } : options.updateResult;
@@ -88,5 +92,29 @@ describe('POST /reminder/close —— 「知道了」对待办就是办完了', 
     const body = (await call({})) as { obj: { ok: boolean; message?: string } };
     assert.equal(body.obj.ok, false);
     assert.match(String(body.obj.message), /id 必填/);
+  });
+
+  test('老信封没带 ref：按标题认领那条未完成的待办', async () => {
+    const old: Record<string, unknown> = { ...todoReminder };
+    delete old.ref;
+    const todos = [
+      { id: 'todo-old', text: '过渡动画自检', dueAt: 1_700_000_000_000, done: false },
+      { id: 'todo-done', text: '过渡动画自检', dueAt: 1_700_000_000_000, done: true },
+    ];
+    const { patches, call } = harness(old, { todos });
+    const body = (await call({ id: todoReminder.id })) as { obj: { ok: boolean; todoDone?: string } };
+    assert.equal(body.obj.todoDone, 'todo-old', '只认未完成的那条');
+    assert.deepEqual(patches, [{ id: 'todo-old', patch: { done: true } }]);
+  });
+
+  test('老信封对不上任何待办：只收气泡，不乱勾', async () => {
+    const old: Record<string, unknown> = { ...todoReminder };
+    delete old.ref;
+    const todos = [{ id: 'todo-other', text: '别的事情', dueAt: null, done: false }];
+    const { patches, writes, call } = harness(old, { todos });
+    const body = (await call({ id: todoReminder.id })) as { obj: { ok: boolean; todoDone?: string } };
+    assert.equal(body.obj.todoDone, undefined);
+    assert.deepEqual(patches, []);
+    assert.equal((writes[0]?.data as { closed?: boolean } | undefined)?.closed, true);
   });
 });

@@ -1627,12 +1627,7 @@ const MENU_TOOL_ACTIONS = [
 	{
 		action: "todo",
 		label: "待办事项",
-		hint: "打开待办面板"
-	},
-	{
-		action: "task",
-		label: "任务",
-		hint: "打开任务面板：新建待办、完成定时任务"
+		hint: "打开待办面板：新建待办、完成定时任务"
 	},
 	{
 		action: "history",

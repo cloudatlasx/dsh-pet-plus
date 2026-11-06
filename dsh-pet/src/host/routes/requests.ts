@@ -110,6 +110,27 @@ function snoozeSource(deps: PetRouteDeps, id: string): ReminderEnvelope | undefi
   return live && live.id === id ? live : undefined;
 }
 
+/**
+ * 老信封（没带 ref）的兜底：按提醒标题认领那条未完成、且到期时间最近的待办。
+ *
+ * 只认**正文完全相同**的一条，宁可不动也不猜错；认不出来就只收气泡，待办保持原样。
+ */
+async function matchTodoByText(deps: PetRouteDeps, title: string): Promise<string | undefined> {
+  const text = title.trim();
+  if (text === '') return undefined;
+  try {
+    const list = await deps.todos.list();
+    const hit = list
+      .filter((todo) => !todo.done && todo.text.trim() === text)
+      .sort((a, b) => (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER))[0];
+    return hit?.id;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    deps.log.warn('dsh-pet: 按标题认领待办失败 ' + message);
+    return undefined;
+  }
+}
+
 /** 收窄明细数组：去空、截断、限条数。 */
 function linesOf(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -277,16 +298,20 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
     // 不勾掉的话，逾期待办会按 30 分钟档一直重弹——用户会觉得「点了几次它还在催」。
     const live = snoozeSource(deps, id);
     let todoDone: string | undefined;
-    if (live !== undefined && live.kind === 'todo' && live.ref !== undefined) {
-      try {
-        const updated = await deps.todos.update(live.ref, { done: true });
-        if (updated !== null) {
-          todoDone = live.ref;
-          deps.log.info('[dsh-pet] 待办已勾掉 todo=' + live.ref);
+    if (live !== undefined && live.kind === 'todo') {
+      // 新信封自带 ref；0.15.x 时期弹出来的老信封没有，退回按标题认领。
+      const target = live.ref ?? (await matchTodoByText(deps, live.title));
+      if (target !== undefined) {
+        try {
+          const updated = await deps.todos.update(target, { done: true });
+          if (updated !== null) {
+            todoDone = target;
+            deps.log.info('[dsh-pet] 待办已勾掉 todo=' + target);
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          deps.log.warn('dsh-pet: 勾掉待办失败 todo=' + target + ' ' + message);
         }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        deps.log.warn('dsh-pet: 勾掉待办失败 todo=' + live.ref + ' ' + message);
       }
     }
     deps.state.writeSection('reminder', { id, kind: 'announce', ts: Date.now(), title: '', closed: true });
