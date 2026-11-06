@@ -34,6 +34,8 @@ Object.assign(PetSprite.prototype, {
     // 不经 bridge、也不拼 BASE）；name 形态按「素材根 + 名字」拼。
     el.src = url || this.assetBase + encodeURIComponent(next) + (S.ANIMATION_EXT || '.webm');
     el.loop = !nextOnce;
+    // 换源时先把速率复位：上一条移动动作可能设过 rate，别让普通动画也吃这个倍率。
+    el.playbackRate = 1;
     el.muted = true;
     el.autoplay = true;
     el.playsInline = true;
@@ -93,7 +95,12 @@ Object.assign(PetSprite.prototype, {
         this.pendingSquash = false;
         this.startSquash(el);
       }
-      if (this.pendingMove) this.startMoveDrive(el);
+      // 移动动作可带 rate（播放倍率）：位移按 el.currentTime 插值，所以倍率一改，
+      // 「动画时长」与「走完这段的时间」一起缩放，速度仍然由动画自己决定。
+      if (this.pendingMove) {
+        el.playbackRate = Number.isFinite(this.moveRate) && this.moveRate > 0 ? this.moveRate : 1;
+        this.startMoveDrive(el);
+      }
     };
     el.addEventListener('loadeddata', onReady);
     if (el.readyState >= 2) onReady();

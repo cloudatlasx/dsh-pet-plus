@@ -19,6 +19,11 @@ export type PetDisplay = 'web' | 'desktop' | 'both' | 'none';
 export interface MoveSpec {
     name: string;
     params?: Record<string, number>;
+    /**
+     * 这个动作是「游动」：位置指令要变身小鱼时优先取它（`{ action: 'swim' }`）。
+     * 放在动作层级而不是 params 里——params 全程按数字处理（距离/秒数），塞布尔会污染类型。
+     */
+    swim?: boolean;
 }
 /** 移动池。 */
 export interface MovesConfig {

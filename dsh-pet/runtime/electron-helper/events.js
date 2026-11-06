@@ -383,10 +383,13 @@ function applyPositionLeaf(petId, leaf) {
     // （多显示器/自定义布局下宿主算不出来），所以记在 sprite 自己身上。
     // `hit.frame` 决定 0.5/0.5 是「所有屏并集的中心」还是「DSH 那块屏的中心」。
     if (hit.returnAfter > 0) {
-      s.moveToCenterAndReturn(hit.x, hit.y, hit.mode, hit.duration, hit.returnAfter, hit.frame);
+      s.moveToCenterAndReturn(hit.x, hit.y, hit.mode, hit.duration, hit.returnAfter, hit.frame, {
+        action: 'random',
+      });
     } else {
       // 普通位置指令不碰气泡：只有「游过来催一下」那条才需要，而它走上面那支（落地时自己闪）。
-      s.moveToCenter(hit.x, hit.y, hit.mode, hit.duration, hit.frame);
+      // 过渡动画从「移动」池里随机取，位移时长跟着该动画片长走（见 sprite/motion.js 的 startActionMove）。
+      s.moveToCenter(hit.x, hit.y, hit.mode, hit.duration, hit.frame, { action: 'random' });
     }
   }
 }

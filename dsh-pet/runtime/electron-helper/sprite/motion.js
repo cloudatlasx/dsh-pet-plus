@@ -13,8 +13,24 @@ Object.assign(PetSprite.prototype, {
     if (!pm || this.moveRef !== null) return;
     this.pendingMove = null;
     const { startRatio, startYRatio, targetRatio, leadSec, tailSec } = pm;
+    // 纵向落点：位置指令（去屏幕中间/角落）要同时改 Y；漫游只改 X，targetYRatio 缺省等于起点。
+    const targetYRatio = Number.isFinite(pm.targetYRatio) ? pm.targetYRatio : startYRatio;
     const duration = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 10.09;
     const travelWindow = Math.max(0.1, duration - leadSec - tailSec);
+    // 过渡时长就是动画片长，片长读错了整段过渡都会走形，留一行日志好对账。
+    console.log(
+      '[dsh-pet] 移动开始 anim=' +
+        this.anim +
+        ' 片长=' +
+        duration.toFixed(2) +
+        's 首=' +
+        leadSec +
+        ' 尾=' +
+        tailSec +
+        ' 行程=' +
+        travelWindow.toFixed(2) +
+        's',
+    );
     const token = ++this.moveToken;
     const W = VIEW.w;
     const H = VIEW.h;
@@ -22,18 +38,33 @@ Object.assign(PetSprite.prototype, {
       if (this.moveToken !== token) return;
       const t = el.currentTime || 0;
       let ratioX;
-      if (t <= leadSec) ratioX = startRatio;
-      else if (t >= duration - tailSec) ratioX = targetRatio;
-      // 按规划落点插值而不是 dir × 距离：minDist/maxDist 为负时符号必须保留，
-      // 否则规划往左、驱动往右，走完再跳回原本的方向。
-      else ratioX = startRatio + (targetRatio - startRatio) * ((t - leadSec) / travelWindow);
+      let ratioY;
+      if (t <= leadSec) {
+        ratioX = startRatio;
+        ratioY = startYRatio;
+      } else if (t >= duration - tailSec) {
+        ratioX = targetRatio;
+        ratioY = targetYRatio;
+      } else {
+        // 按规划落点插值而不是 dir × 距离：minDist/maxDist 为负时符号必须保留，
+        // 否则规划往左、驱动往右，走完再跳回原本的方向。
+        const k = (t - leadSec) / travelWindow;
+        ratioX = startRatio + (targetRatio - startRatio) * k;
+        ratioY = startYRatio + (targetYRatio - startYRatio) * k;
+      }
       // 移动的是窗口（宠物包围盒跟随），sprite 在本窗口内不动
-      this.sendBounds(ratioX * W - this.halfW, startYRatio * H - this.halfH);
+      this.sendBounds(ratioX * W - this.halfW, ratioY * H - this.halfH);
       if (t < duration - tailSec) {
         this.moveRef = requestAnimationFrame(step);
       } else {
         this.moveRef = null;
-        this.customPos = { rx: targetRatio, ry: startYRatio };
+        this.customPos = { rx: targetRatio, ry: targetYRatio };
+        // 到位这一拍：气泡再闪一遍（「游过来催一下」用），以及「催完自己回去」的归位计时。
+        if (this.pulseOnArrive) {
+          this.pulseOnArrive = false;
+          if (this.requestEnvelope) this.pulseBubble(this.requestEnvelope.id + ':esc');
+        }
+        this.armReturnHome();
       }
     };
     this.moveRef = requestAnimationFrame(step);
@@ -199,9 +230,12 @@ Object.assign(PetSprite.prototype, {
   },
 
   /** 行进中的轻微浮动（CSS 动画，reduce-motion 时由样式表自己关掉）。 */
-  startGlide() {
+  startGlide(withSwim = true) {
     if (!this.el) return;
     this.el.classList.add('is-gliding');
+    // 用「移动」池里的动作走（螃蟹走路/漂浮/鲸鱼…）时传 false：这段画面归动作自己的视频，
+    // 再盖一层小鱼会把它整个挡住，菜单点其它移动动作就等于白点。
+    if (withSwim === false) return;
     // 变身小鱼：视频淡出、鱼淡入（样式见 index.html 的 .pet-fish）。
     // --swim-dir 决定鱼头朝哪边，由 startGlide 的调用方（moveToCenter）在出发前写好。
     this.el.classList.add('is-swimming');
@@ -224,6 +258,91 @@ Object.assign(PetSprite.prototype, {
   },
 
   /**
+   * 用「移动」池里的一个动作走完一段行程（位置指令的过渡动画）。
+   *
+   * 位移时长 = 该动画片长 - leadSec - tailSec，所以速度就是「距离 ÷ 动画时长」：
+   * 动画播完正好到位，不会出现「人已经飘到终点、动画还在原地播」或反过来。
+   * 这样池子里每个动作（螃蟹走路 10s、鲸鱼游动 1.68s…）各自按自己的节奏走完，
+   * 谁被随机到就用谁是过渡动画。
+   *
+   * @param cx - 目标中心横坐标（像素，已被夹进可达区域）。
+   * @param cy - 目标中心纵坐标（像素）。
+   * @param actionName - 'random'（省略时同义）随机取；'swim' 取动作级 `swim: true` 的那个；否则按名字固定。
+   * @returns 实际选中的动作名；池子为空或名字不存在时返回 false（调用方退回直线补间）。
+   */
+  startActionMove(cx, cy, actionName) {
+    const moves = this.animations && this.animations.moves;
+    const actions = moves && Array.isArray(moves.actions) ? moves.actions : [];
+    if (!actions.length) return false;
+    const key = actionName === undefined || actionName === null ? 'random' : actionName;
+    const chosen =
+      key === 'random'
+        ? actions[Math.floor(Math.random() * actions.length)]
+        : key === 'swim'
+          ? actions.find((a) => a && a.swim === true) || null
+          : actions.find((a) => a && a.name === key) || null;
+    if (!chosen) return false;
+    const mp = Object.assign({}, moves.default, chosen.params || {});
+    this.stopThrow();
+    this.stopMove();
+    const W = VIEW.w;
+    const H = VIEW.h;
+    const curX = this.currentCenterX();
+    // 朝向按目标方向摆：视频镜像由 facing 决定，往左走必须先把朝向翻过去，
+    // 否则螃蟹会倒着横移。动作池里的素材都没有文字，镜像安全。
+    this.facing = cx >= curX ? 'right' : 'left';
+    this.moveSwim = chosen.swim === true;
+    this.moveRate = Number.isFinite(mp.rate) && mp.rate > 0 ? mp.rate : 1;
+    this.pendingMove = {
+      startRatio: curX / W,
+      startYRatio: this.currentCenterY() / H,
+      targetRatio: cx / W,
+      targetYRatio: cy / H,
+      leadSec: Number.isFinite(mp.leadSec) ? mp.leadSec : 0,
+      tailSec: Number.isFinite(mp.tailSec) ? mp.tailSec : 0,
+    };
+    this.anim = chosen.name;
+    this.once = true;
+    console.log(
+      '[dsh-pet] 过渡动作 ' +
+        chosen.name +
+        (this.moveSwim ? '（游）' : '（走）') +
+        ' 去 ' +
+        Math.round(cx) +
+        ',' +
+        Math.round(cy),
+    );
+    // 不算第三方点播（没有 playbackId）：这是自主过渡，播完自动回正常动画链。
+    this.switchTo(chosen.name, true, null);
+    return chosen.name;
+  },
+
+  /**
+   * 「过去催一下、催完自己回去」的归位计时。
+   *
+   * 到位那一刻才起算 returnAfter：动作过渡的时长由动画片长决定（1.68s~10s 不等），
+   * 用固定值安排归位会变成「还没走完就往回跑」或「到了之后干等好几秒」。
+   */
+  armReturnHome() {
+    const after = this.returnHomeAfter;
+    const home = this.returnHomeAt;
+    this.returnHomeAfter = 0;
+    this.returnHomeAt = null;
+    if (!(after > 0) || !home) return;
+    const token = ++this.returnSeq;
+    this.returnHomeToken = token;
+    this.returnTimer = setTimeout(() => {
+      this.returnTimer = null;
+      // 期间被新的位置指令 / 用户拖拽接管，就不归位了
+      if (this.returnHomeToken !== token) return;
+      if (this.dragState.active) return;
+      // 归位用鲸鱼：它最短（1.68s），催完尽快溜回去，别慢悠悠横穿屏幕。
+      this.moveToCenter(home.rx, home.ry, 'line', 900, 'view', { action: 'swim' });
+    }, after);
+    this.returnTimer.unref?.();
+  },
+
+  /**
    * 提醒气泡弹出：变身小鱼游到 DSH 那块屏的正中间。
    *
    * 只记第一次的出发位置——同一条提醒重画（重连、宿主重写信封）不该再出发一次；
@@ -237,7 +356,7 @@ Object.assign(PetSprite.prototype, {
     const first = this.reminderSwimId !== id;
     this.reminderSwimId = id;
     if (!first) return;
-    this.moveToCenter(0.5, 0.5, 'line', 1600, 'anchor');
+    this.moveToCenter(0.5, 0.5, 'line', 1600, 'anchor', { action: 'swim' });
   },
 
   /** 确认（或收起/超时）之后游回提醒前的位置；没游出去过就什么都不做。 */
@@ -248,7 +367,7 @@ Object.assign(PetSprite.prototype, {
     if (home === null) return;
     if (this.dragState.active) return;
     // 回程按并集比例解释（home 就是这么记的），与「游过来」的 anchor 不是同一套参照系
-    this.moveToCenter(home.rx, home.ry, 'line', 1100, 'view');
+    this.moveToCenter(home.rx, home.ry, 'line', 1100, 'view', { action: 'swim' });
   },
 
   /**
@@ -265,26 +384,18 @@ Object.assign(PetSprite.prototype, {
    * @param returnAfter - 去程结束后停留多久再归位（ms）；`<= 0` 表示不归位。
    * @param frame - 归一化参照系：`anchor` = DSH 所在那块屏（去程），归位腿固定按并集比例。
    */
-  moveToCenterAndReturn(rx, ry, mode, duration, returnAfter, frame) {
+  moveToCenterAndReturn(rx, ry, mode, duration, returnAfter, frame, opts) {
     if (this.dragState.active) return;
     const home = { rx: this.currentCenterX() / VIEW.w, ry: this.currentCenterY() / VIEW.h };
-    this.cancelReturnHome();
-    this.moveToCenter(rx, ry, mode, duration, frame);
+    // 顺序要紧：moveToCenter 开头的 cancelReturnHome() 会把「待归位」清掉（新指令作废旧的归位），
+    // 所以归位意图必须排在它**之后**写，否则 armReturnHome 拿到的是空的，人到了就不回来了。
+    this.moveToCenter(rx, ry, mode, duration, frame, opts);
+    this.returnHomeAfter = returnAfter > 0 ? returnAfter : 0;
+    this.returnHomeAt = this.returnHomeAfter > 0 ? home : null;
+    // instant 一帧到位、不会再走「到位」分支，这里补一次排期
+    if (mode === 'instant') this.armReturnHome();
     // 落地的同一拍再闪一次气泡：走过去要 1 秒多，起点就闪的话等它到了动画早放完了
     this.pulseOnArrive = true;
-    if (!(returnAfter > 0)) return;
-    const token = ++this.returnSeq;
-    this.returnHomeToken = token;
-    this.returnTimer = setTimeout(() => {
-      this.returnTimer = null;
-      // 期间被新的位置指令 / 用户拖拽接管，就不归位了
-      if (this.returnHomeToken !== token) return;
-      if (this.dragState.active) return;
-      // 用 instant 会瞬间闪回去，这里固定走一段直线，肉眼能看出「它自己溜回去了」。
-      // 归位目标是出发点的并集比例，所以这里必须按 view 解释，不能继承去程的 anchor。
-      this.moveToCenter(home.rx, home.ry, 'line', 900, 'view');
-    }, duration + returnAfter);
-    this.returnTimer.unref?.();
   },
 
   /** 取消待执行的归位（新指令、拖拽、销毁时都要调，否则宠物会突然自己跑掉）。 */
@@ -292,6 +403,8 @@ Object.assign(PetSprite.prototype, {
     if (this.returnTimer) clearTimeout(this.returnTimer);
     this.returnTimer = null;
     this.returnHomeToken = 0;
+    this.returnHomeAfter = 0;
+    this.returnHomeAt = null;
   },
 
   /**
@@ -302,7 +415,7 @@ Object.assign(PetSprite.prototype, {
    * `frame: 'anchor'` 时改为按 DSH 所在那块屏换算、也只在那块屏内夹取——双屏横排时并集的
    * 0.5/0.5 正好落在两块屏的接缝上，「去屏幕中间」必须用 anchor 才是「DSH 那块屏的中间」。
    */
-  moveToCenter(rx, ry, mode, duration, frame) {
+  moveToCenter(rx, ry, mode, duration, frame, opts) {
     if (this.dragState.active) return; // 用户交互优先
     // 任何新的位置指令都作废未执行的归位：否则宠物可能先照新指令走，过一秒又自己溜回老地方
     this.cancelReturnHome();
@@ -325,6 +438,11 @@ Object.assign(PetSprite.prototype, {
       this.sendBounds(px, py);
       this.customPos = { rx: fx, ry: fy };
       return;
+    }
+    // 位置指令默认从「移动」池里随机取一个动作当过渡动画（数量与内容由 animations.moves.actions 决定）。
+    // 位移时长由该动画片长决定，duration 只在池子为空时兜底直线补间。
+    if (mode === 'line' && opts && opts.action) {
+      if (this.startActionMove(c.x, c.y, opts.action) !== false) return;
     }
     const token = ++this.posFollowToken;
     if (mode === 'line') {
@@ -352,6 +470,7 @@ Object.assign(PetSprite.prototype, {
             this.pulseOnArrive = false;
             if (this.requestEnvelope) this.pulseBubble(this.requestEnvelope.id + ':esc');
           }
+          this.armReturnHome();
           return;
         }
         // ease-in-out（cubic）：起步慢、中途快、收尾慢

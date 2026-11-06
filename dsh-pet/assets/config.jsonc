@@ -377,7 +377,9 @@
         { "name": "螃蟹走路" },
         { "name": "原地漂浮踏步", "params": { "minDist": 40, "maxDist": 120 } },
         { "name": "原地左转奔跑", "params": { "minDist": 120, "maxDist": 320, "leadSec": 1.75, "tailSec": 4.8 } },
-        { "name": "鲸鱼游动", "params": { "minDist": 220, "maxDist": 560, "leadSec": 0.6, "tailSec": 0.6 } }
+        // 游动：1.68s 的短片，首尾各只留 0.12s，整段动画都在游（原来各留 0.6s，
+        // 真正位移只剩 0.48s，看着一眨眼就到）。swim: true 让「变身小鱼去某处」优先选它。
+        { "name": "鲸鱼游动", "swim": true, "params": { "minDist": 180, "maxDist": 460, "leadSec": 0.12, "tailSec": 0.12 } }
       ]
     },
     // 随机动作：分类池。weight 为该分类出现权重；noMirror: true 表示“带文字、镜像会颠倒，
