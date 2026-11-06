@@ -12,7 +12,10 @@ import { SleepStore } from '../sleep.ts';
 import { PatStore } from '../pat.ts';
 import type { HostSetup } from './setup.ts';
 /** 宠物定位与访问守卫的输入：装配期对象与更早的工厂。 */
-export type PetLookupInput = {} & Pick<HostSetup, 'state' | 'configPaths' | 'workStatus'>;
+export type PetLookupInput = {} & Pick<HostSetup, 'state' | 'configPaths' | 'workStatus'> & {
+    /** 插件数据根：用来读「以后别消失」这类偏好。测试可省略（等于永远允许躲）。 */
+    readonly userRoot?: string;
+};
 /**
  * 创建宠物定位与访问守卫。
  */

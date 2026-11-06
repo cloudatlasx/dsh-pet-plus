@@ -6154,7 +6154,13 @@ async function handleRequestRoutes(deps, input) {
 			return invalidJson();
 		}
 		const result = deps.requests.answer(parsed);
-		if (!result.ok) return failResult("bad-request", result.message ?? "invalid answer");
+		const answered = parsed ?? {};
+		const answerId = typeof answered.id === "string" ? answered.id : "";
+		if (!result.ok) {
+			deps.log.warn("[dsh-pet] 回答被拒 id=" + answerId + " reason=" + (result.message ?? "invalid answer"));
+			return failResult("bad-request", result.message ?? "invalid answer");
+		}
+		deps.log.info("[dsh-pet] 回答已提交 id=" + answerId + (typeof answered.kind === "string" ? " kind=" + answered.kind : "") + (typeof answered.outcome === "string" ? " outcome=" + answered.outcome : ""));
 		return okResult({ ok: true });
 	}
 	if (rest === "request/diag") {
@@ -8711,13 +8717,14 @@ function extractChatAction(text, names) {
 //#endregion
 //#region src/host/chat-acts.ts
 /**
-* 对话里的「真去做事」标记：改名、记住、改大小、换角落。
+* 对话里的「真去做事」标记：改名、记住、改大小、换角落、别消失。
 *
 * 与动作/配图/提醒同一套机制——模型在回复末尾附一个方括号标记，宿主剥掉它并真的执行。
 * 这里只做纯文本解析与指令拼装，不碰配置、不写文件：
 * - 改名 / 大小 / 角落由 ./plugin/chat-memory 调 `renamePet` / `configurePet`
 *   （走 `saveUserConfig`，与设置页同一条写盘路径）；
-* - 「记住」由 ./soul 追加进 `growth.md`。
+* - 「记住」由 ./soul 追加进 `growth.md`；
+* - 「别消失」写 ./prefs 的 `preferences.json`（立即可读，不重启 Helper）。
 *
 * 标记故意用中文且与正文区分明显：模型照抄过一次也不会被误当成玩笑话。
 * @module dsh-pet/src/host/chat-acts
@@ -8730,6 +8737,13 @@ const SIZE_RE = /\[大小[:：]\s*([^[\]\n]{1,12})\]/gu;
 const CORNER_RE = /\[位置[:：]\s*([^[\]\n]{1,20})\]/gu;
 /** 记住标记：`[记住:一句话]` */
 const REMEMBER_RE = /\[记住[:：]\s*([^[\]\n]{1,300})\]/gu;
+/** 「以后别消失」标记与它的反义标记。 */
+const HIDE_OFF_RE = /\[(?:别消失|不许消失|不要消失)\]/gu;
+const HIDE_ON_RE = /\[(?:可以消失|可以躲|允许消失)\]/gu;
+/** 主人说「别躲 / 别消失」的确定性兜底（模型漏写标记时用）。 */
+const HIDE_NEVER_RE = /(?:别|不要|不用|不许|不准|不允许)(?:再)?(?:躲|消失|藏|不见)/u;
+/** 主人说「你可以躲 / 可以消失」的确定性兜底。 */
+const HIDE_ALLOW_RE = /(?:可以|能|允许你|没关系|没事)(?:自己|偶尔|偷偷|稍微|先|一会儿)?(?:去)?(?:躲|消失|藏)/u;
 const ACT_NAME_MAX = 20;
 const ACT_SIZE_MIN = .5;
 const ACT_SIZE_MAX = 3;
@@ -8765,6 +8779,11 @@ function wantsCenter(text) {
 	return /^(?:中间|中央|正中|中心)/u.test(text.trim()) || /(?:去|到|游|挪|移|过去|过来|待在|停在|飞到|飘到)/u.test(text);
 }
 const ACT_REMEMBER_MAX = 200;
+function wantsHide(text) {
+	if (HIDE_NEVER_RE.test(text)) return false;
+	if (HIDE_ALLOW_RE.test(text)) return true;
+	return void 0;
+}
 /** 把模型写出来的名字整理成能落盘的形式：去引号/空白/句末标点，限长。 */
 function cleanName(raw) {
 	const name = raw.trim().replace(/^[「『"'“”‘’]+|[」』"'“”‘’]+$/gu, "").replace(/[。！？!?,，、\s]+$/u, "").trim().slice(0, ACT_NAME_MAX);
@@ -8781,6 +8800,7 @@ function extractChatActs(text) {
 	let size;
 	let corner;
 	let center;
+	let hide;
 	const stripped = text.replace(RENAME_RE, (_match, raw) => {
 		const name = cleanName(raw);
 		if (name !== "") rename$1 = name;
@@ -8799,6 +8819,12 @@ function extractChatActs(text) {
 		if (mapped !== void 0) corner = mapped;
 		else if (CENTER_WORDS.has(value)) center = true;
 		return "";
+	}).replace(HIDE_ON_RE, () => {
+		hide = true;
+		return "";
+	}).replace(HIDE_OFF_RE, () => {
+		hide = false;
+		return "";
 	}).trim();
 	return {
 		text: stripped,
@@ -8806,11 +8832,12 @@ function extractChatActs(text) {
 		...remember !== void 0 ? { remember } : {},
 		...size !== void 0 ? { size } : {},
 		...corner !== void 0 ? { corner } : {},
-		...center !== void 0 ? { center } : {}
+		...center !== void 0 ? { center } : {},
+		...hide !== void 0 ? { hide } : {}
 	};
 }
 function actInstruction() {
-	return "\n\n【你能真的做事】你不只会说话，还能真的改变自己（写了标记就会立刻生效，主人看得见）：\n- 主人给你取新名字 → 回复末尾附 [改名:新名字]\n- 主人要你长久记住一件事 → 回复末尾附 [记住:一句话]\n- 主人说你太大/太小、让你变大变小 → 回复末尾附 [大小:倍率]（相对现在，0.5 到 3；「一点」约 1.2，「很多」约 1.5）\n- 主人让你换个角落待着 → 回复末尾附 [位置:左上|右上|左下|右下]\n- 主人让你到屏幕中间 / 桌面中间 → 回复末尾附 [位置:中间]\n「变大一点」「挪到左上角」这类就是明确要求，必须附标记——只嘴上答应、不附标记，等于没做。\n标记写在回复最后一行，正文照常自然地说，不要向主人解释标记本身。闲聊不要加。";
+	return "\n\n【先分清：这是指令还是闲聊】主人每说一句话，你先在心里判断一次：\n- 是让「你」做一件事（执行类指令）→ 你必须真的去做，并在回复末尾附对应标记；只嘴上答应、不附标记，等于没做。\n- 只是聊天 / 表达情绪 / 问你问题 → 正常回应，不要附任何标记。\n句子里有「以后」「别再」「给我」「帮我」「去」「到」「叫我」「记住」这类明确的动作请求，就按指令办。\n\n【你能真的做事】你不只会说话，还能真的改变自己（写了标记就会立刻生效，主人看得见）：\n- 主人给你取新名字 → 回复末尾附 [改名:新名字]\n- 主人要你长久记住一件事 → 回复末尾附 [记住:一句话]\n- 主人说你太大/太小、让你变大变小 → 回复末尾附 [大小:倍率]（相对现在，0.5 到 3；「一点」约 1.2，「很多」约 1.5）\n- 主人让你换个角落待着 → 回复末尾附 [位置:左上|右上|左下|右下]\n- 主人让你到屏幕中间 / 桌面中间 → 回复末尾附 [位置:中间]\n- 主人不想你消失、不想你躲起来（「以后别消失」「别躲了」「一直陪着我」）→ 回复末尾附 [别消失]（这是长期指令，会一直有效）\n- 主人说你可以消失、可以躲起来 → 回复末尾附 [可以消失]\n标记写在回复最后一行，正文照常自然地说，不要向主人解释标记本身。闲聊不要加。";
 }
 
 //#endregion
@@ -9553,7 +9580,8 @@ async function generateWith$1(ctx, once) {
 		...acts.remember !== void 0 ? { remember: acts.remember } : {},
 		...acts.size !== void 0 ? { size: acts.size } : {},
 		...acts.corner !== void 0 ? { corner: acts.corner } : {},
-		...acts.center !== void 0 ? { center: acts.center } : {}
+		...acts.center !== void 0 ? { center: acts.center } : {},
+		...acts.hide !== void 0 ? { hide: acts.hide } : {}
 	};
 }
 
@@ -9855,6 +9883,7 @@ function voiceTargetFor(pet) {
 function createChatMemory(deps) {
 	const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot, scheduleReminder, renamePet } = deps;
 	const { configurePet } = deps;
+	const { setHide } = deps;
 	let activePetId = "";
 	const lastWhisperAt = new Map();
 	const memoryPath = join(userRoot, "memory.json");
@@ -10093,6 +10122,16 @@ function createChatMemory(deps) {
 			if (saved) rememberedText = generated.remember;
 			log.info(`[dsh-pet] 对话里记住一件事 pet=${petId}（${saved ? "已追加" : "未变化"}）：${generated.remember}`);
 		}
+		const hidePref = generated.hide ?? wantsHide(text);
+		let hiddenPref;
+		if (hidePref !== void 0) {
+			const saved = await setHide?.(petId, hidePref);
+			if (saved === true) {
+				hiddenPref = hidePref;
+				await appendGrowth(userRoot, hidePref ? "主人说我可以偶尔躲起来了" : "主人让我别消失，我会一直待在看得见的地方", new Date(now));
+			}
+			log.info(`[dsh-pet] 对话里改「会不会消失」 pet=${petId} hide=${hidePref}（${saved === true ? "已生效" : "没写成"}）`);
+		}
 		if (generated.action !== void 0) {
 			const record = playback.create(petId, generated.action);
 			state.writePet(petId, "anim", {
@@ -10118,7 +10157,8 @@ function createChatMemory(deps) {
 			...renamedName !== void 0 ? { renamed: renamedName } : {},
 			...rememberedText !== void 0 ? { remembered: rememberedText } : {},
 			...resized !== void 0 ? { resized } : {},
-			...movedToCenter ? { moved: "center" } : moved !== void 0 ? { moved } : {}
+			...movedToCenter ? { moved: "center" } : moved !== void 0 ? { moved } : {},
+			...hiddenPref !== void 0 ? { hide: hiddenPref } : {}
 		};
 	});
 	/** 删除某只宠物的对话记忆：`ts` 缺省 = 清空全部，给了 ts = 只删命中的轮（一轮两条共享 ts，成对删）。
@@ -10181,6 +10221,62 @@ function createChatMemory(deps) {
 		getActivePetId,
 		setActivePetId
 	};
+}
+
+//#endregion
+//#region src/host/prefs.ts
+const PREF_FILE_NAME = "preferences.json";
+function prefPath(userRoot) {
+	return join(userRoot, PREF_FILE_NAME);
+}
+function readPrefsSync(userRoot) {
+	try {
+		const parsed = JSON.parse(readFileSync(prefPath(userRoot), "utf8"));
+		if (parsed === null || typeof parsed !== "object") return {
+			version: 1,
+			pets: {}
+		};
+		const pets = parsed.pets;
+		if (pets === null || typeof pets !== "object") return {
+			version: 1,
+			pets: {}
+		};
+		return {
+			version: 1,
+			pets
+		};
+	} catch {
+		return {
+			version: 1,
+			pets: {}
+		};
+	}
+}
+function hideEnabledOf(userRoot, petId) {
+	return readPrefsSync(userRoot).pets[petId]?.hide !== false;
+}
+function savePrefSync(userRoot, petId, patch) {
+	try {
+		const current$2 = readPrefsSync(userRoot);
+		const next = {
+			version: 1,
+			pets: {
+				...current$2.pets,
+				[petId]: {
+					...current$2.pets[petId],
+					...patch
+				}
+			}
+		};
+		mkdirSync(userRoot, { recursive: true });
+		const file = prefPath(userRoot);
+		const tmp = `${file}.tmp`;
+		writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+		renameSync(tmp, file);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 //#endregion
@@ -10793,7 +10889,8 @@ var PatStore = class {
 			mood.lastText = text;
 			this.deps.onSay(petId, text, sayMs);
 		}
-		if (tier !== "angry" || busy) return {
+		const mayHide = !busy && this.deps.hideEnabledOf?.(petId) !== false;
+		if (tier !== "angry" || !mayHide) return {
 			tier,
 			count: mood.count,
 			plan: mood.plan,
@@ -10936,7 +11033,8 @@ function createPetLookup(deps) {
 		busyOf: () => {
 			const snap = deps.workStatus.snapshot();
 			return snap.state === "thinking" || snap.state === "working" || snap.state === "result" || snap.state === "waiting";
-		}
+		},
+		...deps.userRoot === void 0 ? {} : { hideEnabledOf: (petId) => hideEnabledOf(deps.userRoot, petId) }
 	});
 	/**
 	* 睡觉闸门（手动触发与第三方调用共用）：在睡 → 弹一句拒绝台词并返回 `sleeping`；否则放行回 null。
@@ -11925,7 +12023,8 @@ function apply(ctx) {
 	const petLookup = createPetLookup({
 		state,
 		configPaths,
-		workStatus
+		workStatus,
+		userRoot
 	});
 	const { lock, pat, sleep: sleep$2, sleepRefusalText } = petLookup;
 	const sessionNotify = createSessionNotify({
@@ -12004,6 +12103,7 @@ function apply(ctx) {
 			return false;
 		}
 	};
+	const setHide = (petId, hide) => savePrefSync(userRoot, petId, { hide });
 	const chatMemory = createChatMemory({
 		ctx,
 		configPaths,
@@ -12020,7 +12120,8 @@ function apply(ctx) {
 			};
 		},
 		renamePet,
-		configurePet
+		configurePet,
+		setHide
 	});
 	const { lastWhisperAt, publishWhisper, publishSleepTalk, chatWithPet, getActivePetId, setActivePetId } = chatMemory;
 	const balancePoll = createBalancePoll({

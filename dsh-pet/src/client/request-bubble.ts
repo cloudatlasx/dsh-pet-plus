@@ -7,9 +7,9 @@
  */
 import type * as ReactNS from 'react';
 import type { jsx } from 'react/jsx-runtime';
-import { postAction } from '../shared/state.ts';
+import { postAction, postActionJson } from '../shared/state.ts';
 import { ROUTE_PATH } from '../shared/constants.ts';
-import type { QuestionAnswer, ReminderEnvelope, RequestEnvelope } from '../shared/request.ts';
+import type { QuestionAnswer, QuestionPrompt, ReminderEnvelope, RequestEnvelope } from '../shared/request.ts';
 import { injectBubbleCss } from './bubble.ts';
 
 /** 注入的 react 能力。 */
@@ -44,9 +44,37 @@ function clockText(ms: number): string {
   return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 
-/** 发一条回答；网络失败静默——宿主超时后会自己回落到 DSH 面板。 */
-function postAnswer(body: unknown): void {
-  void postAction(ROUTE_PATH + '/request/answer', body).catch(() => undefined);
+/** 「发送」按钮文案：多题时带上进度，一眼看出还差几题。 */
+function gapsLabel(
+  questions: readonly QuestionPrompt[],
+  picked: Record<string, string[]>,
+  custom: Record<string, string>,
+): string {
+  const total = questions.length;
+  if (total <= 1) return '发送';
+  let done = 0;
+  for (const q of questions) {
+    const selected = picked[q.id] ?? [];
+    if (selected.length > 0 || (custom[q.id] ?? '').trim() !== '') done += 1;
+  }
+  return done >= total ? '发送' : '发送（' + done + '/' + total + '）';
+}
+
+/** 把宿主拒绝的原因翻成用户看得懂的一句话：沉默最像坏了。 */
+function answerErrorText(message: string | undefined): string {
+  if (message === 'request expired or unknown') return '这条请求已经过期或已在 DSH 里处理过了。';
+  if (message === undefined || message === '') return '没提交成功，再试一次。';
+  return '没提交成功：' + message;
+}
+
+/** 发一条回答，把宿主的 ok/message 交回来；网络失败也给出可读原因。 */
+function postAnswer(body: unknown): Promise<{ ok: boolean; message?: string }> {
+  return postActionJson(ROUTE_PATH + '/request/answer', body)
+    .then((json) => ({
+      ok: json?.ok === true,
+      ...(typeof json?.message === 'string' ? { message: json.message } : {}),
+    }))
+    .catch(() => ({ ok: false, message: '' }));
 }
 
 /**
@@ -59,18 +87,21 @@ function postAnswer(body: unknown): void {
  * @returns 审批气泡组件。
  */
 export function makeApprovalBubble(rt: RequestBubbleRuntime) {
-  const { h } = rt;
+  const { h, useState } = rt;
   injectBubbleCss();
 
   return function ApprovalBubble({ request, on }: ApprovalBubbleProps) {
     const preview = request.preview === true;
+    const [error, setError] = useState('');
     const answer = (outcome: 'allowed-once' | 'allow-session' | 'rejected' | 'delegate'): void => {
-      if (preview) {
-        // 预览不接真实请求：点一下只收起气泡（cancel 信封让宿主写 closed）。
-        postAnswer({ id: request.id, kind: 'approval', cancel: true });
-        return;
-      }
-      postAnswer({ id: request.id, kind: 'approval', outcome });
+      // 预览不接真实请求：点一下只收起气泡（cancel 信封让宿主写 closed）。
+      const body = preview
+        ? { id: request.id, kind: 'approval', cancel: true }
+        : { id: request.id, kind: 'approval', outcome };
+      setError('');
+      void postAnswer(body).then((res) => {
+        if (!res.ok) setError(answerErrorText(res.message));
+      });
     };
     return h('div', {
       className: 'dsh-pet-bubble dsh-pet-request' + (on ? ' is-on is-clickable' : ''),
@@ -93,6 +124,7 @@ export function makeApprovalBubble(rt: RequestBubbleRuntime) {
           className: 'dsh-pet-request__body',
           children: request.reason && request.reason.trim() !== '' ? request.reason : '这一步要跑一个需要授权的操作。',
         }),
+        error !== '' ? h('div', { key: 'err', className: 'dsh-pet-request__err', children: error }) : null,
         h('div', {
           key: 'actions',
           className: 'dsh-pet-request__actions',
@@ -149,13 +181,16 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
     const questions = request.questions ?? [];
     const [picked, setPicked] = useState<Record<string, string[]>>({});
     const [custom, setCustom] = useState<Record<string, string>>({});
+    const [error, setError] = useState('');
     // 换了一条请求就清空草稿，避免把上一条的答案带过来。
     useEffect(() => {
       setPicked({});
       setCustom({});
+      setError('');
     }, [request.id]);
 
     const toggle = (qid: string, label: string, multi: boolean): void => {
+      setError('');
       setPicked((prev) => {
         const cur = prev[qid] ?? [];
         if (!multi) return { ...prev, [qid]: [label] };
@@ -170,18 +205,32 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
         return { id: q.id, selected, ...(text !== '' ? { custom: text } : {}) };
       });
 
-    const ready = questions.every((q) => {
-      const selected = picked[q.id] ?? [];
-      return selected.length > 0 || (custom[q.id] ?? '').trim() !== '';
-    });
+    const missing = (): number[] => {
+      const out: number[] = [];
+      questions.forEach((q, index) => {
+        const selected = picked[q.id] ?? [];
+        if (selected.length > 0) return;
+        if ((custom[q.id] ?? '').trim() !== '') return;
+        out.push(index + 1);
+      });
+      return out;
+    };
 
     const submit = (): void => {
-      if (!ready) return;
-      if (request.preview === true) {
-        postAnswer({ id: request.id, kind: 'question', cancel: true });
+      const gaps = missing();
+      if (gaps.length > 0) {
+        // 不再把「发送」置灰：点下去要明确告诉用户差哪几题。
+        setError('还有 ' + gaps.length + ' 道题没答：第 ' + gaps.join('、') + ' 题');
         return;
       }
-      postAnswer({ id: request.id, kind: 'question', answers: answers() });
+      const body =
+        request.preview === true
+          ? { id: request.id, kind: 'question', cancel: true }
+          : { id: request.id, kind: 'question', answers: answers() };
+      setError('');
+      void postAnswer(body).then((res) => {
+        if (!res.ok) setError(answerErrorText(res.message));
+      });
     };
 
     return h('div', {
@@ -227,8 +276,10 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
                       className: 'dsh-pet-request__input',
                       placeholder: (q.options ?? []).length > 0 ? '其他（选填）' : '输入回答…',
                       value: custom[q.id] ?? '',
-                      onChange: (e: ReactNS.ChangeEvent<HTMLInputElement>) =>
-                        setCustom((prev) => ({ ...prev, [q.id]: e.target.value })),
+                      onChange: (e: ReactNS.ChangeEvent<HTMLInputElement>) => {
+                        setError('');
+                        setCustom((prev) => ({ ...prev, [q.id]: e.target.value }));
+                      },
                     }),
                   ],
                 }),
@@ -236,6 +287,7 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
             }),
           ),
         }),
+        error !== '' ? h('div', { key: 'err', className: 'dsh-pet-request__err', children: error }) : null,
         h('div', {
           key: 'send',
           className: 'dsh-pet-request__actions',
@@ -244,9 +296,8 @@ export function makeQuestionBubble(rt: RequestBubbleRuntime) {
               key: 'go',
               type: 'button',
               className: 'dsh-pet-request__btn is-primary',
-              disabled: !ready,
               onClick: submit,
-              children: request.preview === true ? '知道了' : '发送',
+              children: request.preview === true ? '知道了' : gapsLabel(questions, picked, custom),
             }),
           ],
         }),

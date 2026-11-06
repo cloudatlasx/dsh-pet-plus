@@ -15,6 +15,7 @@ import { registerSessionWatch } from './plugin/session-watch.ts';
 import { createDesktopHelper } from './plugin/desktop-helper.ts';
 import { createBalancePoll } from './plugin/balance-poll.ts';
 import { createChatMemory } from './plugin/chat-memory.ts';
+import { savePrefSync } from './prefs.ts';
 import type { PetCorner } from './chat-acts.ts';
 import { createPetReminderStore } from './plugin/pet-reminders.ts';
 import { createSessionNotify } from './plugin/session-notify.ts';
@@ -65,7 +66,7 @@ export function apply(ctx: any): void {
     workStatus,
   });
   const { reportDownload, stopDownloadSlotTimer } = downloadReport;
-  const petLookup = createPetLookup({ state, configPaths, workStatus });
+  const petLookup = createPetLookup({ state, configPaths, workStatus, userRoot });
   const { lock, pat, sleep, sleepRefusalText } = petLookup;
   const sessionNotify = createSessionNotify({ ctx, publishWorkStatus, state, workStatus });
   const {
@@ -153,6 +154,9 @@ export function apply(ctx: any): void {
     }
   };
 
+  // 对话里说的「以后别消失」：只写一个小偏好文件，拍一拍下一次生效，不重启 Helper。
+  const setHide = (petId: string, hide: boolean): boolean => savePrefSync(userRoot, petId, { hide });
+
   const chatMemory = createChatMemory({
     ctx,
     configPaths,
@@ -170,6 +174,7 @@ export function apply(ctx: any): void {
     // 对话里说的「以后叫你 X」：真的写进 pets[].name（与设置页同一条写盘路径）。
     renamePet,
     configurePet,
+    setHide,
   });
   const { lastWhisperAt, publishWhisper, publishSleepTalk, chatWithPet, getActivePetId, setActivePetId } = chatMemory;
 

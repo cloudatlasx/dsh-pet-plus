@@ -16,7 +16,7 @@ import type { PetImageRef } from '../image-attachment.ts';
 import { limitPool, matchMeme, pickMeme, readMemePool } from '../memes.ts';
 import { appendGrowth, archiveConversation, ensureSoul, readGrowth, readSoul } from '../soul.ts';
 import type { PetCorner } from '../chat-acts.ts';
-import { wantsCenter } from '../chat-acts.ts';
+import { wantsCenter, wantsHide } from '../chat-acts.ts';
 import { generateWhisper } from '../whisper.ts';
 import { createMemoryOrphans } from './memory-orphans.ts';
 import { configuredModel } from '../model-selection.ts';
@@ -50,6 +50,11 @@ export type ChatMemoryInput = {
    * 与改名同一条写盘路径；返回是否成功。
    */
   configurePet?: (petId: string, patch: { size?: number; corner?: PetCorner }) => Promise<boolean> | boolean;
+  /**
+   * 把对话里说的「以后别消失」/「可以躲起来」写进偏好（preferences.json）。
+   * 这条不重启任何东西，拍一拍下一次就按新偏好走；返回是否写入成功。
+   */
+  setHide?: (petId: string, hide: boolean) => Promise<boolean> | boolean;
 } & Pick<HostSetup, 'configPaths'> &
   Pick<HostSetup, 'log'> &
   Pick<HostSetup, 'memeDirsFor'> &
@@ -63,6 +68,7 @@ export type ChatMemoryInput = {
 export function createChatMemory(deps: ChatMemoryInput) {
   const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot, scheduleReminder, renamePet } = deps;
   const { configurePet } = deps;
+  const { setHide } = deps;
   // 命令「当前桌宠」（/pet 选择、/chat 使用）：全局单值不分会话；进程内内存，重启回默认第一只
   let activePetId = '';
 
@@ -261,6 +267,8 @@ export function createChatMemory(deps: ChatMemoryInput) {
         resized?: number;
         /** 成功换到的角落；`center` = 去屏幕中间（一次性，不写配置） */
         moved?: PetCorner | 'center';
+        /** 这一轮真的改了「会不会消失」的偏好（false = 以后别消失） */
+        hide?: boolean;
       }
     | { ok: false; reason: 'provider-missing' | 'generate-error' | 'unknown-pet'; message?: string }
   > =>
@@ -407,6 +415,26 @@ export function createChatMemory(deps: ChatMemoryInput) {
         if (saved) rememberedText = generated.remember;
         log.info(`[dsh-pet] 对话里记住一件事 pet=${petId}（${saved ? '已追加' : '未变化'}）：${generated.remember}`);
       }
+      // 长期指令：「以后别消失 / 可以躲起来」写偏好文件，拍一拍那边下一次就按新偏好走，不重启。
+      // 模型爱把这类话当闲聊（只答应、不附标记），所以纯文本再兜底一次——但只在它完全没给标记时，
+      // 绝不覆盖它自己写的 [别消失]/[可以消失]。
+      const hidePref = generated.hide ?? wantsHide(text);
+      let hiddenPref: boolean | undefined;
+      if (hidePref !== undefined) {
+        const saved = await setHide?.(petId, hidePref);
+        if (saved === true) {
+          hiddenPref = hidePref;
+          // 成长记录：同一条指令既改开关、也留一句话给她自己（会随人设一起喂回模型）。
+          await appendGrowth(
+            userRoot,
+            hidePref ? '主人说我可以偶尔躲起来了' : '主人让我别消失，我会一直待在看得见的地方',
+            new Date(now),
+          );
+        }
+        log.info(
+          `[dsh-pet] 对话里改「会不会消失」 pet=${petId} hide=${hidePref}（${saved === true ? '已生效' : '没写成'}）`,
+        );
+      }
       // 动作先写：与 POST /anim 同一条写回链路（记录 + anim 叶子），渲染端据此播放并回报执。
       if (generated.action !== undefined) {
         const record = playback.create(petId, generated.action);
@@ -435,6 +463,7 @@ export function createChatMemory(deps: ChatMemoryInput) {
         ...(rememberedText !== undefined ? { remembered: rememberedText } : {}),
         ...(resized !== undefined ? { resized } : {}),
         ...(movedToCenter ? { moved: 'center' as const } : moved !== undefined ? { moved } : {}),
+        ...(hiddenPref !== undefined ? { hide: hiddenPref } : {}),
       };
     });
 

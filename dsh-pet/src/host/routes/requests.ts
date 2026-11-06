@@ -136,7 +136,20 @@ export async function handleRequestRoutes(deps: PetRouteDeps, input: RouteInput)
       return invalidJson();
     }
     const result = deps.requests.answer(parsed);
-    if (!result.ok) return failResult('bad-request', result.message ?? 'invalid answer');
+    // 回答被拒一点都不罕见（超时后再点、DSH 面板抢先处理、漏答一题），
+    // 但过去一个字都不记，出了问题只能猜。这里把 id 与原因落到日志里。
+    const answered = (parsed ?? {}) as { id?: unknown; kind?: unknown; outcome?: unknown };
+    const answerId = typeof answered.id === 'string' ? answered.id : '';
+    if (!result.ok) {
+      deps.log.warn('[dsh-pet] 回答被拒 id=' + answerId + ' reason=' + (result.message ?? 'invalid answer'));
+      return failResult('bad-request', result.message ?? 'invalid answer');
+    }
+    deps.log.info(
+      '[dsh-pet] 回答已提交 id=' +
+        answerId +
+        (typeof answered.kind === 'string' ? ' kind=' + answered.kind : '') +
+        (typeof answered.outcome === 'string' ? ' outcome=' + answered.outcome : ''),
+    );
     return okResult({ ok: true });
   }
 

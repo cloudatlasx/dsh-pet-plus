@@ -27,6 +27,7 @@ function makeStore(
     now?: () => number;
     texts?: PatTexts;
     busyOf?: () => boolean;
+    hideEnabledOf?: () => boolean;
   } = {},
 ) {
   const hidden: Array<[string, HiddenLeafData]> = [];
@@ -37,6 +38,7 @@ function makeStore(
     onSay: (petId, text, duration) => said.push([petId, text, duration]),
     now: opts.now,
     busyOf: opts.busyOf,
+    hideEnabledOf: opts.hideEnabledOf,
     // roll 固定 0.5：娇羞上界 5、不高兴上界 11，第 12 次生气。
     roll: () => 0.5,
     hideMs: () => opts.hideMs ?? 20,
@@ -152,6 +154,28 @@ describe('PatStore —— 分级、先说再躲、工作优先', () => {
     busy = false;
     const after = store.pat('a');
     assert.equal(after.ignored, false);
+  });
+
+  test('主人说过「以后别消失」：气话照说，但绝不躲', async () => {
+    const { store, hidden, said } = makeStore({
+      hideEnabledOf: () => false,
+      hideDelayMs: 5,
+      hideMs: 20,
+    });
+    const angry = patUntilAngry(store);
+    assert.equal(angry.tier, 'angry');
+    assert.equal(angry.hideMs, 0, '偏好在就不安排躲藏');
+    assert.equal(angry.text, TEXTS.angry[0]);
+    assert.equal(said[said.length - 1]?.[1], TEXTS.angry[0]);
+    await wait(60);
+    assert.equal(hidden.length, 0, '一刻都不该消失');
+    assert.equal(store.hidden('a'), false);
+  });
+
+  test('偏好是「可以躲」时行为不变（缺省允许）', async () => {
+    const { store } = makeStore({ hideEnabledOf: () => true, hideDelayMs: 5, hideMs: 20 });
+    const angry = patUntilAngry(store);
+    assert.ok(angry.hideMs > 0, '允许躲的时候照旧安排躲藏');
   });
 
   test('安静超过重置时间：气消了，计数从头数', () => {

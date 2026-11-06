@@ -176,6 +176,12 @@ export declare function readThrow(leaf: StateLeaf): {
     angle: number;
     power: number;
 } | null;
+/** 动作端点：POST 一次，连宿主的 `{ ok, message }` 一起返回。
+ *  失败要说清原因时用它（例如请求已过期），只要「成没成」用 postAction。 */
+export declare function postActionJson(baseUrl: string, body?: unknown): Promise<{
+    ok?: unknown;
+    message?: unknown;
+} | null>;
 /** 动作端点：POST 一次，返回是否成功。
  *  动作不返回数据——数据只有 /state 一个出口。调用方收到 ok 后不需要再做别的：动作写叶子会让
  *  顶层 counter 变化，挂着的长轮询那一拍立刻返回。 */

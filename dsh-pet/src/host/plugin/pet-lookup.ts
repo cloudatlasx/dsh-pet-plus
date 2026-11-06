@@ -11,13 +11,17 @@ import { SURFACE_TEXT, displayCovers, normalizeSurface, type Surface } from '../
 import { type RouteResult } from '../http.ts';
 import { failResult } from '../routes/result.ts';
 import { findPetInstance, readAllConfig } from '../config.ts';
+import { hideEnabledOf } from '../prefs.ts';
 import { pickSleepText, SleepStore, sleepTextsOf } from '../sleep.ts';
 import { PatStore } from '../pat.ts';
 import { patTextsOf } from '../../shared/pat.ts';
 import type { HostSetup } from './setup.ts';
 
 /** 宠物定位与访问守卫的输入：装配期对象与更早的工厂。 */
-export type PetLookupInput = {} & Pick<HostSetup, 'state' | 'configPaths' | 'workStatus'>;
+export type PetLookupInput = {} & Pick<HostSetup, 'state' | 'configPaths' | 'workStatus'> & {
+    /** 插件数据根：用来读「以后别消失」这类偏好。测试可省略（等于永远允许躲）。 */
+    readonly userRoot?: string;
+  };
 
 /**
  * 创建宠物定位与访问守卫。
@@ -73,6 +77,11 @@ export function createPetLookup(deps: PetLookupInput) {
         snap.state === 'thinking' || snap.state === 'working' || snap.state === 'result' || snap.state === 'waiting'
       );
     },
+    // 对话里下的长期指令（m18447）：「以后别消失」写进 preferences.json，拍到这里现读，
+    // 不用重启任何东西就立刻生效。
+    ...(deps.userRoot === undefined
+      ? {}
+      : { hideEnabledOf: (petId: string) => hideEnabledOf(deps.userRoot as string, petId) }),
   });
 
   /**

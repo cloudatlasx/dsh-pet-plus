@@ -31,6 +31,11 @@ export type ChatMemoryInput = {
         size?: number;
         corner?: PetCorner;
     }) => Promise<boolean> | boolean;
+    /**
+     * 把对话里说的「以后别消失」/「可以躲起来」写进偏好（preferences.json）。
+     * 这条不重启任何东西，拍一拍下一次就按新偏好走；返回是否写入成功。
+     */
+    setHide?: (petId: string, hide: boolean) => Promise<boolean> | boolean;
 } & Pick<HostSetup, 'configPaths'> & Pick<HostSetup, 'log'> & Pick<HostSetup, 'memeDirsFor'> & Pick<HostSetup, 'playback'> & Pick<HostSetup, 'state'> & Pick<HostSetup, 'userRoot'>;
 /**
  * 创建对话与记忆。
@@ -69,6 +74,8 @@ export declare function createChatMemory(deps: ChatMemoryInput): {
         resized?: number;
         /** 成功换到的角落；`center` = 去屏幕中间（一次性，不写配置） */
         moved?: PetCorner | "center";
+        /** 这一轮真的改了「会不会消失」的偏好（false = 以后别消失） */
+        hide?: boolean;
     } | {
         ok: false;
         reason: "provider-missing" | "generate-error" | "unknown-pet";

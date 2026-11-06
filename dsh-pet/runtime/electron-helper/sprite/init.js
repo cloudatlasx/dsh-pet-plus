@@ -137,6 +137,12 @@ Object.assign(PetSprite.prototype, {
     // requestPicks 是提问的已选标签（单选存一个、多选可多个），按题目 id 记。
     this.requestEnvelope = null;
     this.requestPicks = {};
+    // 每题的自由输入（「其他」「都不对，我是……」）：和选项一样是答案的一部分。
+    this.requestCustom = {};
+    // 底部红字：没答完、过期、被 DSH 抢先处理——沉默地什么都不发生最让人懵。
+    this.requestError = '';
+    // 当前表单属于哪条请求：换了新请求就把草稿清掉，别把上一条的答案带过去。
+    this.reqFormId = null;
     // 重画请求气泡时用它判断「是不是同一条请求」：同一条才把题目区滚动位置放回去，
     // 新请求一律从顶部开始读。
     this.reqScrollId = null;

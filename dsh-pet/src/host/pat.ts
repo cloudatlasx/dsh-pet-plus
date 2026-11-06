@@ -77,6 +77,8 @@ export interface PatStoreInput {
   readonly onSay: (petId: string, text: string, duration: number) => void;
   /** 这只宠物此刻是不是在干活（有回合在跑）。缺省 = 永远不在忙。 */
   readonly busyOf?: (petId: string) => boolean;
+  /** 这只宠物现在还允不允许躲起来消失（主人在对话里说过「以后别消失」）。缺省 = 允许。 */
+  readonly hideEnabledOf?: (petId: string) => boolean;
   /** 时钟，测试注入；缺省 `Date.now`。 */
   readonly now?: () => number;
   /** 随机源，测试注入；缺省 `Math.random`。 */
@@ -146,7 +148,9 @@ export class PatStore {
       mood.lastText = text;
       this.deps.onSay(petId, text, sayMs);
     }
-    if (tier !== 'angry' || busy) {
+    // 主人说过「以后别消失」（偏好 hide=false）：气话照说，但绝不躲——她要一直看得见。
+    const mayHide = !busy && this.deps.hideEnabledOf?.(petId) !== false;
+    if (tier !== 'angry' || !mayHide) {
       return { tier, count: mood.count, plan: mood.plan, text, hideMs: 0, ignored: false, busy };
     }
     // 生气了：先把这句话说完，再消失。躲的时长每次都重抽，回来时补一句台词，并把计数清零

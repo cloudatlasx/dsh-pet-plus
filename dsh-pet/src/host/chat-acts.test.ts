@@ -14,6 +14,7 @@ import {
   actInstruction,
   extractChatActs,
   wantsCenter,
+  wantsHide,
 } from './chat-acts.ts';
 
 describe('extractChatActs —— 剥标记', () => {
@@ -115,7 +116,36 @@ describe('actInstruction —— 告诉模型它能真的做事', () => {
     assert.match(text, /\[大小:倍率\]/);
     assert.match(text, /\[位置:左上\|右上\|左下\|右下\]/);
     assert.match(text, /\[位置:中间\]/);
-    assert.match(text, /必须附标记/);
+    assert.match(text, /\[别消失\]/);
+    assert.match(text, /\[可以消失\]/);
+    assert.match(text, /指令还是闲聊/);
+    assert.match(text, /必须真的去做/);
     assert.match(text, /闲聊不要加/);
+  });
+});
+
+describe('hide 标记与 wantsHide —— 「以后别消失」是长期指令', () => {
+  test('[别消失] / [可以消失] 剥出偏好，正文保持干净', () => {
+    const off = extractChatActs('好，我以后一直在。[别消失]');
+    assert.equal(off.hide, false);
+    assert.equal(off.text, '好，我以后一直在。');
+    const on = extractChatActs('那我偶尔躲一下。[可以消失]');
+    assert.equal(on.hide, true);
+    assert.equal(on.text, '那我偶尔躲一下。');
+  });
+
+  test('模型漏标记时，纯文本也能听出这是指令', () => {
+    for (const text of ['以后别消失', '不要躲起来', '别躲了', '不许藏']) {
+      assert.equal(wantsHide(text), false, text);
+    }
+    for (const text of ['你可以躲起来', '没关系可以消失', '你可以偶尔躲起来']) {
+      assert.equal(wantsHide(text), true, text);
+    }
+  });
+
+  test('普通聊天不误判成指令', () => {
+    for (const text of ['你会不会消失啊', '今天好累', '我藏了个惊喜', '她在躲雨']) {
+      assert.equal(wantsHide(text), undefined, text);
+    }
   });
 });

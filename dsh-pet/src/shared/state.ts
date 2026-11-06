@@ -382,6 +382,24 @@ export function readThrow(leaf: StateLeaf): { angle: number; power: number } | n
   return { angle: d.angle, power: d.power };
 }
 
+/** 动作端点：POST 一次，连宿主的 `{ ok, message }` 一起返回。
+ *  失败要说清原因时用它（例如请求已过期），只要「成没成」用 postAction。 */
+export async function postActionJson(
+  baseUrl: string,
+  body?: unknown,
+): Promise<{ ok?: unknown; message?: unknown } | null> {
+  try {
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+    });
+    if (!res.ok) return { ok: false };
+    return (await res.json().catch(() => null)) as { ok?: unknown; message?: unknown } | null;
+  } catch {
+    return null;
+  }
+}
+
 /** 动作端点：POST 一次，返回是否成功。
  *  动作不返回数据——数据只有 /state 一个出口。调用方收到 ok 后不需要再做别的：动作写叶子会让
  *  顶层 counter 变化，挂着的长轮询那一拍立刻返回。 */

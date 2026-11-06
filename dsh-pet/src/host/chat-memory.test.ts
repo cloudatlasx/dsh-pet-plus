@@ -68,6 +68,7 @@ function createMemory(
     records?: Array<{ petId: string; leaf: string; data: Record<string, unknown> }>;
   },
   captured?: Record<string, unknown>[],
+  extra: Record<string, unknown> = {},
 ) {
   return createChatMemory({
     ctx: fakeCtx(reply, captured),
@@ -83,6 +84,7 @@ function createMemory(
       },
     },
     userRoot: ws.userRoot,
+    ...extra,
   } as unknown as ChatMemoryInput);
 }
 
@@ -148,6 +150,64 @@ describe('createChatMemory —— 图信息写入记忆文件', () => {
       assert.ok(assistant);
       assert.equal(assistant.meme, '可爱', 'assistant 消息应记下配图名');
       assert.equal(assistant.content, '你好呀', '配图标记属于展示层，不得留在记忆正文里');
+    } finally {
+      rmSync(ws.dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('createChatMemory —— 长期指令落成偏好', () => {
+  test('「以后别消失」：模型没写标记也写偏好、记一行成长，正文不带标记', async () => {
+    const ws = tempWorkspace();
+    const calls: Array<[string, boolean]> = [];
+    try {
+      const r = await createMemory('好，我一直在。', ws, undefined, undefined, undefined, {
+        setHide: (petId: string, hide: boolean) => {
+          calls.push([petId, hide]);
+          return true;
+        },
+      }).chatWithPet('main', '以后别消失好不好');
+      assert.equal(r.ok, true);
+      assert.equal(r.hide, false, '返回值要告诉界面这次改成了「不许消失」');
+      assert.deepEqual(calls, [['main', false]], '偏好应落到这只宠物身上');
+      assert.match(readFileSync(join(ws.userRoot, 'growth.md'), 'utf8'), /别消失/);
+    } finally {
+      rmSync(ws.dir, { recursive: true, force: true });
+    }
+  });
+
+  test('[可以消失]：标记放开躲藏，同为长期指令', async () => {
+    const ws = tempWorkspace();
+    const calls: Array<[string, boolean]> = [];
+    try {
+      const r = await createMemory('那我偶尔躲一下。\n[可以消失]', ws, undefined, undefined, undefined, {
+        setHide: (petId: string, hide: boolean) => {
+          calls.push([petId, hide]);
+          return true;
+        },
+      }).chatWithPet('main', '你累的话可以躲一会儿');
+      assert.equal(r.ok, true);
+      assert.equal(r.hide, true);
+      assert.deepEqual(calls, [['main', true]]);
+      assert.equal(r.ok === true ? r.text : '', '那我偶尔躲一下。', '标记不能留在正文里');
+    } finally {
+      rmSync(ws.dir, { recursive: true, force: true });
+    }
+  });
+
+  test('普通聊天不动偏好', async () => {
+    const ws = tempWorkspace();
+    const calls: Array<[string, boolean]> = [];
+    try {
+      const r = await createMemory('今天好累呀。', ws, undefined, undefined, undefined, {
+        setHide: (petId: string, hide: boolean) => {
+          calls.push([petId, hide]);
+          return true;
+        },
+      }).chatWithPet('main', '今天好累');
+      assert.equal(r.ok, true);
+      assert.equal('hide' in r, false);
+      assert.deepEqual(calls, []);
     } finally {
       rmSync(ws.dir, { recursive: true, force: true });
     }

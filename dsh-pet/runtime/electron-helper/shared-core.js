@@ -3862,6 +3862,21 @@ function readThrow(leaf$1) {
 		power: d.power
 	};
 }
+async function postActionJson(baseUrl, body) {
+	try {
+		const res = await fetch(baseUrl, {
+			method: "POST",
+			...body === void 0 ? {} : {
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body)
+			}
+		});
+		if (!res.ok) return { ok: false };
+		return await res.json().catch(() => null);
+	} catch {
+		return null;
+	}
+}
 async function postAction(baseUrl, body) {
 	try {
 		const res = await fetch(baseUrl, {
@@ -5220,6 +5235,7 @@ exports.playSayVoice = playSayVoice
 exports.pointInRect = pointInRect
 exports.poolIncludes = poolIncludes
 exports.postAction = postAction
+exports.postActionJson = postActionJson
 exports.progressLabel = progressLabel
 exports.pullAngle = pullAngle
 exports.quotaTone = quotaTone

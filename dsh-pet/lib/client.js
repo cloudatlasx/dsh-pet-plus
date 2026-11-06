@@ -2057,6 +2057,21 @@ function readThrow(leaf$1) {
 		power: d.power
 	};
 }
+async function postActionJson(baseUrl, body) {
+	try {
+		const res = await fetch(baseUrl, {
+			method: "POST",
+			...body === void 0 ? {} : {
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body)
+			}
+		});
+		if (!res.ok) return { ok: false };
+		return await res.json().catch(() => null);
+	} catch {
+		return null;
+	}
+}
 async function postAction(baseUrl, body) {
 	try {
 		const res = await fetch(baseUrl, {
@@ -2284,6 +2299,7 @@ const bubbleCss = [
 	".dsh-pet-request__opt.is-picked{background:#e8f3eb;border-color:#2e9e4f;color:#1d6b36;font-weight:650}",
 	".dsh-pet-request__input{flex:1 1 calc(var(--f)*5);min-width:calc(var(--f)*4);font-family:inherit;font-size:calc(var(--f)*0.66);padding:calc(var(--f)*0.16) calc(var(--f)*0.3);border-radius:calc(var(--f)*0.3);border:1px solid rgba(43,43,43,.18);background:#fff;color:#2b2b2b}",
 	".dsh-pet-request__input:focus{outline:none;border-color:#2e9e4f}",
+	".dsh-pet-request__err{font-size:calc(var(--f)*0.62);line-height:1.45;color:#c0392b;overflow-wrap:break-word}",
 	".dsh-pet-bubble.dsh-pet-history{display:flex;flex-direction:column;gap:calc(var(--f)*0.4);max-width:min(calc(var(--f)*21),100%);pointer-events:auto}",
 	".dsh-pet-history__head{justify-content:space-between;align-items:center;flex-wrap:nowrap}",
 	".dsh-pet-request__badge.is-history{background:#5b6472}",
@@ -3398,28 +3414,52 @@ function clockText(ms) {
 	const d = new Date(ms);
 	return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 }
-/** 发一条回答；网络失败静默——宿主超时后会自己回落到 DSH 面板。 */
+/** 「发送」按钮文案：多题时带上进度，一眼看出还差几题。 */
+function gapsLabel(questions, picked, custom) {
+	const total = questions.length;
+	if (total <= 1) return "发送";
+	let done = 0;
+	for (const q of questions) {
+		const selected = picked[q.id] ?? [];
+		if (selected.length > 0 || (custom[q.id] ?? "").trim() !== "") done += 1;
+	}
+	return done >= total ? "发送" : "发送（" + done + "/" + total + "）";
+}
+/** 把宿主拒绝的原因翻成用户看得懂的一句话：沉默最像坏了。 */
+function answerErrorText(message) {
+	if (message === "request expired or unknown") return "这条请求已经过期或已在 DSH 里处理过了。";
+	if (message === void 0 || message === "") return "没提交成功，再试一次。";
+	return "没提交成功：" + message;
+}
+/** 发一条回答，把宿主的 ok/message 交回来；网络失败也给出可读原因。 */
 function postAnswer(body) {
-	postAction(ROUTE_PATH + "/request/answer", body).catch(() => void 0);
+	return postActionJson(ROUTE_PATH + "/request/answer", body).then((json) => ({
+		ok: json?.ok === true,
+		...typeof json?.message === "string" ? { message: json.message } : {}
+	})).catch(() => ({
+		ok: false,
+		message: ""
+	}));
 }
 function makeApprovalBubble(rt) {
-	const { h } = rt;
+	const { h, useState } = rt;
 	injectBubbleCss();
 	return function ApprovalBubble({ request, on }) {
 		const preview = request.preview === true;
+		const [error, setError] = useState("");
 		const answer = (outcome) => {
-			if (preview) {
-				postAnswer({
-					id: request.id,
-					kind: "approval",
-					cancel: true
-				});
-				return;
-			}
-			postAnswer({
+			const body = preview ? {
+				id: request.id,
+				kind: "approval",
+				cancel: true
+			} : {
 				id: request.id,
 				kind: "approval",
 				outcome
+			};
+			setError("");
+			postAnswer(body).then((res) => {
+				if (!res.ok) setError(answerErrorText(res.message));
 			});
 		};
 		return h("div", {
@@ -3444,6 +3484,11 @@ function makeApprovalBubble(rt) {
 					className: "dsh-pet-request__body",
 					children: request.reason && request.reason.trim() !== "" ? request.reason : "这一步要跑一个需要授权的操作。"
 				}),
+				error !== "" ? h("div", {
+					key: "err",
+					className: "dsh-pet-request__err",
+					children: error
+				}) : null,
 				h("div", {
 					key: "actions",
 					className: "dsh-pet-request__actions",
@@ -3490,11 +3535,14 @@ function makeQuestionBubble(rt) {
 		const questions = request.questions ?? [];
 		const [picked, setPicked] = useState({});
 		const [custom, setCustom] = useState({});
+		const [error, setError] = useState("");
 		useEffect(() => {
 			setPicked({});
 			setCustom({});
+			setError("");
 		}, [request.id]);
 		const toggle = (qid, label, multi) => {
+			setError("");
 			setPicked((prev) => {
 				const cur = prev[qid] ?? [];
 				if (!multi) return {
@@ -3516,81 +3564,101 @@ function makeQuestionBubble(rt) {
 				...text !== "" ? { custom: text } : {}
 			};
 		});
-		const ready = questions.every((q) => {
-			const selected = picked[q.id] ?? [];
-			return selected.length > 0 || (custom[q.id] ?? "").trim() !== "";
-		});
+		const missing = () => {
+			const out = [];
+			questions.forEach((q, index) => {
+				const selected = picked[q.id] ?? [];
+				if (selected.length > 0) return;
+				if ((custom[q.id] ?? "").trim() !== "") return;
+				out.push(index + 1);
+			});
+			return out;
+		};
 		const submit = () => {
-			if (!ready) return;
-			if (request.preview === true) {
-				postAnswer({
-					id: request.id,
-					kind: "question",
-					cancel: true
-				});
+			const gaps = missing();
+			if (gaps.length > 0) {
+				setError("还有 " + gaps.length + " 道题没答：第 " + gaps.join("、") + " 题");
 				return;
 			}
-			postAnswer({
+			const body = request.preview === true ? {
+				id: request.id,
+				kind: "question",
+				cancel: true
+			} : {
 				id: request.id,
 				kind: "question",
 				answers: answers()
+			};
+			setError("");
+			postAnswer(body).then((res) => {
+				if (!res.ok) setError(answerErrorText(res.message));
 			});
 		};
 		return h("div", {
 			className: "dsh-pet-bubble dsh-pet-request is-question" + (on ? " is-on is-clickable" : ""),
 			onClick: (e) => e.stopPropagation(),
-			children: [h("div", {
-				key: "scroll",
-				className: "dsh-pet-request__scroll",
-				children: questions.map((q, index) => h("div", {
-					key: "q" + q.id,
-					className: "dsh-pet-request__question",
-					children: [
-						h("div", {
-							key: "title",
-							className: "dsh-pet-request__title",
-							children: (q.header && q.header.trim() !== "" ? q.header + "：" : "") + (index + 1) + ". " + q.question
-						}),
-						q.detail && q.detail.trim() !== "" ? h("div", {
-							key: "detail",
-							className: "dsh-pet-request__detail",
-							children: q.detail
-						}) : null,
-						h("div", {
-							key: "opts",
-							className: "dsh-pet-request__options",
-							children: [...(q.options ?? []).map((opt) => h("button", {
-								key: "o" + opt.label,
-								type: "button",
-								className: "dsh-pet-request__opt" + ((picked[q.id] ?? []).includes(opt.label) ? " is-picked" : ""),
-								onClick: () => toggle(q.id, opt.label, q.multiSelect === true),
-								children: opt.label
-							})), h("input", {
-								key: "custom",
-								type: "text",
-								className: "dsh-pet-request__input",
-								placeholder: (q.options ?? []).length > 0 ? "其他（选填）" : "输入回答…",
-								value: custom[q.id] ?? "",
-								onChange: (e) => setCustom((prev) => ({
-									...prev,
-									[q.id]: e.target.value
-								}))
-							})]
-						})
-					]
-				}))
-			}), h("div", {
-				key: "send",
-				className: "dsh-pet-request__actions",
-				children: [h("button", {
-					key: "go",
-					type: "button",
-					className: "dsh-pet-request__btn is-primary",
-					disabled: !ready,
-					onClick: submit,
-					children: request.preview === true ? "知道了" : "发送"
-				})]
-			})]
+			children: [
+				h("div", {
+					key: "scroll",
+					className: "dsh-pet-request__scroll",
+					children: questions.map((q, index) => h("div", {
+						key: "q" + q.id,
+						className: "dsh-pet-request__question",
+						children: [
+							h("div", {
+								key: "title",
+								className: "dsh-pet-request__title",
+								children: (q.header && q.header.trim() !== "" ? q.header + "：" : "") + (index + 1) + ". " + q.question
+							}),
+							q.detail && q.detail.trim() !== "" ? h("div", {
+								key: "detail",
+								className: "dsh-pet-request__detail",
+								children: q.detail
+							}) : null,
+							h("div", {
+								key: "opts",
+								className: "dsh-pet-request__options",
+								children: [...(q.options ?? []).map((opt) => h("button", {
+									key: "o" + opt.label,
+									type: "button",
+									className: "dsh-pet-request__opt" + ((picked[q.id] ?? []).includes(opt.label) ? " is-picked" : ""),
+									onClick: () => toggle(q.id, opt.label, q.multiSelect === true),
+									children: opt.label
+								})), h("input", {
+									key: "custom",
+									type: "text",
+									className: "dsh-pet-request__input",
+									placeholder: (q.options ?? []).length > 0 ? "其他（选填）" : "输入回答…",
+									value: custom[q.id] ?? "",
+									onChange: (e) => {
+										setError("");
+										setCustom((prev) => ({
+											...prev,
+											[q.id]: e.target.value
+										}));
+									}
+								})]
+							})
+						]
+					}))
+				}),
+				error !== "" ? h("div", {
+					key: "err",
+					className: "dsh-pet-request__err",
+					children: error
+				}) : null,
+				h("div", {
+					key: "send",
+					className: "dsh-pet-request__actions",
+					children: [h("button", {
+						key: "go",
+						type: "button",
+						className: "dsh-pet-request__btn is-primary",
+						onClick: submit,
+						children: request.preview === true ? "知道了" : gapsLabel(questions, picked, custom)
+					})]
+				})
+			]
 		});
 	};
 }

@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.15.5
+  version: 0.15.6
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -4218,6 +4218,11 @@ components:
             本轮真的动过的位置（回复里带 `[位置:…]` 时才有）：四个角落会写回
             `pets[].position.corner`；`center` 是「游到 DSH 所在那块屏的正中间」，
             一次性动作、不改配置。
+        hide:
+          type: boolean
+          description: |
+            本轮真的改掉的「会不会自己躲起来」（主人说「以后别消失」或「你可以偶尔躲起来」时才有）：
+            已写进数据根的 `preferences.json` 的 `pets.<id>.hide`，`false` 表示以后被拍也不会消失。
       description: |
         生成成功。文本**仍然**照旧写进 `pets.<id>.say`——其它消费端（网页、桌面、第三方监听）
         继续从 `/state` 读；返回值只是让发起的这一方省一次往返，不改变任何现有展示链路。

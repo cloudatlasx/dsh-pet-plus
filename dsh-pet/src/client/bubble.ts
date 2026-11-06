@@ -203,6 +203,7 @@ const bubbleCss = [
     'font-size:calc(var(--f)*0.66);padding:calc(var(--f)*0.16) calc(var(--f)*0.3);' +
     'border-radius:calc(var(--f)*0.3);border:1px solid rgba(43,43,43,.18);background:#fff;color:#2b2b2b}',
   '.dsh-pet-request__input:focus{outline:none;border-color:#2e9e4f}',
+  '.dsh-pet-request__err{font-size:calc(var(--f)*0.62);line-height:1.45;color:#c0392b;overflow-wrap:break-word}',
   // ── 折叠台账 ────────────────────────────────────────────────────────────────
   // 面板比普通气泡宽一点（放得下「时间 · 标题 · 摘要」三件事），高度封顶后内部滚动。
   '.dsh-pet-bubble.dsh-pet-history{display:flex;flex-direction:column;gap:calc(var(--f)*0.4);' +

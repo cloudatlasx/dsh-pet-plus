@@ -299,6 +299,37 @@ Object.assign(PetSprite.prototype, {
     return el;
   },
 
+  /** 一题是否已经有答案：点了选项，或写了一句话。 */
+  isQuestionAnswered(q) {
+    const picks = this.requestPicks[q.id] || [];
+    const custom = (this.requestCustom[q.id] || '').trim();
+    return picks.length > 0 || custom !== '';
+  },
+
+  /** 还没答的题号（从 1 数），给「发送」按钮和红字用。 */
+  missingQuestionNumbers(req) {
+    const out = [];
+    (req.questions || []).forEach((q, index) => {
+      if (!this.isQuestionAnswered(q)) out.push(index + 1);
+    });
+    return out;
+  },
+
+  /** 「发送」按钮文案：带上进度，一眼看出还差几题。 */
+  sendLabelFor(req) {
+    const total = (req.questions || []).length;
+    if (total <= 1) return '发送';
+    const done = total - this.missingQuestionNumbers(req).length;
+    return done >= total ? '发送' : '发送（' + done + '/' + total + '）';
+  },
+
+  /** 只改按钮文案，不重画整颗气泡——重画会打断正在输入的那一题。 */
+  refreshSendState() {
+    if (!this.requestEnvelope) return;
+    const btn = this.bubble.querySelector('[data-req-action="send"]');
+    if (btn) btn.textContent = this.sendLabelFor(this.requestEnvelope);
+  },
+
   /** 小工具：造一个参与请求回答的按钮。 */
   bubbleButton(label, cls, action) {
     const btn = this.bubbleEl('button', 'pet-bub-btn' + (cls ? ' ' + cls : ''), label);
@@ -346,8 +377,16 @@ Object.assign(PetSprite.prototype, {
       );
       wrap.appendChild(actions);
     } else {
+      // 换了一条请求：草稿一律重来。同一条请求重画（选了个选项）时要保住已选的与已写的。
+      if (this.reqFormId !== req.id) {
+        this.reqFormId = req.id;
+        this.requestPicks = {};
+        this.requestCustom = {};
+        this.requestError = '';
+      }
       const questions = req.questions || [];
       const picksFor = (qid) => this.requestPicks[qid] || [];
+      const customFor = (qid) => this.requestCustom[qid] || '';
       for (const q of questions) {
         const box = this.bubbleEl('div', 'pet-bub-req__q');
         if (q.header) box.appendChild(this.bubbleEl('div', 'pet-bub-req__qhead', q.header));
@@ -362,13 +401,26 @@ Object.assign(PetSprite.prototype, {
           opts.appendChild(btn);
         }
         box.appendChild(opts);
+        // 每一题都给一个自由输入：选项只是省事的快捷方式，答案永远可以自己写。
+        const input = this.bubbleEl('input', 'pet-bub-req__input');
+        input.type = 'text';
+        input.dataset.reqCustom = q.id;
+        input.placeholder = (q.options || []).length > 0 ? '其他（选填）' : '输入回答…';
+        input.value = customFor(q.id);
+        input.addEventListener('input', () => {
+          this.requestCustom[q.id] = input.value;
+          this.requestError = '';
+          this.refreshSendState();
+        });
+        box.appendChild(input);
         body.appendChild(box);
       }
       wrap.appendChild(body);
-      const ready = questions.length > 0 && questions.every((q) => picksFor(q.id).length > 0);
+      if (this.requestError) wrap.appendChild(this.bubbleEl('div', 'pet-bub-req__err', this.requestError));
       const actions = this.bubbleEl('div', 'pet-bub-req__actions');
-      const send = this.bubbleButton('发送', 'is-primary', 'send');
-      if (!ready) send.disabled = true;
+      // 「发送」一直可点：点下去若还缺答案，气泡里直接说清缺哪几题——
+      // 早先是 disabled，用户点了毫无反应，看起来像坏了。
+      const send = this.bubbleButton(this.sendLabelFor(req), 'is-primary', 'send');
       actions.append(send, this.bubbleButton('去 DSH', 'is-ghost', 'delegate'));
       wrap.appendChild(actions);
     }
@@ -561,11 +613,17 @@ Object.assign(PetSprite.prototype, {
       return;
     }
     if (action === 'send') {
+      const missing = this.missingQuestionNumbers(req);
+      if (missing.length > 0) {
+        this.requestError = '还有 ' + missing.length + ' 道题没答：第 ' + missing.join('、') + ' 题';
+        this.renderBubble();
+        return;
+      }
       const answers = [];
       for (const q of req.questions || []) {
         const picks = this.requestPicks[q.id] || [];
-        if (picks.length === 0) return;
-        answers.push({ id: q.id, selected: picks });
+        const custom = (this.requestCustom[q.id] || '').trim();
+        answers.push({ id: q.id, selected: picks, ...(custom === '' ? {} : { custom }) });
       }
       if (answers.length === 0) return;
       this.submitRequestAnswer({ id: req.id, kind: 'question', answers });
@@ -585,14 +643,27 @@ Object.assign(PetSprite.prototype, {
         if (json && json.ok) {
           this.requestEnvelope = null;
           this.requestPicks = {};
+          this.requestCustom = {};
+          this.requestError = '';
           this.requestPending = false;
           this.renderBubble();
           return;
         }
+        // 宿主拒绝的原因要看得见：过期、漏答、标签不认识都要说清，沉默最像坏了。
+        const message = json && typeof json.message === 'string' ? json.message : '';
+        this.requestError =
+          message === 'request expired or unknown'
+            ? '这条请求已经过期或已在 DSH 里处理过了。'
+            : message === ''
+              ? '没提交成功，再试一次。'
+              : '没提交成功：' + message;
         this.requestPending = false;
+        this.renderBubble();
       })
       .catch(() => {
+        this.requestError = '连不上宿主，稍后再试。';
         this.requestPending = false;
+        this.renderBubble();
       });
   },
 });

@@ -52,6 +52,8 @@ export interface PatStoreInput {
     readonly onSay: (petId: string, text: string, duration: number) => void;
     /** 这只宠物此刻是不是在干活（有回合在跑）。缺省 = 永远不在忙。 */
     readonly busyOf?: (petId: string) => boolean;
+    /** 这只宠物现在还允不允许躲起来消失（主人在对话里说过「以后别消失」）。缺省 = 允许。 */
+    readonly hideEnabledOf?: (petId: string) => boolean;
     /** 时钟，测试注入；缺省 `Date.now`。 */
     readonly now?: () => number;
     /** 随机源，测试注入；缺省 `Math.random`。 */

@@ -40,6 +40,8 @@ export type ChatGenerateResult =
       corner?: PetCorner;
       /** 对话里要求到屏幕中间（`[位置:中间]`）：一次性位置指令，不写配置 */
       center?: true;
+      /** 对话里要求「以后别消失」（`[别消失]` / `[可以消失]`）：长期偏好，写 preferences.json */
+      hide?: boolean;
     }
   | { ok: false; reason: 'provider-missing' | 'generate-error'; message?: string };
 
@@ -286,5 +288,6 @@ async function generateWith(ctx: { llm?: unknown }, once: GenerateOnce): Promise
     ...(acts.size !== undefined ? { size: acts.size } : {}),
     ...(acts.corner !== undefined ? { corner: acts.corner } : {}),
     ...(acts.center !== undefined ? { center: acts.center } : {}),
+    ...(acts.hide !== undefined ? { hide: acts.hide } : {}),
   };
 }
