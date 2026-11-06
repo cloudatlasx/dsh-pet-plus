@@ -184,18 +184,17 @@ function parseClock(text: string): { hour: number; minute: number; rest: string 
 }
 
 /**
- * 解析一句话里的时间。
+ * 把开头的时间短语解析出来，并告诉调用方它吃掉了几个字。
  *
- * @param input - 用户输入，如「5分钟后」「明天9点」「周五下午3点」。
- * @param now - 参照时刻；缺省为当前时间（测试里固定它）。
- * @returns 时间戳；看不懂时返回 null。
+ * @param text - 已归一化的文本（去空白、全角转半角）。
+ * @param now - 参照时刻。
+ * @returns 时刻与消耗的字符数；解析不出来返回 null。
  */
-export function parseNaturalTime(input: string, now: Date = new Date()): number | null {
-  const text = normalize(input);
+function matchTime(text: string, now: Date): { ms: number; consumed: number } | null {
   if (!text) return null;
 
   const relative = matchRelative(text, now);
-  if (relative !== null) return relative;
+  if (relative !== null) return { ms: relative, consumed: text.length };
 
   let rest = text;
   let day: Date | null = null;
@@ -263,33 +262,118 @@ export function parseNaturalTime(input: string, now: Date = new Date()): number 
   }
 
   // 时刻
-  let hour: number | null = null;
-  let minute = 0;
   const clock = parseClock(rest);
   if (clock) {
-    hour = clock.hour;
-    minute = clock.minute;
+    let { hour } = clock;
+    const { minute } = clock;
+    // 下午/晚上/傍晚 的 1~11 点顺延 12 小时；中午 12 点就是 12 点
+    if (shift === 12 && hour < 12) hour += 12;
+    if (hour === 24) hour = 0;
+    if (hour > 23) return null;
+    const base = day ?? startOfDay(now);
+    let ms = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0).getTime();
+    // 只给时刻、且今天这一刻已经过了 → 顺延到明天同一时刻（「9点」在下午说，指明天九点）
+    if (day === null && ms <= now.getTime()) {
+      ms = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, hour, minute, 0, 0).getTime();
+    }
+    return { ms, consumed: text.length - clock.rest.length };
   }
 
-  // 只说了日子、没说时刻：默认早上九点（与日历选择器一致）
-  if (hour === null) {
-    if (day === null) return null;
-    hour = DEFAULT_DUE_HOUR;
-    minute = 0;
+  // 只说了日子、没说时刻：默认早上九点（与日历选择器的默认值一致）
+  if (day === null) return null;
+  const ms = new Date(day.getFullYear(), day.getMonth(), day.getDate(), DEFAULT_DUE_HOUR, 0, 0, 0).getTime();
+  return { ms, consumed: text.length - rest.length };
+}
+
+/**
+ * 解析一句话里的时间。
+ *
+ * @param input - 用户输入，如「5分钟后」「明天9点」「周五下午3点」。
+ * @param now - 参照时刻；缺省为当前时间（测试里固定它）。
+ * @returns 时间戳；看不懂时返回 null。
+ */
+export function parseNaturalTime(input: string, now: Date = new Date()): number | null {
+  const matched = matchTime(normalize(input), now);
+  return matched === null ? null : matched.ms;
+}
+
+/** 一句话里解析出来的时间与正文：待办面板只要一个输入框就靠它。 */
+export interface SentenceTime {
+  /** 到期时刻（毫秒时间戳）。 */
+  dueAt: number;
+  /** 去掉时间短语、清掉前后语气词之后剩下的正文；可能为空串。 */
+  text: string;
+}
+
+/** 一句话里找时间短语时最多扫多少字：`下下周一上午十点半` 也就十来字。 */
+const PHRASE_SCAN_MAX = 16;
+
+/** 粗筛：先看有没有像时间的字，再逐个跑完整语法，省得每个子串都解析一遍。 */
+const TIME_HINT =
+  /[0-9零一二两三四五六七八九十百半今明后大点时秒分天日周月年下这本上]|星期|礼拜|上午|下午|晚上|早上|中午|傍晚|凌晨|夜/u;
+
+/** 句首常见的口头语，剥掉它们剩下才是「要做什么」。 */
+const LEADING_FILLERS = /^(?:记得|提醒我一下|提醒我|提醒一下|提醒下|到时候|到点|帮我记一下|帮我|麻烦你|麻烦|请)/u;
+
+/** 句尾常见的口头语。 */
+const TRAILING_FILLERS = /(?:的时候|时|别忘了|记得|提醒我)$/u;
+
+/** 把归一化后的字符数换算回原始字符串里的下标终点。 */
+function sourceEnd(source: string, normalizedCount: number): number {
+  let count = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    if (/\s/.test(source[index])) continue;
+    count += 1;
+    if (count >= normalizedCount) return index + 1;
   }
+  return source.length;
+}
 
-  // 下午/晚上/傍晚 的 1~11 点顺延 12 小时；中午 12 点就是 12 点
-  if (shift === 12 && hour < 12) hour += 12;
-  if (hour === 24) hour = 0;
-  if (hour > 23) return null;
-
-  const base = day ?? startOfDay(now);
-  let ms = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0).getTime();
-
-  // 只给时刻、且今天这一刻已经过了 → 顺延到明天同一时刻（「9点」在下午说，指明天九点）
-  if (day === null && ms <= now.getTime()) {
-    const next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, hour, minute, 0, 0);
-    ms = next.getTime();
+/** 剥掉句首句尾的口头语与标点。 */
+function trimFillers(raw: string): string {
+  let text = raw.replace(/^[\s，,。.、；;：:！!？?]+/u, '').replace(/[\s，,。.、；;：:！!？?]+$/u, '');
+  for (let round = 0; round < 3; round += 1) {
+    const next = text.replace(LEADING_FILLERS, '').replace(TRAILING_FILLERS, '').trim();
+    if (next === text) break;
+    text = next;
   }
-  return ms;
+  return text;
+}
+
+/**
+ * 从一句完整的话里挑出时间短语：`五分钟后提醒我拿快递` → 5 分钟后 + `拿快递`。
+ *
+ * 先整句试一次（输入本身就是时间短语），再按「最早出现、且整段都能被解析成时间」的规则扫子串，
+ * 这样 `明天早上九点开会` 只会吃掉 `明天早上九点`，不会把 `开会` 也当成时间。
+ * 找不到时间就返回 null，由调用方决定怎么提示——这里不猜。
+ *
+ * @param input - 用户输入的一句话。
+ * @param now - 参照时刻；缺省为当前时间（测试里固定它）。
+ * @returns 到期时刻与剩下的正文；没听出时间时返回 null。
+ */
+export function parseNaturalTimeInSentence(input: string, now: Date = new Date()): SentenceTime | null {
+  const text = input.trim();
+  if (!text) return null;
+  const whole = normalize(text);
+  const wholeMatch = matchTime(whole, now);
+  if (wholeMatch !== null && wholeMatch.consumed === whole.length) return { dueAt: wholeMatch.ms, text: '' };
+
+  let best: { dueAt: number; start: number; end: number } | null = null;
+  for (let start = 0; start < text.length; start += 1) {
+    if (!TIME_HINT.test(text[start])) continue;
+    const maxSpan = Math.min(PHRASE_SCAN_MAX, text.length - start);
+    for (let span = maxSpan; span >= 2; span -= 1) {
+      const chunk = text.slice(start, start + span);
+      const normalized = normalize(chunk);
+      if (!normalized) continue;
+      const matched = matchTime(normalized, now);
+      // 只认「整段都是时间」的子串：半截匹配会把后面的正文一起当成时间吃掉。
+      if (matched === null || matched.consumed !== normalized.length) continue;
+      const end = start + sourceEnd(chunk, matched.consumed);
+      if (best === null || end - start > best.end - best.start) best = { dueAt: matched.ms, start, end };
+      break;
+    }
+  }
+  if (best === null) return null;
+  return { dueAt: best.dueAt, text: trimFillers(text.slice(0, best.start) + ' ' + text.slice(best.end)) };
 }

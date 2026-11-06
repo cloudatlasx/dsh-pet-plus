@@ -2676,107 +2676,6 @@ async function removeTodo(id, baseUrl = TODOS_PATH) {
 }
 
 //#endregion
-//#region src/shared/todo/format.ts
-const MINUTE_MS = 60 * 1e3;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS$1 = 24 * HOUR_MS;
-/** 星期名，索引与 Date.getDay() 对齐。 */
-const WEEKDAYS = [
-	"周日",
-	"周一",
-	"周二",
-	"周三",
-	"周四",
-	"周五",
-	"周六"
-];
-/** 两位补零。 */
-function pad2$1(value) {
-	return String(value).padStart(2, "0");
-}
-/** 当天零点的时间戳：跨日比较用它，避开夏令时造成的 23/25 小时日。 */
-function startOfDay$2(date) {
-	return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-}
-/** 两个时刻相差几个自然日（按本地日历，向前为负）。 */
-function dayDiff(target, base) {
-	return Math.round((startOfDay$2(target) - startOfDay$2(base)) / DAY_MS$1);
-}
-function spanText(ms) {
-	const minutes = Math.max(1, Math.round(Math.abs(ms) / MINUTE_MS));
-	if (minutes < 60) return `${minutes}分钟`;
-	const hours = Math.max(1, Math.round(minutes / 60));
-	if (hours < 24) return `${hours}小时`;
-	return `${Math.max(1, Math.round(hours / 24))}天`;
-}
-function dueLabel(dueAt, now) {
-	if (dueAt === null) return "无期限";
-	const due = new Date(dueAt);
-	const clock = `${pad2$1(due.getHours())}:${pad2$1(due.getMinutes())}`;
-	const days = dayDiff(due, new Date(now));
-	if (days === 0) return `今天 ${clock}`;
-	if (days === 1) return `明天 ${clock}`;
-	if (days === 2) return `后天 ${clock}`;
-	if (days > 2 && days < 7) return `${WEEKDAYS[due.getDay()]} ${clock}`;
-	return `${due.getMonth() + 1}月${due.getDate()}日 ${clock}`;
-}
-function remainingLabel(dueAt, now) {
-	if (dueAt === null) return "";
-	if (dueAt <= now) return `已逾期${spanText(now - dueAt)}`;
-	return `还剩${spanText(dueAt - now)}`;
-}
-function todoUrgency(dueAt, now) {
-	if (dueAt === null) return "undated";
-	const remaining = dueAt - now;
-	if (remaining <= 0) return "overdue";
-	if (remaining <= 6 * HOUR_MS) return "soon";
-	if (remaining <= DAY_MS$1) return "today";
-	return "later";
-}
-function metaLabel(todo, now) {
-	if (todo.done) return todo.dueAt === null ? "已完成" : `已完成 · ${dueLabel(todo.dueAt, now)}`;
-	if (todo.dueAt === null) return "无期限";
-	const relative = remainingLabel(todo.dueAt, now);
-	if (todo.dueAt <= now) return relative;
-	return `${dueLabel(todo.dueAt, now)} · ${relative}`;
-}
-function formatDateTimeLocal(ms) {
-	const date = new Date(ms);
-	return `${date.getFullYear()}-${pad2$1(date.getMonth() + 1)}-${pad2$1(date.getDate())}T${pad2$1(date.getHours())}:${pad2$1(date.getMinutes())}`;
-}
-function parseDateTimeLocal(value) {
-	const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value.trim());
-	if (!match) return null;
-	const year = Number(match[1]);
-	const month = Number(match[2]);
-	const day = Number(match[3]);
-	const hour = Number(match[4]);
-	const minute = Number(match[5]);
-	if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) return null;
-	const date = new Date(year, month - 1, day, hour, minute, 0, 0);
-	if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
-	return date.getTime();
-}
-
-//#endregion
-//#region src/shared/todo/calendar.ts
-function monthCells(year, month) {
-	const first = new Date(year, month, 1);
-	const lead = (first.getDay() + 6) % 7;
-	const days = new Date(year, month + 1, 0).getDate();
-	const rows = Math.ceil((lead + days) / 7);
-	const cells = [];
-	for (let i = 0; i < rows * 7; i++) {
-		const date = new Date(year, month, 1 - lead + i);
-		cells.push({
-			date,
-			out: date.getMonth() !== month
-		});
-	}
-	return cells;
-}
-
-//#endregion
 //#region src/shared/todo/natural-time.ts
 /**
 * 把一句话说的时间解析成时间戳：待办的「提醒时间」用它，不用先点日历再挑数字。
@@ -2884,7 +2783,7 @@ function chineseNumber(raw) {
 	return null;
 }
 /** 当天零点。 */
-function startOfDay$1(base) {
+function startOfDay$2(base) {
 	return new Date(base.getFullYear(), base.getMonth(), base.getDate());
 }
 /** 加天数（跨月由 Date 自己处理）。 */
@@ -2895,7 +2794,7 @@ function addDays(base, days) {
 function mondayOf(base) {
 	const day = base.getDay();
 	const offset = day === 0 ? -6 : 1 - day;
-	return addDays(startOfDay$1(base), offset);
+	return addDays(startOfDay$2(base), offset);
 }
 /** 全角转半角 + 去掉空白，让后续正则只面对一种写法。 */
 function normalize(input) {
@@ -2954,23 +2853,32 @@ function parseClock(text) {
 		rest
 	};
 }
-function parseNaturalTime(input, now = new Date()) {
-	const text = normalize(input);
+/**
+* 把开头的时间短语解析出来，并告诉调用方它吃掉了几个字。
+*
+* @param text - 已归一化的文本（去空白、全角转半角）。
+* @param now - 参照时刻。
+* @returns 时刻与消耗的字符数；解析不出来返回 null。
+*/
+function matchTime(text, now) {
 	if (!text) return null;
 	const relative = matchRelative(text, now);
-	if (relative !== null) return relative;
+	if (relative !== null) return {
+		ms: relative,
+		consumed: text.length
+	};
 	let rest = text;
 	let day = null;
 	let shift = 0;
 	for (const [word, offset] of EVENING_WORDS) if (rest.startsWith(word)) {
-		day = addDays(startOfDay$1(now), offset);
+		day = addDays(startOfDay$2(now), offset);
 		shift = 12;
 		rest = rest.slice(word.length);
 		break;
 	}
 	if (day === null) {
 		for (const [word, offset] of DAY_WORDS) if (rest.startsWith(word)) {
-			day = addDays(startOfDay$1(now), offset);
+			day = addDays(startOfDay$2(now), offset);
 			rest = rest.slice(word.length);
 			break;
 		}
@@ -2996,7 +2904,7 @@ function parseNaturalTime(input, now = new Date()) {
 			const date = Number(md[2]);
 			if (month >= 0 && month <= 11 && date >= 1 && date <= 31) {
 				const thisYear = new Date(now.getFullYear(), month, date);
-				day = thisYear.getTime() < startOfDay$1(now).getTime() ? new Date(now.getFullYear() + 1, month, date) : thisYear;
+				day = thisYear.getTime() < startOfDay$2(now).getTime() ? new Date(now.getFullYear() + 1, month, date) : thisYear;
 				rest = rest.slice(md[0].length);
 			}
 		}
@@ -3006,314 +2914,155 @@ function parseNaturalTime(input, now = new Date()) {
 		rest = rest.slice(word.length);
 		break;
 	}
-	let hour = null;
-	let minute = 0;
 	const clock = parseClock(rest);
 	if (clock) {
-		hour = clock.hour;
-		minute = clock.minute;
+		let { hour } = clock;
+		const { minute } = clock;
+		if (shift === 12 && hour < 12) hour += 12;
+		if (hour === 24) hour = 0;
+		if (hour > 23) return null;
+		const base = day ?? startOfDay$2(now);
+		let ms$1 = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0).getTime();
+		if (day === null && ms$1 <= now.getTime()) ms$1 = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, hour, minute, 0, 0).getTime();
+		return {
+			ms: ms$1,
+			consumed: text.length - clock.rest.length
+		};
 	}
-	if (hour === null) {
-		if (day === null) return null;
-		hour = DEFAULT_DUE_HOUR;
-		minute = 0;
+	if (day === null) return null;
+	const ms = new Date(day.getFullYear(), day.getMonth(), day.getDate(), DEFAULT_DUE_HOUR, 0, 0, 0).getTime();
+	return {
+		ms,
+		consumed: text.length - rest.length
+	};
+}
+/** 一句话里找时间短语时最多扫多少字：`下下周一上午十点半` 也就十来字。 */
+const PHRASE_SCAN_MAX = 16;
+/** 粗筛：先看有没有像时间的字，再逐个跑完整语法，省得每个子串都解析一遍。 */
+const TIME_HINT = /[0-9零一二两三四五六七八九十百半今明后大点时秒分天日周月年下这本上]|星期|礼拜|上午|下午|晚上|早上|中午|傍晚|凌晨|夜/u;
+/** 句首常见的口头语，剥掉它们剩下才是「要做什么」。 */
+const LEADING_FILLERS = /^(?:记得|提醒我一下|提醒我|提醒一下|提醒下|到时候|到点|帮我记一下|帮我|麻烦你|麻烦|请)/u;
+/** 句尾常见的口头语。 */
+const TRAILING_FILLERS = /(?:的时候|时|别忘了|记得|提醒我)$/u;
+/** 把归一化后的字符数换算回原始字符串里的下标终点。 */
+function sourceEnd(source, normalizedCount) {
+	let count = 0;
+	for (let index = 0; index < source.length; index += 1) {
+		if (/\s/.test(source[index])) continue;
+		count += 1;
+		if (count >= normalizedCount) return index + 1;
 	}
-	if (shift === 12 && hour < 12) hour += 12;
-	if (hour === 24) hour = 0;
-	if (hour > 23) return null;
-	const base = day ?? startOfDay$1(now);
-	let ms = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0).getTime();
-	if (day === null && ms <= now.getTime()) {
-		const next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, hour, minute, 0, 0);
-		ms = next.getTime();
+	return source.length;
+}
+/** 剥掉句首句尾的口头语与标点。 */
+function trimFillers(raw) {
+	let text = raw.replace(/^[\s，,。.、；;：:！!？?]+/u, "").replace(/[\s，,。.、；;：:！!？?]+$/u, "");
+	for (let round = 0; round < 3; round += 1) {
+		const next = text.replace(LEADING_FILLERS, "").replace(TRAILING_FILLERS, "").trim();
+		if (next === text) break;
+		text = next;
 	}
-	return ms;
+	return text;
+}
+function parseNaturalTimeInSentence(input, now = new Date()) {
+	const text = input.trim();
+	if (!text) return null;
+	const whole = normalize(text);
+	const wholeMatch = matchTime(whole, now);
+	if (wholeMatch !== null && wholeMatch.consumed === whole.length) return {
+		dueAt: wholeMatch.ms,
+		text: ""
+	};
+	let best = null;
+	for (let start = 0; start < text.length; start += 1) {
+		if (!TIME_HINT.test(text[start])) continue;
+		const maxSpan = Math.min(PHRASE_SCAN_MAX, text.length - start);
+		for (let span = maxSpan; span >= 2; span -= 1) {
+			const chunk = text.slice(start, start + span);
+			const normalized = normalize(chunk);
+			if (!normalized) continue;
+			const matched = matchTime(normalized, now);
+			if (matched === null || matched.consumed !== normalized.length) continue;
+			const end = start + sourceEnd(chunk, matched.consumed);
+			if (best === null || end - start > best.end - best.start) best = {
+				dueAt: matched.ms,
+				start,
+				end
+			};
+			break;
+		}
+	}
+	if (best === null) return null;
+	return {
+		dueAt: best.dueAt,
+		text: trimFillers(text.slice(0, best.start) + " " + text.slice(best.end))
+	};
 }
 
 //#endregion
-//#region src/shared/todo/due-picker.ts
-/** 周一为一周首日，与国内日历习惯一致。 */
-const WEEK_HEAD = [
-	"一",
-	"二",
-	"三",
-	"四",
-	"五",
-	"六",
-	"日"
+//#region src/shared/todo/format.ts
+const MINUTE_MS = 60 * 1e3;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS$1 = 24 * HOUR_MS;
+/** 星期名，索引与 Date.getDay() 对齐。 */
+const WEEKDAYS = [
+	"周日",
+	"周一",
+	"周二",
+	"周三",
+	"周四",
+	"周五",
+	"周六"
 ];
-/** 分钟档位：与提醒的最短间隔一致，避免选出提醒策略分辨不出的时刻。 */
-const MINUTE_STEP = 5;
-/** 未选日期时的默认时分：早上九点，比零点更像个「该做事了」的时刻。 */
-const DEFAULT_HOUR = 9;
 /** 两位补零。 */
 function pad2(value) {
 	return String(value).padStart(2, "0");
 }
-/** 造一个带 class 的元素。 */
-function make(tag, className) {
-	const node = document.createElement(tag);
-	node.className = className;
-	return node;
+/** 当天零点的时间戳：跨日比较用它，避开夏令时造成的 23/25 小时日。 */
+function startOfDay$1(date) {
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
-/** 造一个按钮：全部是 `type="button"`，否则在表单里会触发提交。 */
-function makeButton(className, text) {
-	const button = make("button", className);
-	button.type = "button";
-	if (text !== void 0) button.textContent = text;
-	return button;
+/** 两个时刻相差几个自然日（按本地日历，向前为负）。 */
+function dayDiff(target, base) {
+	return Math.round((startOfDay$1(target) - startOfDay$1(base)) / DAY_MS$1);
 }
-/** 建整个选择器的 DOM（尚未挂进文档）。 */
-function buildPickerDom() {
-	const el = makeButton("dsh-pet-todo-due", "无期限");
-	el.setAttribute("aria-haspopup", "dialog");
-	el.setAttribute("aria-expanded", "false");
-	el.setAttribute("aria-label", "提醒时间（可选）");
-	const calendar = make("div", "dsh-pet-todo-cal");
-	calendar.setAttribute("role", "dialog");
-	calendar.setAttribute("aria-label", "选择提醒时间");
-	const nlRow = make("div", "dsh-pet-todo-cal-nl-row");
-	const nl = document.createElement("input");
-	nl.type = "text";
-	nl.className = "dsh-pet-todo-cal-nl";
-	nl.placeholder = "如：5分钟后、明天9点";
-	nl.setAttribute("aria-label", "用一句话说时间");
-	nl.autocomplete = "off";
-	const nlHint = make("span", "dsh-pet-todo-cal-nl-hint");
-	nlRow.append(nl, nlHint);
-	const head = make("div", "dsh-pet-todo-cal-head");
-	const prev = makeButton("dsh-pet-todo-cal-nav", "‹");
-	prev.dataset.act = "prev";
-	prev.setAttribute("aria-label", "上个月");
-	const title = make("span", "dsh-pet-todo-cal-title");
-	const next = makeButton("dsh-pet-todo-cal-nav", "›");
-	next.dataset.act = "next";
-	next.setAttribute("aria-label", "下个月");
-	head.append(prev, title, next);
-	const week = make("div", "dsh-pet-todo-cal-week");
-	for (const name of WEEK_HEAD) {
-		const cell = make("span", "");
-		cell.textContent = name;
-		week.appendChild(cell);
-	}
-	const grid = make("div", "dsh-pet-todo-cal-grid");
-	const foot = make("div", "dsh-pet-todo-cal-foot");
-	const today = makeButton("dsh-pet-todo-cal-act", "今天");
-	today.dataset.act = "today";
-	const clear = makeButton("dsh-pet-todo-cal-act", "清除");
-	clear.dataset.act = "clear";
-	const grow = make("span", "dsh-pet-todo-cal-grow");
-	const hourChip = makeButton("dsh-pet-todo-cal-chip", "09");
-	hourChip.dataset.act = "hour";
-	hourChip.setAttribute("aria-label", "选择小时");
-	const colon = make("span", "dsh-pet-todo-cal-colon");
-	colon.textContent = ":";
-	const minuteChip = makeButton("dsh-pet-todo-cal-chip", "00");
-	minuteChip.dataset.act = "minute";
-	minuteChip.setAttribute("aria-label", "选择分钟");
-	const done = makeButton("dsh-pet-todo-cal-act", "完成");
-	done.dataset.act = "done";
-	foot.append(today, clear, grow, hourChip, colon, minuteChip, done);
-	calendar.append(nlRow, head, week, grid, foot);
-	return {
-		el,
-		calendar,
-		prev,
-		next,
-		title,
-		grid,
-		hourChip,
-		minuteChip,
-		nl,
-		nlHint
-	};
+function spanText(ms) {
+	const minutes = Math.max(1, Math.round(Math.abs(ms) / MINUTE_MS));
+	if (minutes < 60) return `${minutes}分钟`;
+	const hours = Math.max(1, Math.round(minutes / 60));
+	if (hours < 24) return `${hours}小时`;
+	return `${Math.max(1, Math.round(hours / 24))}天`;
 }
-/** 同一个自然日（忽略时分）。 */
-function sameDay(a, b) {
-	return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+function dueLabel(dueAt, now) {
+	if (dueAt === null) return "无期限";
+	const due = new Date(dueAt);
+	const clock = `${pad2(due.getHours())}:${pad2(due.getMinutes())}`;
+	const days = dayDiff(due, new Date(now));
+	if (days === 0) return `今天 ${clock}`;
+	if (days === 1) return `明天 ${clock}`;
+	if (days === 2) return `后天 ${clock}`;
+	if (days > 2 && days < 7) return `${WEEKDAYS[due.getDay()]} ${clock}`;
+	return `${due.getMonth() + 1}月${due.getDate()}日 ${clock}`;
 }
-/** 选中日期 + 当前时分组成的时刻；未选日期为 null。 */
-function dueMs(state) {
-	if (state.picked === null) return null;
-	const { picked } = state;
-	return new Date(picked.getFullYear(), picked.getMonth(), picked.getDate(), state.hour, state.minute).getTime();
+function remainingLabel(dueAt, now) {
+	if (dueAt === null) return "";
+	if (dueAt <= now) return `已逾期${spanText(now - dueAt)}`;
+	return `还剩${spanText(dueAt - now)}`;
 }
-/** 造一个日历格：选中态同时写进 class 与 aria。 */
-function cellButton(text, selected) {
-	const button = makeButton("dsh-pet-todo-cal-cell", text);
-	button.classList.toggle("is-sel", selected);
-	button.setAttribute("aria-pressed", String(selected));
-	return button;
+function todoUrgency(dueAt, now) {
+	if (dueAt === null) return "undated";
+	const remaining = dueAt - now;
+	if (remaining <= 0) return "overdue";
+	if (remaining <= 6 * HOUR_MS) return "soon";
+	if (remaining <= DAY_MS$1) return "today";
+	return "later";
 }
-/** 画日期网格。 */
-function renderDays(dom, state) {
-	const today = new Date();
-	for (const cell of monthCells(state.view.getFullYear(), state.view.getMonth())) {
-		const { date } = cell;
-		const button = cellButton(String(date.getDate()), state.picked !== null && sameDay(state.picked, date));
-		button.classList.toggle("is-out", cell.out);
-		button.classList.toggle("is-today", sameDay(today, date));
-		button.dataset.ts = String(date.getTime());
-		button.setAttribute("aria-label", `${date.getMonth() + 1}月${date.getDate()}日`);
-		dom.grid.appendChild(button);
-	}
-}
-/** 画小时或分钟的网格：一格一个数，当前值高亮。 */
-function renderNumbers(dom, state) {
-	const isHour = state.mode === "hour";
-	const count = isHour ? 24 : 60;
-	const step = isHour ? 1 : MINUTE_STEP;
-	for (let value = 0; value < count; value += step) {
-		const button = cellButton(pad2(value), (isHour ? state.hour : state.minute) === value);
-		button.dataset.num = String(value);
-		button.setAttribute("aria-label", `${value} ${isHour ? "时" : "分"}`);
-		dom.grid.appendChild(button);
-	}
-}
-/** 同步按钮文案、时分标签与当前网格的标题。 */
-function syncPicker(dom, state) {
-	const ms = dueMs(state);
-	dom.el.textContent = ms === null ? "无期限" : dueLabel(ms, Date.now());
-	dom.el.classList.toggle("is-set", ms !== null);
-	dom.hourChip.textContent = pad2(state.hour);
-	dom.minuteChip.textContent = pad2(state.minute);
-	dom.hourChip.classList.toggle("is-on", state.mode === "hour");
-	dom.minuteChip.classList.toggle("is-on", state.mode === "minute");
-}
-/** 整块重画：标题、翻月按钮、网格与文案一次到位。 */
-function renderPicker(dom, state) {
-	const day = state.mode === "day";
-	dom.title.textContent = day ? `${state.view.getFullYear()}年${state.view.getMonth() + 1}月` : state.mode === "hour" ? "选择小时" : "选择分钟";
-	dom.prev.hidden = !day;
-	dom.next.hidden = !day;
-	dom.grid.className = "dsh-pet-todo-cal-grid is-" + state.mode;
-	dom.grid.textContent = "";
-	if (day) renderDays(dom, state);
-	else renderNumbers(dom, state);
-	syncPicker(dom, state);
-}
-/** 选中某一天：同步展示月份，并回到日期网格。 */
-function pickDay(dom, state, date) {
-	state.picked = date;
-	state.view = new Date(date.getFullYear(), date.getMonth(), 1);
-	state.mode = "day";
-	renderPicker(dom, state);
-}
-/** 点日历里的按钮：翻月、切网格、今天、清除、完成，或选中某一天 / 某个数。 */
-function onCalendarClick(dom, state, button, close) {
-	const { ts, num, act } = button.dataset;
-	if (ts !== void 0) {
-		pickDay(dom, state, new Date(Number(ts)));
-		return;
-	}
-	if (num !== void 0) {
-		if (state.mode === "hour") state.hour = Number(num);
-		else state.minute = Number(num);
-		state.mode = "day";
-		renderPicker(dom, state);
-		return;
-	}
-	if (act === "prev" || act === "next") {
-		state.view = new Date(state.view.getFullYear(), state.view.getMonth() + (act === "prev" ? -1 : 1), 1);
-		renderPicker(dom, state);
-		return;
-	}
-	if (act === "hour" || act === "minute") {
-		state.mode = state.mode === act ? "day" : act;
-		renderPicker(dom, state);
-		return;
-	}
-	if (act === "today") {
-		const now = new Date();
-		pickDay(dom, state, new Date(now.getFullYear(), now.getMonth(), now.getDate()));
-		return;
-	}
-	if (act === "clear") state.picked = null;
-	renderPicker(dom, state);
-	if (act === "clear" || act === "done") close();
-}
-function createDuePicker(options = {}) {
-	const now = new Date();
-	const state = {
-		picked: null,
-		hour: DEFAULT_HOUR,
-		minute: 0,
-		view: new Date(now.getFullYear(), now.getMonth(), 1),
-		mode: "day",
-		open: false
-	};
-	const dom = buildPickerDom();
-	const setOpen = (open) => {
-		if (state.open === open) return;
-		state.open = open;
-		dom.el.setAttribute("aria-expanded", String(open));
-		options.onOpenChange?.(open);
-	};
-	dom.el.addEventListener("click", () => {
-		if (!state.open) {
-			const anchor = state.picked ?? new Date();
-			state.view = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-			state.mode = "day";
-			renderPicker(dom, state);
-		}
-		setOpen(!state.open);
-	});
-	dom.calendar.addEventListener("click", (event) => {
-		const button = event.target.closest("button");
-		if (button !== null) onCalendarClick(dom, state, button, () => setOpen(false));
-	});
-	dom.nl.addEventListener("keydown", (event) => {
-		if (event.key !== "Enter") return;
-		event.preventDefault();
-		event.stopPropagation();
-		const raw = dom.nl.value.trim();
-		if (!raw) return;
-		const ms = parseNaturalTime(raw);
-		if (ms === null) {
-			dom.nlHint.textContent = "没看懂这个时间";
-			dom.nlHint.dataset.err = "1";
-			return;
-		}
-		const at = new Date(ms);
-		state.picked = new Date(at.getFullYear(), at.getMonth(), at.getDate());
-		state.hour = at.getHours();
-		state.minute = at.getMinutes();
-		state.view = new Date(at.getFullYear(), at.getMonth(), 1);
-		state.mode = "day";
-		renderPicker(dom, state);
-		dom.nlHint.dataset.err = "0";
-		dom.nlHint.textContent = `${at.getMonth() + 1}月${at.getDate()}日 ${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
-		dom.nl.value = "";
-	});
-	const onDocMouseDown = (event) => {
-		if (!state.open) return;
-		const target = event.target;
-		if (target !== null && (dom.el.contains(target) || dom.calendar.contains(target))) return;
-		setOpen(false);
-	};
-	document.addEventListener("mousedown", onDocMouseDown, true);
-	renderPicker(dom, state);
-	return {
-		el: dom.el,
-		calendar: dom.calendar,
-		value: () => {
-			const ms = dueMs(state);
-			return ms === null ? "" : formatDateTimeLocal(ms);
-		},
-		close: () => setOpen(false),
-		reset: () => {
-			state.picked = null;
-			state.hour = DEFAULT_HOUR;
-			state.minute = 0;
-			state.mode = "day";
-			dom.nl.value = "";
-			dom.nlHint.textContent = "";
-			dom.nlHint.dataset.err = "0";
-			renderPicker(dom, state);
-			setOpen(false);
-		},
-		dispose: () => document.removeEventListener("mousedown", onDocMouseDown, true)
-	};
+function metaLabel(todo, now) {
+	if (todo.done) return todo.dueAt === null ? "已完成" : `已完成 · ${dueLabel(todo.dueAt, now)}`;
+	if (todo.dueAt === null) return "无期限";
+	const relative = remainingLabel(todo.dueAt, now);
+	if (todo.dueAt <= now) return relative;
+	return `${dueLabel(todo.dueAt, now)} · ${relative}`;
 }
 
 //#endregion
@@ -3322,6 +3071,7 @@ function createDuePicker(options = {}) {
 const DELETE_ARM_MS = 2500;
 /** 空态文案：加载中会临时替换它，重渲染时再写回来。 */
 const EMPTY_TEXT = "还没有待办。记一件要做的事，到点我会提醒你～";
+const TODO_HINT_TEXT = "一句话说完就行：「五分钟后提醒我拿快递」。离到期越近，我会提醒得越勤快～";
 /** 清单最多露出几行，其余靠滚动。 */
 const LIST_ROWS = 2;
 /** 造一个带 class 的元素，避免每处都写 createElement + className。 */
@@ -3355,23 +3105,18 @@ function createTodoPanelParts() {
 	const input = element("input", "dsh-pet-todo-input");
 	input.type = "text";
 	input.maxLength = 200;
-	input.placeholder = "记一件要做的事…";
+	input.placeholder = "五分钟后提醒我拿快递…（回车记下）";
 	input.autocomplete = "off";
-	input.setAttribute("aria-label", "待办内容");
-	const row = element("div", "dsh-pet-todo-row");
-	const duePicker = createDuePicker({ onOpenChange: (open) => root.classList.toggle("is-picking", open) });
-	const addButton = element("button", "dsh-pet-todo-add", "添加");
-	addButton.type = "submit";
-	row.append(duePicker.el, addButton);
-	form.append(input, row);
+	input.setAttribute("aria-label", "待办内容，可以一句话写清时间和事");
+	form.append(input);
 	const error = element("div", "dsh-pet-todo-err");
 	error.hidden = true;
 	const empty = element("div", "dsh-pet-todo-empty", EMPTY_TEXT);
 	empty.hidden = true;
 	const list = element("ul", "dsh-pet-todo-list");
-	const hint = element("div", "dsh-pet-todo-hint", "离到期越近，我会提醒得越勤快～");
+	const hint = element("div", "dsh-pet-todo-hint", TODO_HINT_TEXT);
 	const lower = element("div", "dsh-pet-todo-lower");
-	lower.append(fold("is-cal", [duePicker.calendar]), fold("is-list", [
+	lower.append(fold("is-list", [
 		error,
 		empty,
 		list,
@@ -3382,13 +3127,12 @@ function createTodoPanelParts() {
 		root,
 		form,
 		input,
-		duePicker,
-		addButton,
 		list,
 		empty,
 		count,
 		closeButton,
-		error
+		error,
+		hint
 	};
 }
 /**
@@ -3459,8 +3203,6 @@ function setTodoError(parts, message) {
 }
 function setTodoBusy(parts, busy) {
 	parts.input.disabled = busy;
-	parts.duePicker.el.disabled = busy;
-	parts.addButton.disabled = busy;
 }
 
 //#endregion
@@ -3488,62 +3230,12 @@ const TODO_CSS = [
 	"font-family:inherit;outline:none}",
 	".dsh-pet-todo-input:focus{border-color:rgba(64,128,255,.55);box-shadow:0 0 0 .154em rgba(64,128,255,.14)}",
 	".dsh-pet-todo-input::placeholder{color:rgba(43,43,43,.42)}",
-	".dsh-pet-todo-row{display:flex;align-items:center;gap:.462em}",
-	".dsh-pet-todo-due{flex:1;min-width:0;text-align:left;border:1px solid rgba(0,0,0,.12);border-radius:.615em;",
-	"background:rgba(255,255,255,.9);padding:.462em .615em;font-size:1em;line-height:1.4;font-family:inherit;",
-	"color:rgba(43,43,43,.55);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-	".dsh-pet-todo-due:hover{border-color:rgba(64,128,255,.45)}",
-	".dsh-pet-todo-due.is-set{color:#2b2b2b}",
-	".dsh-pet-todo-due[aria-expanded=\"true\"]{border-color:rgba(64,128,255,.55);",
-	"box-shadow:0 0 0 .154em rgba(64,128,255,.14)}",
-	".dsh-pet-todo-add{border:none;border-radius:.615em;background:#4a7dff;color:#fff;font-size:1em;",
-	"padding:.462em .923em;cursor:pointer;font-family:inherit;white-space:nowrap}",
-	".dsh-pet-todo-add:hover{background:#3a6ce8}",
-	".dsh-pet-todo-add:disabled,.dsh-pet-todo-input:disabled{opacity:.55;cursor:default}",
-	".dsh-pet-todo-cal{display:flex;flex-direction:column;gap:.308em;",
-	"padding:.462em .615em .615em;background:rgba(43,43,43,.025)}",
-	".dsh-pet-todo-cal-head{display:flex;align-items:center;gap:.308em}",
-	".dsh-pet-todo-cal-nl-row{display:flex;align-items:center;gap:.462em}",
-	".dsh-pet-todo-cal-nl{flex:1 1 auto;min-width:0;border:1px solid rgba(43,43,43,.14);border-radius:.462em;",
-	"background:#fff;font-family:inherit;font-size:.923em;line-height:1.4;padding:.231em .462em;color:#2b2b2b}",
-	".dsh-pet-todo-cal-nl:focus{outline:none;border-color:#3a6ce8;box-shadow:0 0 0 2px rgba(58,108,232,.14)}",
-	".dsh-pet-todo-cal-nl-hint{font-size:.846em;color:rgba(43,43,43,.5);white-space:nowrap}",
-	".dsh-pet-todo-cal-nl-hint[data-err=\"1\"]{color:#c0392b}",
-	".dsh-pet-todo-cal-title{flex:1;text-align:center;font-size:1.077em;font-weight:600}",
-	".dsh-pet-todo-cal-nav{border:none;background:transparent;color:rgba(43,43,43,.55);font-family:inherit;",
-	"font-size:1.154em;line-height:1;padding:.154em .385em;border-radius:.462em;cursor:pointer}",
-	".dsh-pet-todo-cal-nav:hover{background:rgba(0,0,0,.07);color:#2b2b2b}",
-	".dsh-pet-todo-cal-week,.dsh-pet-todo-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.154em}",
-	".dsh-pet-todo-cal-grid{grid-auto-rows:1.862em}",
-	".dsh-pet-todo-cal-grid.is-hour,.dsh-pet-todo-cal-grid.is-minute{grid-template-columns:repeat(6,1fr);",
-	"grid-auto-rows:1.6em;align-content:center}",
-	".dsh-pet-todo-cal-week{font-size:.846em;line-height:1.5;color:rgba(43,43,43,.45);text-align:center}",
-	".dsh-pet-todo-cal-cell{border:none;background:transparent;font-family:inherit;font-size:1em;line-height:1.4;",
-	"color:#2b2b2b;padding:.231em 0;border-radius:.462em;cursor:pointer;font-variant-numeric:tabular-nums}",
-	".dsh-pet-todo-cal-cell:hover{background:rgba(0,0,0,.06)}",
-	".dsh-pet-todo-cal-cell.is-out{color:rgba(43,43,43,.26)}",
-	".dsh-pet-todo-cal-cell.is-today{box-shadow:inset 0 0 0 1px rgba(74,125,255,.55)}",
-	".dsh-pet-todo-cal-cell.is-sel{background:#4a7dff;color:#fff;font-weight:600}",
-	".dsh-pet-todo-cal-foot{display:flex;align-items:center;gap:.308em}",
-	".dsh-pet-todo-cal-act{border:none;background:transparent;color:#4a7dff;font-family:inherit;font-size:.923em;",
-	"line-height:1.5;padding:.231em .385em;border-radius:.462em;cursor:pointer}",
-	".dsh-pet-todo-cal-act:hover{background:rgba(74,125,255,.1)}",
-	".dsh-pet-todo-cal-grow{flex:1}",
-	".dsh-pet-todo-cal-chip{border:1px solid rgba(0,0,0,.12);border-radius:.462em;background:rgba(255,255,255,.95);",
-	"color:#2b2b2b;font-family:inherit;font-size:.923em;line-height:1.4;padding:.154em .385em;cursor:pointer;",
-	"font-variant-numeric:tabular-nums}",
-	".dsh-pet-todo-cal-chip.is-on{border-color:rgba(74,125,255,.55);color:#4a7dff;",
-	"box-shadow:0 0 0 .154em rgba(74,125,255,.14)}",
-	".dsh-pet-todo-cal-colon{color:rgba(43,43,43,.45)}",
+	".dsh-pet-todo-input:disabled{opacity:.55;cursor:default}",
 	".dsh-pet-todo-lower{display:flex;flex-direction:column}",
 	".dsh-pet-todo-fold{display:grid;grid-template-rows:0fr;visibility:hidden;",
 	"transition:grid-template-rows .18s ease,visibility 0s .18s}",
 	".dsh-pet-todo-fold>.dsh-pet-todo-foldClip{overflow:hidden;min-height:0}",
 	".dsh-pet-todo-fold.is-list{grid-template-rows:1fr;visibility:visible;transition-delay:0s}",
-	".dsh-pet-todo.is-picking .dsh-pet-todo-fold.is-cal{grid-template-rows:1fr;visibility:visible;",
-	"transition-delay:0s}",
-	".dsh-pet-todo.is-picking .dsh-pet-todo-fold.is-list{grid-template-rows:0fr;visibility:hidden;",
-	"transition-delay:0s,.18s}",
 	".dsh-pet-todo-list{list-style:none;margin:0;padding:.462em;overflow-y:auto;overscroll-behavior:contain;",
 	"flex:0 1 auto;min-height:0;scrollbar-width:thin}",
 	".dsh-pet-todo-item{display:flex;align-items:flex-start;gap:.615em;padding:.538em .462em;border-radius:.615em}",
@@ -3625,26 +3317,25 @@ function createTodoPanel(options = {}) {
 		}
 		await reload();
 	}
-	/** 提交新增：空正文直接回到输入框。 */
+	/** 提交新增：一句话里同时读时间和正文；空正文直接回到输入框。 */
 	const submitAdd = () => {
-		const text = parts.input.value.trim();
-		if (text === "") {
+		const raw = parts.input.value.trim();
+		if (raw === "") {
 			parts.input.focus();
 			return;
 		}
-		const dueText = parts.duePicker.value();
-		const dueAt = dueText === "" ? null : parseDateTimeLocal(dueText);
-		parts.duePicker.close();
+		const parsed = parseNaturalTimeInSentence(raw);
+		const dueAt = parsed === null ? null : parsed.dueAt;
+		const text = parsed !== null && parsed.text !== "" ? parsed.text : raw;
 		if (dueAt !== null && dueAt < Date.now()) {
 			setTodoError(parts, "这个时间已经过去了，换一个吧");
 			return;
 		}
+		setTodoError(parts, null);
+		parts.hint.textContent = dueAt === null ? "没听出时间，先记成不提醒的待办；写成「五分钟后提醒我拿快递」我就能到点喊你～" : TODO_HINT_TEXT;
 		mutate(async () => {
 			const result = await addTodo(text, dueAt, baseUrl);
-			if (result.ok) {
-				parts.input.value = "";
-				parts.duePicker.reset();
-			}
+			if (result.ok) parts.input.value = "";
 			return result;
 		});
 	};
@@ -3670,7 +3361,6 @@ function createTodoPanel(options = {}) {
 			if (disposed) return;
 			disposed = true;
 			document.removeEventListener("mousedown", onDocMouseDown, true);
-			parts.duePicker.dispose();
 			parts.root.remove();
 		}
 	};
@@ -4080,8 +3770,8 @@ function stampText(ms) {
 	const d = new Date(ms);
 	const hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 	const now = new Date();
-	const sameDay$1 = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-	return sameDay$1 ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+	const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+	return sameDay ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
 }
 /** 一条摘要：优先用第一条明细，其次正文，再次省略号。 */
 function summaryOf(entry) {
@@ -13180,8 +12870,8 @@ function clockOf$1(ts, today) {
 	const d = new Date(ts);
 	const pad$1 = (n) => String(n).padStart(2, "0");
 	const hm = `${pad$1(d.getHours())}:${pad$1(d.getMinutes())}`;
-	const sameDay$1 = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
-	return sameDay$1 ? hm : `${pad$1(d.getMonth() + 1)}-${pad$1(d.getDate())} ${hm}`;
+	const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+	return sameDay ? hm : `${pad$1(d.getMonth() + 1)}-${pad$1(d.getDate())} ${hm}`;
 }
 /** 造一枚小按钮（样式与对话弹窗的图标按钮同族）。 */
 function textButton(label, cls) {

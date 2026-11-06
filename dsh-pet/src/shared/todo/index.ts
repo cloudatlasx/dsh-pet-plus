@@ -20,5 +20,7 @@ export {
   todoUrgency,
 } from './format.ts';
 export type { TodoUrgency } from './format.ts';
+export { parseNaturalTime, parseNaturalTimeInSentence } from './natural-time.ts';
+export type { SentenceTime } from './natural-time.ts';
 export { parseTodoItem, parseTodoList, sortTodoItems } from './types.ts';
 export type { TodoItem } from './types.ts';

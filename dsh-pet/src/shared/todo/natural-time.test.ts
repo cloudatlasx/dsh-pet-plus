@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseNaturalTime } from './natural-time.ts';
+import { parseNaturalTime, parseNaturalTimeInSentence } from './natural-time.ts';
 
 /** 参照时刻：2026-11-05（周四）10:20:00，本地时区。 */
 const NOW = new Date(2026, 10, 5, 10, 20, 0);
@@ -65,4 +65,32 @@ test('看不懂就是 null，不瞎猜', () => {
   assert.equal(parseNaturalTime('   ', NOW), null);
   assert.equal(parseNaturalTime('随便', NOW), null);
   assert.equal(parseNaturalTime('0分钟后', NOW), null);
+});
+
+test('一句话里挑时间：相对时间与正文分开', () => {
+  assert.deepEqual(parseNaturalTimeInSentence('五分钟后提醒我拿快递', NOW), {
+    dueAt: NOW.getTime() + 5 * 60 * 1000,
+    text: '拿快递',
+  });
+  assert.deepEqual(parseNaturalTimeInSentence('记得提醒我10点给妈妈打电话', NOW), {
+    dueAt: at(11, 6, 10),
+    text: '给妈妈打电话',
+  });
+});
+
+test('一句话里挑时间：绝对日期只吃时间部分', () => {
+  assert.deepEqual(parseNaturalTimeInSentence('明天早上九点开会', NOW), { dueAt: at(11, 6, 9), text: '开会' });
+  assert.deepEqual(parseNaturalTimeInSentence('今晚八点去吃火锅', NOW), { dueAt: at(11, 5, 20), text: '去吃火锅' });
+  assert.deepEqual(parseNaturalTimeInSentence('下周一上午10点半汇报', NOW), { dueAt: at(11, 9, 10, 30), text: '汇报' });
+});
+
+test('一句话里挑时间：整句就是时间时正文为空', () => {
+  assert.deepEqual(parseNaturalTimeInSentence('五分钟', NOW), { dueAt: NOW.getTime() + 5 * 60 * 1000, text: '' });
+  assert.deepEqual(parseNaturalTimeInSentence('明天下午三点', NOW), { dueAt: at(11, 6, 15), text: '' });
+});
+
+test('一句话里挑时间：没时间就 null，不把正文当时间', () => {
+  assert.equal(parseNaturalTimeInSentence('', NOW), null);
+  assert.equal(parseNaturalTimeInSentence('随便写点什么', NOW), null);
+  assert.equal(parseNaturalTimeInSentence('买三斤苹果', NOW), null);
 });

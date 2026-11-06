@@ -5,8 +5,15 @@
  * @module dsh-pet/src/shared/todo/panel
  */
 import { TODOS_PATH, addTodo, loadTodos, patchTodo, removeTodo, type TodoResult } from './api.ts';
-import { parseDateTimeLocal } from './format.ts';
-import { createTodoPanelParts, renderTodoList, setTodoBusy, setTodoError, type TodoListHandlers } from './render.ts';
+import { parseNaturalTimeInSentence } from './natural-time.ts';
+import {
+  createTodoPanelParts,
+  renderTodoList,
+  setTodoBusy,
+  setTodoError,
+  TODO_HINT_TEXT,
+  type TodoListHandlers,
+} from './render.ts';
 import { injectTodoCss } from './styles.ts';
 import type { TodoItem } from './types.ts';
 
@@ -82,29 +89,28 @@ export function createTodoPanel(options: TodoPanelOptions = {}): TodoPanel {
     await reload();
   }
 
-  /** 提交新增：空正文直接回到输入框。 */
+  /** 提交新增：一句话里同时读时间和正文；空正文直接回到输入框。 */
   const submitAdd = (): void => {
-    const text = parts.input.value.trim();
-    if (text === '') {
+    const raw = parts.input.value.trim();
+    if (raw === '') {
       parts.input.focus();
       return;
     }
-    // 选择器只会给出 `YYYY-MM-DDTHH:mm` 或空串，解析不出来按无期限处理，不拦提交。
-    const dueText = parts.duePicker.value();
-    const dueAt = dueText === '' ? null : parseDateTimeLocal(dueText);
-    // 先收起日历：错误行在清单那一侧，日历开着时会被折叠区藏起来，报错就看不见了。
-    parts.duePicker.close();
+    // 时间就在同一句话里（「五分钟后提醒我拿快递」）；没听出时间也能记，只是不到点提醒。
+    const parsed = parseNaturalTimeInSentence(raw);
+    const dueAt = parsed === null ? null : parsed.dueAt;
+    const text = parsed !== null && parsed.text !== '' ? parsed.text : raw;
     // 过去的时刻建出来就是逾期，提醒一上线就会喊，等于让用户先错一次再改。
     if (dueAt !== null && dueAt < Date.now()) {
       setTodoError(parts, '这个时间已经过去了，换一个吧');
       return;
     }
+    setTodoError(parts, null);
+    parts.hint.textContent =
+      dueAt === null ? '没听出时间，先记成不提醒的待办；写成「五分钟后提醒我拿快递」我就能到点喊你～' : TODO_HINT_TEXT;
     void mutate(async () => {
       const result = await addTodo(text, dueAt, baseUrl);
-      if (result.ok) {
-        parts.input.value = '';
-        parts.duePicker.reset();
-      }
+      if (result.ok) parts.input.value = '';
       return result;
     });
   };
@@ -139,7 +145,6 @@ export function createTodoPanel(options: TodoPanelOptions = {}): TodoPanel {
       disposed = true;
       // 监听必须摘：不摘的话面板关掉后它还会在每次点击时被判一次，等于永久挂着一个死回调。
       document.removeEventListener('mousedown', onDocMouseDown, true);
-      parts.duePicker.dispose();
       parts.root.remove();
     },
   };

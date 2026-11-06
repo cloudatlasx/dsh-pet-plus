@@ -4,7 +4,6 @@
  * 删除做成两步（先变成「确认」，2.5 秒后自动复原）：清单没有撤销，误点一次就没了太容易。
  * @module dsh-pet/src/shared/todo/render
  */
-import { createDuePicker, type DuePicker } from './due-picker.ts';
 import { metaLabel, todoUrgency } from './format.ts';
 import type { TodoItem } from './types.ts';
 
@@ -14,12 +13,8 @@ export interface TodoPanelParts {
   root: HTMLElement;
   /** 添加表单：回车提交。 */
   form: HTMLFormElement;
-  /** 正文输入框。 */
+  /** 正文输入框：一句话里同时写「什么时候」和「做什么」。 */
   input: HTMLInputElement;
-  /** 到期时间选择器：按钮在表单行，日历挂在根节点里。 */
-  duePicker: DuePicker;
-  /** 添加按钮。 */
-  addButton: HTMLButtonElement;
   /** 清单容器。 */
   list: HTMLUListElement;
   /** 空态提示。 */
@@ -30,6 +25,8 @@ export interface TodoPanelParts {
   closeButton: HTMLButtonElement;
   /** 错误行（隐藏时为 `hidden`）。 */
   error: HTMLDivElement;
+  /** 底部提示行：没听出时间时会换一句话说明。 */
+  hint: HTMLDivElement;
 }
 
 /** 清单条目上的交互回调。 */
@@ -45,6 +42,9 @@ const DELETE_ARM_MS = 2500;
 
 /** 空态文案：加载中会临时替换它，重渲染时再写回来。 */
 const EMPTY_TEXT = '还没有待办。记一件要做的事，到点我会提醒你～';
+
+/** 底部提示：一句话把时间和事说完。 */
+export const TODO_HINT_TEXT = '一句话说完就行：「五分钟后提醒我拿快递」。离到期越近，我会提醒得越勤快～';
 
 /** 清单最多露出几行，其余靠滚动。 */
 const LIST_ROWS = 2;
@@ -93,15 +93,10 @@ export function createTodoPanelParts(): TodoPanelParts {
   const input = element('input', 'dsh-pet-todo-input');
   input.type = 'text';
   input.maxLength = 200;
-  input.placeholder = '记一件要做的事…';
+  input.placeholder = '五分钟后提醒我拿快递…（回车记下）';
   input.autocomplete = 'off';
-  input.setAttribute('aria-label', '待办内容');
-  const row = element('div', 'dsh-pet-todo-row');
-  const duePicker = createDuePicker({ onOpenChange: (open) => root.classList.toggle('is-picking', open) });
-  const addButton = element('button', 'dsh-pet-todo-add', '添加');
-  addButton.type = 'submit';
-  row.append(duePicker.el, addButton);
-  form.append(input, row);
+  input.setAttribute('aria-label', '待办内容，可以一句话写清时间和事');
+  form.append(input);
 
   const error = element('div', 'dsh-pet-todo-err');
   error.hidden = true;
@@ -110,14 +105,13 @@ export function createTodoPanelParts(): TodoPanelParts {
   empty.hidden = true;
 
   const list = element('ul', 'dsh-pet-todo-list');
-  const hint = element('div', 'dsh-pet-todo-hint', '离到期越近，我会提醒得越勤快～');
+  const hint = element('div', 'dsh-pet-todo-hint', TODO_HINT_TEXT);
 
-  // 下半区两块内容轮流出现：清单态与日历态各是一个折叠区，展开收起走同一条过渡。
-  // 面板高度因此跟着内容走（不留空白），切换时也是滑过去而不是硬跳。
+  // 面板只要一个输入框：时间就在同一句话里说，其余控件都收进这句话。
   const lower = element('div', 'dsh-pet-todo-lower');
-  lower.append(fold('is-cal', [duePicker.calendar]), fold('is-list', [error, empty, list, hint]));
+  lower.append(fold('is-list', [error, empty, list, hint]));
   root.append(head, form, lower);
-  return { root, form, input, duePicker, addButton, list, empty, count, closeButton, error };
+  return { root, form, input, list, empty, count, closeButton, error, hint };
 }
 
 /**
@@ -217,13 +211,11 @@ export function setTodoError(parts: TodoPanelParts, message: string | null): voi
 }
 
 /**
- * 切换忙碌态：请求在途时禁掉输入与按钮，避免连点建出两条。
+ * 切换忙碌态：请求在途时禁掉输入，避免连点建出两条。
  *
  * @param parts - 面板元素。
  * @param busy - 是否请求在途。
  */
 export function setTodoBusy(parts: TodoPanelParts, busy: boolean): void {
   parts.input.disabled = busy;
-  parts.duePicker.el.disabled = busy;
-  parts.addButton.disabled = busy;
 }
