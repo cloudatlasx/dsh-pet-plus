@@ -240,6 +240,20 @@ Object.assign(PetSprite.prototype, {
       '<div class="pet-fish__body"><div class="pet-fish__eye"></div><div class="pet-fish__fin"></div></div>' +
       '<div class="pet-fish__bubble"></div>' +
       '<div class="pet-fish__bubble pet-fish__bubble--2"></div>';
+    // 鲸鱼素材：用户给的 GIF 转成的透明 WebM，游动时盖住上面的 CSS 小鱼。
+    // 载入成功才挂 is-video（CSS 小鱼让位）；失败就保持 CSS 小鱼，不比现在差。
+    this.fishVideo = document.createElement('video');
+    this.fishVideo.className = 'pet-fish__video';
+    this.fishVideo.muted = true;
+    this.fishVideo.loop = true;
+    this.fishVideo.playsInline = true;
+    this.fishVideo.preload = 'auto';
+    this.fishVideo.setAttribute('aria-hidden', 'true');
+    this.fishVideo.src = BASE + '/swim/whale.webm';
+    this.fish.appendChild(this.fishVideo);
+    this.fishVideo.addEventListener('loadeddata', () => {
+      this.fish.classList.add('is-video');
+    });
 
     stage.appendChild(this.videoA);
     stage.appendChild(this.videoB);

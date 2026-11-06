@@ -205,11 +205,22 @@ Object.assign(PetSprite.prototype, {
     // 变身小鱼：视频淡出、鱼淡入（样式见 index.html 的 .pet-fish）。
     // --swim-dir 决定鱼头朝哪边，由 startGlide 的调用方（moveToCenter）在出发前写好。
     this.el.classList.add('is-swimming');
+    // 鲸鱼 WebM 从头播一遍；play() 被拒（未挂载/解码失败）时 CSS 小鱼继续兜底。
+    if (this.fishVideo) {
+      try {
+        this.fishVideo.currentTime = 0;
+        const playing = this.fishVideo.play();
+        if (playing && typeof playing.catch === 'function') playing.catch(() => undefined);
+      } catch {
+        // 播放失败不影响移动
+      }
+    }
   },
 
   stopGlide() {
     if (!this.el) return;
     this.el.classList.remove('is-gliding', 'is-swimming');
+    if (this.fishVideo) this.fishVideo.pause();
   },
 
   /**

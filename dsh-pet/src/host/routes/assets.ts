@@ -96,6 +96,17 @@ export async function handleAssetsRoutes(deps: PetRouteDeps, input: RouteInput):
     return { kind: 'file', file: soundFile, contentType: MIME[ext] ?? 'application/octet-stream' };
   }
 
+  // 游动素材：/dsh-pet-7340/swim/<file> → 包内 assets/swim（当前只有 whale.webm：
+  // 用户给的鲸鱼 GIF 转成的透明 WebM，桌面端游动时顶替视频）。
+  // 与 font / sound 同一种扁平形式：只随包发布，不做用户目录覆盖。
+  if (scope === 'swim') {
+    const swimRoot = join(PACKAGE_ROOT, 'assets', 'swim');
+    const swimFile = resolveExisting(swimRoot, restParts.join('/'));
+    if (swimFile === undefined) return { kind: 'text', status: 404, body: 'dsh-pet: swim asset not found' };
+    const ext = swimFile.slice(swimFile.lastIndexOf('.')).toLowerCase();
+    return { kind: 'file', file: swimFile, contentType: MIME[ext] ?? 'application/octet-stream' };
+  }
+
   if (scope !== 'thumb') {
     return { kind: 'text', status: 400, body: 'dsh-pet: expected /dsh-pet-7340/thumb/<petId>/<file>' };
   }

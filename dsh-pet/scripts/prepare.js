@@ -58,6 +58,8 @@ const keep = [
   'assets/memes',
   // 点击音效：宿主半侧的 /sound 路由只读包内这一份，漏掉则点击静音；同 memes，必须加在本数组。
   'assets/sound',
+  // 游动素材：桌面端游动时顶替视频的鲸鱼 WebM（/swim 路由只读包内 assets/swim），漏掉则退回 CSS 小鱼。
+  'assets/swim',
   'assets/config.jsonc',
   // 插件图标：package.json 顶层 icon 指向这张图；缺图时读取方 dsh-app-boot 的 iconOf 会抛错、退回默认插画。
   'assets/logo.png',

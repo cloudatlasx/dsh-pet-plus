@@ -77,6 +77,26 @@
       .pet-sprite.is-swimming video.pet-video {
         opacity: 0 !important;
       }
+      .pet-fish__video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        opacity: 0;
+        pointer-events: none;
+      }
+      /* 鲸鱼素材载入成功后接管：CSS 小鱼整体让位，只留这只鲸鱼 */
+      .pet-fish.is-video .pet-fish__video {
+        opacity: 1;
+      }
+      .pet-fish.is-video .pet-fish__body,
+      .pet-fish.is-video .pet-fish__tail,
+      .pet-fish.is-video .pet-fish__fin,
+      .pet-fish.is-video .pet-fish__eye,
+      .pet-fish.is-video .pet-fish__bubble {
+        display: none;
+      }
       .pet-fish__body {
         position: absolute;
         left: 34%;

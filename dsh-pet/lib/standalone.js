@@ -3411,6 +3411,21 @@ async function handleAssetsRoutes(deps, input) {
 			contentType: MIME[ext$1] ?? "application/octet-stream"
 		};
 	}
+	if (scope === "swim") {
+		const swimRoot = join(PACKAGE_ROOT, "assets", "swim");
+		const swimFile = resolveExisting(swimRoot, restParts.join("/"));
+		if (swimFile === void 0) return {
+			kind: "text",
+			status: 404,
+			body: "dsh-pet: swim asset not found"
+		};
+		const ext$1 = swimFile.slice(swimFile.lastIndexOf(".")).toLowerCase();
+		return {
+			kind: "file",
+			file: swimFile,
+			contentType: MIME[ext$1] ?? "application/octet-stream"
+		};
+	}
 	if (scope !== "thumb") return {
 		kind: "text",
 		status: 400,

@@ -7,11 +7,12 @@
  */
 import { after, before, beforeEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { handleAssetsRoutes } from './assets.ts';
+import { PACKAGE_ROOT } from '../paths.ts';
 import { savePetAvatar } from '../pet-avatar.ts';
 import type { RouteResult } from '../http.ts';
 import type { PetRouteDeps } from './types.ts';
@@ -40,6 +41,37 @@ beforeEach(() => {
 
 after(() => {
   rmSync(dir, { recursive: true, force: true });
+});
+
+/** 调一次任意素材端点；`rest` 是不含前缀的路径段。 */
+function readAsset(rest: string): Promise<RouteResult | undefined> {
+  return handleAssetsRoutes(deps(), { url: new URL('http://localhost/' + rest), rest, method: 'GET' });
+}
+
+describe('handleAssetsRoutes —— /swim/<file>', () => {
+  test('包内有素材时回 video/webm；源码形态取不到包内目录则 404', async () => {
+    // PACKAGE_ROOT 由 import.meta.url 推断：构建产物里是包根，源码形态指向 src/，
+    // 所以这里按「素材是否可达」两分支断言，两种形态都不误报。
+    const asset = join(PACKAGE_ROOT, 'assets', 'swim', 'whale.webm');
+    const result = await readAsset('swim/whale.webm');
+    assert.ok(result !== undefined);
+    if (existsSync(asset)) {
+      assert.equal(result.kind, 'file');
+      assert.equal(result.contentType, 'video/webm');
+      assert.match(result.file, /assets[\\/]swim[\\/]whale\.webm$/);
+    } else {
+      assert.equal(result.kind, 'text');
+      assert.equal(result.status, 404);
+    }
+  });
+
+  test('不存在或越界的文件名一律 404，不拼到素材根之外', async () => {
+    for (const rest of ['swim/missing.webm', 'swim/../package.json', 'swim/%2e%2e/package.json']) {
+      const result = await readAsset(rest);
+      assert.ok(result !== undefined && result.kind === 'text', rest);
+      assert.equal(result.status, 404, rest);
+    }
+  });
 });
 
 describe('handleAssetsRoutes —— /logo?root=', () => {
