@@ -206,6 +206,9 @@ export function apply(ctx: any): void {
     log,
     enabled: () => readAllConfig(configPaths).main?.requestBubbleEnabled === true,
     hasClient: () => state.waiterCount(),
+    // 宠物气泡与 DSH 自带面板同时出现：文字长的审批/多题提问在 DSH 里点更顺手。
+    // 两边哪条先答都算数——原生先答就收气泡，宠物先答就直接回瀑布。
+    mirror: () => true,
     // 挂太久没人理：让宠物游到屏幕中央再露一次脸。
     //
     // 只在桌面端有意义——网页端宠物就在页面里，位置是页面自己排的，挪不动也不该挪。

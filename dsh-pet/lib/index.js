@@ -5557,6 +5557,12 @@ function sessionKeyOf(agent) {
 	if (typeof a.id === "string" && a.id !== "") return "agent:" + a.id;
 	return null;
 }
+/** 原生面板那条腿的回应是不是「压根没有面板」（而不是用户真答了）。 */
+function nativeAbsent(kind, value) {
+	if (kind === "approval") return value === "unavailable" || value === void 0 || value === null;
+	const answers = value?.answers;
+	return !Array.isArray(answers) || answers.length === 0;
+}
 function createRequestHub(deps) {
 	const now = deps.now ?? Date.now;
 	const log = deps.log;
@@ -5592,15 +5598,22 @@ function createRequestHub(deps) {
 		entry.detach?.();
 		entry.detach = null;
 	};
-	/** 结束当前请求：只结束与 id 对得上的那一条，避免竞态里误伤下一条。 */
-	const settle = (resolution) => {
+	/**
+	* 结束当前请求：只结束与 id 对得上的那一条，避免竞态里误伤下一条。
+	*
+	* @param resolution - 结局。
+	* @param why - 谁把它收掉的（排障用：`timeout` / `abort` / `cancel` / `answer` / `native`）。
+	*/
+	const settle = (resolution, why) => {
 		const entry = pending;
 		if (entry === null) return;
+		const kind = entry.envelope.kind === "question" ? "question" : "approval";
 		pending = null;
 		cleanup(entry);
 		if (escalateTimer !== null) clearTimeout(escalateTimer);
 		escalateTimer = null;
 		close(entry.envelope.id, entry.envelope.kind);
+		note(kind, "settle:" + why);
 		entry.resolve(resolution);
 	};
 	/**
@@ -5638,7 +5651,7 @@ function createRequestHub(deps) {
 		if (pending !== null) {
 			if (pending.envelope.expiresAt > now()) return "pending";
 			const kind = pending.envelope.kind === "question" ? "question" : "approval";
-			settle({ type: "delegate" });
+			settle({ type: "delegate" }, "stale");
 			note(kind, "stale-pending");
 		}
 		if (!deps.enabled()) return "off";
@@ -5704,17 +5717,48 @@ function createRequestHub(deps) {
 		write(envelope);
 		entry.timer = setTimeout(() => {
 			log.info("dsh-pet: request " + envelope.id + " timed out, falling back to DSH");
-			settle({ type: "delegate" });
+			settle({ type: "delegate" }, "timeout");
 		}, timeoutMs);
 		const abortable = signal;
 		if (abortable && typeof abortable.addEventListener === "function" && typeof abortable.removeEventListener === "function") {
-			const onAbort = () => settle({ type: "delegate" });
+			const onAbort = () => settle({ type: "delegate" }, "abort");
 			abortable.addEventListener("abort", onAbort);
 			entry.detach = () => {
 				abortable.removeEventListener("abort", onAbort);
 			};
 		}
 	});
+	/**
+	* 让 DSH 自己的面板同时显示：立刻把请求往瀑布下游递。
+	*
+	* 返回值是原生面板的回答；没有面板时（瀑布落到兜底）由 {@link nativeAbsent} 认出来，
+	* 宠物气泡照常等。原生先答就把气泡收掉（`settle({ type: 'native' })`）。
+	*
+	* @param kind - 哪条瀑布，只用于诊断与判断「空回答」。
+	* @param next - 瀑布继续函数。
+	* @returns 原生那条腿的 Promise；调用方在 delegate 时直接返回它，别重复调用 next()。
+	*/
+	const startNative = (kind, next) => {
+		const id = pending?.envelope.id ?? "";
+		return Promise.resolve().then(() => next()).then((value) => {
+			if (pending === null || pending.envelope.id !== id) return value;
+			if (nativeAbsent(kind, value)) {
+				note(kind, "native-absent");
+				return value;
+			}
+			note(kind, "answered-in-dsh");
+			log.info("dsh-pet: " + kind + " answered in DSH panel");
+			settle({
+				type: "native",
+				value
+			}, "native");
+			return value;
+		}).catch((error) => {
+			note(kind, "native-error");
+			log.warn("dsh-pet: native " + kind + " leg failed: " + messageOf(error));
+			return void 0;
+		});
+	};
 	return {
 		async interceptApproval(request, next) {
 			if (disposed) {
@@ -5750,13 +5794,16 @@ function createRequestHub(deps) {
 			log.info("dsh-pet: approval/request intercepted tool=" + toolName);
 			note("approval", "intercepted " + toolName);
 			scheduleEscalate("approval");
-			const resolution = await begin(envelope, APPROVAL_TIMEOUT_MS, req.signal, sessionKey);
+			const petLeg = begin(envelope, APPROVAL_TIMEOUT_MS, req.signal, sessionKey);
+			const nativeLeg = deps.mirror?.() === true ? startNative("approval", next) : null;
+			const resolution = await petLeg;
 			if (resolution.type === "approval" && resolution.outcome !== "delegate") {
 				note("approval", "answered " + resolution.outcome);
 				return resolution.outcome;
 			}
+			if (resolution.type === "native") return resolution.value;
 			note("approval", "delegated");
-			return next();
+			return nativeLeg ?? next();
 		},
 		async interceptQuestions(request, next) {
 			const blocked = await gate("question");
@@ -5780,13 +5827,16 @@ function createRequestHub(deps) {
 			log.info("dsh-pet: user-questions/request intercepted count=" + questions.length);
 			note("question", "intercepted " + questions.length + "q");
 			scheduleEscalate("question");
-			const resolution = await begin(envelope, QUESTION_TIMEOUT_MS, req.signal, null);
+			const petLeg = begin(envelope, QUESTION_TIMEOUT_MS, req.signal, null);
+			const nativeLeg = deps.mirror?.() === true ? startNative("question", next) : null;
+			const resolution = await petLeg;
 			if (resolution.type === "answers") {
 				note("question", "answered");
 				return { answers: resolution.answers };
 			}
+			if (resolution.type === "native") return resolution.value;
 			note("question", "delegated");
-			return next();
+			return nativeLeg ?? next();
 		},
 		diag() {
 			return {
@@ -5822,7 +5872,7 @@ function createRequestHub(deps) {
 				message: "request expired or unknown"
 			};
 			if (body.cancel === true) {
-				settle({ type: "delegate" });
+				settle({ type: "delegate" }, "cancel");
 				return { ok: true };
 			}
 			if (entry.envelope.kind === "approval") {
@@ -5840,13 +5890,13 @@ function createRequestHub(deps) {
 					settle({
 						type: "approval",
 						outcome: "allowed-once"
-					});
+					}, "answer");
 					return { ok: true };
 				}
 				settle({
 					type: "approval",
 					outcome
-				});
+				}, "answer");
 				return { ok: true };
 			}
 			const answers = body.answers;
@@ -5896,7 +5946,7 @@ function createRequestHub(deps) {
 			settle({
 				type: "answers",
 				answers: normalized
-			});
+			}, "answer");
 			return { ok: true };
 		},
 		preview(kind) {
@@ -5942,7 +5992,7 @@ function createRequestHub(deps) {
 		dispose() {
 			disposed = true;
 			sessionAllows.clear();
-			if (pending !== null) settle({ type: "delegate" });
+			if (pending !== null) settle({ type: "delegate" }, "dispose");
 			if (previewTimer !== null) clearTimeout(previewTimer);
 			previewTimer = null;
 			previewId = null;
@@ -12268,6 +12318,7 @@ function apply(ctx) {
 		log,
 		enabled: () => readAllConfig(configPaths).main?.requestBubbleEnabled === true,
 		hasClient: () => state.waiterCount(),
+		mirror: () => true,
 		escalate: () => {
 			const pets = effectivePetList();
 			const pet = pickReminderSpeaker(pets, (petId) => lock.locked(petId), (petId) => sleep$2.sleeping(petId));

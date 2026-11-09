@@ -61,6 +61,8 @@ const sleep = (ms: number): Promise<void> =>
 type Resolution =
   | { type: 'approval'; outcome: ApprovalOutcome }
   | { type: 'answers'; answers: QuestionAnswer[] }
+  /** DSH 自己的面板抢先答了：把它的原话原样交回去，宠物只负责收气泡。 */
+  | { type: 'native'; value: unknown }
   | { type: 'delegate' };
 
 /** 回答接口的结论。 */
@@ -93,6 +95,13 @@ export interface RequestHubDeps {
   escalate?: (kind: 'approval' | 'question') => void;
   /** 多久没响应算「太久」（ms）；不传用 `ESCALATE_MS`，测试注入短值。 */
   escalateMs?: number;
+  /**
+   * 是否让 DSH 自己的面板同时显示（默认关，成品里打开）。
+   *
+   * 打开后拦截不再独占请求：一边把气泡写出去，一边调用 `next()` 让内置面板照常渲染，
+   * 哪边先答都算数。关掉时维持老行为（接管期间 DSH 面板不出现）。
+   */
+  mirror?: () => boolean;
 }
 
 /** 一次拦截尝试的结论（只读诊断用）。 */
@@ -180,6 +189,13 @@ function sessionKeyOf(agent: unknown): string | null {
   return null;
 }
 
+/** 原生面板那条腿的回应是不是「压根没有面板」（而不是用户真答了）。 */
+function nativeAbsent(kind: 'approval' | 'question', value: unknown): boolean {
+  if (kind === 'approval') return value === 'unavailable' || value === undefined || value === null;
+  const answers = (value as { answers?: unknown } | null | undefined)?.answers;
+  return !Array.isArray(answers) || answers.length === 0;
+}
+
 /**
  * 造一个请求中转站（`apply` 只调一次）。
  *
@@ -219,15 +235,22 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
     entry.detach = null;
   };
 
-  /** 结束当前请求：只结束与 id 对得上的那一条，避免竞态里误伤下一条。 */
-  const settle = (resolution: Resolution): void => {
+  /**
+   * 结束当前请求：只结束与 id 对得上的那一条，避免竞态里误伤下一条。
+   *
+   * @param resolution - 结局。
+   * @param why - 谁把它收掉的（排障用：`timeout` / `abort` / `cancel` / `answer` / `native`）。
+   */
+  const settle = (resolution: Resolution, why: string): void => {
     const entry = pending;
     if (entry === null) return;
+    const kind = entry.envelope.kind === 'question' ? 'question' : 'approval';
     pending = null;
     cleanup(entry);
     if (escalateTimer !== null) clearTimeout(escalateTimer);
     escalateTimer = null;
     close(entry.envelope.id, entry.envelope.kind);
+    note(kind, 'settle:' + why);
     entry.resolve(resolution);
   };
 
@@ -271,7 +294,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       // 表现就是「宠物从此再也不弹气泡」。按信封自带的到期时刻自愈。
       if (pending.envelope.expiresAt > now()) return 'pending';
       const kind = pending.envelope.kind === 'question' ? 'question' : 'approval';
-      settle({ type: 'delegate' });
+      settle({ type: 'delegate' }, 'stale');
       note(kind, 'stale-pending');
     }
     if (!deps.enabled()) return 'off';
@@ -338,7 +361,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       write(envelope);
       entry.timer = setTimeout(() => {
         log.info('dsh-pet: request ' + envelope.id + ' timed out, falling back to DSH');
-        settle({ type: 'delegate' });
+        settle({ type: 'delegate' }, 'timeout');
       }, timeoutMs);
       const abortable = signal as {
         aborted?: boolean;
@@ -350,13 +373,45 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         typeof abortable.addEventListener === 'function' &&
         typeof abortable.removeEventListener === 'function'
       ) {
-        const onAbort = (): void => settle({ type: 'delegate' });
+        const onAbort = (): void => settle({ type: 'delegate' }, 'abort');
         (abortable.addEventListener as (type: string, fn: () => void) => void)('abort', onAbort);
         entry.detach = () => {
           (abortable.removeEventListener as (type: string, fn: () => void) => void)('abort', onAbort);
         };
       }
     });
+
+  /**
+   * 让 DSH 自己的面板同时显示：立刻把请求往瀑布下游递。
+   *
+   * 返回值是原生面板的回答；没有面板时（瀑布落到兜底）由 {@link nativeAbsent} 认出来，
+   * 宠物气泡照常等。原生先答就把气泡收掉（`settle({ type: 'native' })`）。
+   *
+   * @param kind - 哪条瀑布，只用于诊断与判断「空回答」。
+   * @param next - 瀑布继续函数。
+   * @returns 原生那条腿的 Promise；调用方在 delegate 时直接返回它，别重复调用 next()。
+   */
+  const startNative = (kind: 'approval' | 'question', next: () => unknown): Promise<unknown> => {
+    const id = pending?.envelope.id ?? '';
+    return Promise.resolve()
+      .then(() => next())
+      .then((value) => {
+        if (pending === null || pending.envelope.id !== id) return value;
+        if (nativeAbsent(kind, value)) {
+          note(kind, 'native-absent');
+          return value;
+        }
+        note(kind, 'answered-in-dsh');
+        log.info('dsh-pet: ' + kind + ' answered in DSH panel');
+        settle({ type: 'native', value }, 'native');
+        return value;
+      })
+      .catch((error: unknown) => {
+        note(kind, 'native-error');
+        log.warn('dsh-pet: native ' + kind + ' leg failed: ' + messageOf(error));
+        return undefined;
+      });
+  };
 
   return {
     async interceptApproval(request, next) {
@@ -404,14 +459,18 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       log.info('dsh-pet: approval/request intercepted tool=' + toolName);
       note('approval', 'intercepted ' + toolName);
       scheduleEscalate('approval');
-      const resolution = await begin(envelope, APPROVAL_TIMEOUT_MS, req.signal, sessionKey);
+      const petLeg = begin(envelope, APPROVAL_TIMEOUT_MS, req.signal, sessionKey);
+      const nativeLeg = deps.mirror?.() === true ? startNative('approval', next) : null;
+      const resolution = await petLeg;
       if (resolution.type === 'approval' && resolution.outcome !== 'delegate') {
         note('approval', 'answered ' + resolution.outcome);
         return resolution.outcome;
       }
+      if (resolution.type === 'native') return resolution.value;
       // delegate（超时 / 取消 / 用户点了「去 DSH」/ 客户端掉线）：交回 DSH 自己的面板。
+      // 已经开过原生那条腿就等它，别第二次调用 next()——那会让面板叠出两张。
       note('approval', 'delegated');
-      return next();
+      return nativeLeg ?? next();
     },
 
     async interceptQuestions(request, next) {
@@ -436,13 +495,16 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       log.info('dsh-pet: user-questions/request intercepted count=' + questions.length);
       note('question', 'intercepted ' + questions.length + 'q');
       scheduleEscalate('question');
-      const resolution = await begin(envelope, QUESTION_TIMEOUT_MS, req.signal, null);
+      const petLeg = begin(envelope, QUESTION_TIMEOUT_MS, req.signal, null);
+      const nativeLeg = deps.mirror?.() === true ? startNative('question', next) : null;
+      const resolution = await petLeg;
       if (resolution.type === 'answers') {
         note('question', 'answered');
         return { answers: resolution.answers };
       }
+      if (resolution.type === 'native') return resolution.value;
       note('question', 'delegated');
-      return next();
+      return nativeLeg ?? next();
     },
 
     diag() {
@@ -477,7 +539,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
         return { ok: false, message: 'request expired or unknown' };
       }
       if (body.cancel === true) {
-        settle({ type: 'delegate' });
+        settle({ type: 'delegate' }, 'cancel');
         return { ok: true };
       }
       if (entry.envelope.kind === 'approval') {
@@ -498,10 +560,10 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
             sessionAllows.set(entry.sessionKey, now() + SESSION_ALLOW_TTL_MS);
             log.info('dsh-pet: session grant recorded key=' + entry.sessionKey);
           }
-          settle({ type: 'approval', outcome: 'allowed-once' });
+          settle({ type: 'approval', outcome: 'allowed-once' }, 'answer');
           return { ok: true };
         }
-        settle({ type: 'approval', outcome });
+        settle({ type: 'approval', outcome }, 'answer');
         return { ok: true };
       }
       const answers = body.answers;
@@ -529,7 +591,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
       }
       // 每道题都必须有答案：漏一道，DSH 的问句会永远悬着。
       if (normalized.length !== known.length) return { ok: false, message: 'every question needs an answer' };
-      settle({ type: 'answers', answers: normalized });
+      settle({ type: 'answers', answers: normalized }, 'answer');
       return { ok: true };
     },
 
@@ -583,7 +645,7 @@ export function createRequestHub(deps: RequestHubDeps): RequestHub {
     dispose() {
       disposed = true;
       sessionAllows.clear();
-      if (pending !== null) settle({ type: 'delegate' });
+      if (pending !== null) settle({ type: 'delegate' }, 'dispose');
       if (previewTimer !== null) clearTimeout(previewTimer);
       previewTimer = null;
       previewId = null;

@@ -43,6 +43,13 @@ export interface RequestHubDeps {
     escalate?: (kind: 'approval' | 'question') => void;
     /** 多久没响应算「太久」（ms）；不传用 `ESCALATE_MS`，测试注入短值。 */
     escalateMs?: number;
+    /**
+     * 是否让 DSH 自己的面板同时显示（默认关，成品里打开）。
+     *
+     * 打开后拦截不再独占请求：一边把气泡写出去，一边调用 `next()` 让内置面板照常渲染，
+     * 哪边先答都算数。关掉时维持老行为（接管期间 DSH 面板不出现）。
+     */
+    mirror?: () => boolean;
 }
 /** 一次拦截尝试的结论（只读诊断用）。 */
 export interface RequestDiagHit {

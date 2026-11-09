@@ -26,7 +26,7 @@ const makeState = (written: RequestEnvelope[]) =>
   }) as unknown as Parameters<typeof createRequestHub>[0]['state'];
 
 /** 造一个只关心「有没有端」和「几点」的中转站。 */
-function makeHub(options: { clock?: { t: number }; graceMs?: number; escalateMs?: number } = {}) {
+function makeHub(options: { clock?: { t: number }; graceMs?: number; escalateMs?: number; mirror?: boolean } = {}) {
   const clock = options.clock ?? { t: 1_000_000 };
   const env = { clients: 1, enabled: true };
   const written: RequestEnvelope[] = [];
@@ -40,6 +40,7 @@ function makeHub(options: { clock?: { t: number }; graceMs?: number; escalateMs?
     now: () => clock.t,
     escalate: (kind) => escalated.push(kind),
     escalateMs: options.escalateMs ?? 60,
+    ...(options.mirror === undefined ? {} : { mirror: () => options.mirror === true }),
     ...(options.graceMs === undefined ? {} : { clientGraceMs: options.graceMs }),
   });
   /** 最近一条写出去的信封 id。 */
@@ -152,5 +153,59 @@ describe('request hub 准入', () => {
     assert.equal(await pending, 'allowed-once');
     await new Promise((resolve) => setTimeout(resolve, 260));
     assert.deepEqual(escalated, []);
+  });
+});
+
+describe('request hub 双端展示（mirror）', () => {
+  it('DUAL-1 原生面板先答：用它的结论，气泡一起收掉', async () => {
+    const { hub } = makeHub({ mirror: true });
+    let calls = 0;
+    const result = (await hub.interceptApproval(approval, () => {
+      calls += 1;
+      return 'rejected';
+    })) as string;
+    assert.equal(result, 'rejected');
+    assert.equal(calls, 1, 'next() 只该调一次');
+    assert.equal(hub.busy(), false, '原生答完，宠物气泡要跟着收');
+  });
+
+  it('DUAL-2 原生没有面板（unavailable）：继续等宠物，别把请求判死', async () => {
+    const { hub, lastId } = makeHub({ mirror: true });
+    const pending = hub.interceptApproval(approval, () => 'unavailable') as Promise<string>;
+    await tick();
+    assert.equal(hub.busy(), true, '原生说没有面板，气泡应该还挂着');
+    hub.answer({ id: lastId(), outcome: 'allowed-once' });
+    assert.equal(await pending, 'allowed-once');
+  });
+
+  it('DUAL-3 宠物先答之后原生那条腿再回来：不许覆盖已提交的结论', async () => {
+    const { hub, lastId } = makeHub({ mirror: true });
+    let releaseNative!: (value: string) => void;
+    const pending = hub.interceptApproval(
+      approval,
+      () =>
+        new Promise<string>((resolve) => {
+          releaseNative = resolve;
+        }),
+    ) as Promise<string>;
+    await tick();
+    hub.answer({ id: lastId(), outcome: 'allowed-once' });
+    assert.equal(await pending, 'allowed-once');
+    releaseNative('rejected');
+    await tick();
+    assert.equal(hub.diag().pending, false);
+  });
+
+  it('DUAL-4 用户点「去 DSH」回落：复用已经开好的原生腿，不重复调用 next()', async () => {
+    const { hub, lastId } = makeHub({ mirror: true });
+    let calls = 0;
+    const pending = hub.interceptApproval(approval, () => {
+      calls += 1;
+      return 'unavailable';
+    }) as Promise<string>;
+    await tick();
+    hub.answer({ id: lastId(), cancel: true });
+    assert.equal(await pending, 'unavailable');
+    assert.equal(calls, 1, 'delegate 时别再调一次 next()，否则会叠出两张面板');
   });
 });
