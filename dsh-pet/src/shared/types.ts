@@ -34,6 +34,11 @@ export interface MoveSpec {
 export interface MovesConfig {
   default: Record<string, number>;
   actions: MoveSpec[];
+  /**
+   * 允许宠物在随机链里自己走开（默认 false：站起来走到别处、看着像「一直乱跑」）。
+   * 关掉只是不让**随机链**掷出移动档；菜单点播、位置指令、提醒游动都照旧能走。
+   */
+  roam?: boolean;
 }
 
 /** 随机动作分类（带文字、镜像会颠倒，facing=right 时跳过）。 */

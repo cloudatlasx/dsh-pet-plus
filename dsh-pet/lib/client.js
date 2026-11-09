@@ -10693,9 +10693,10 @@ function createAnimationFlow(rt) {
 			if (sleeping()) return;
 			const roll = Math.random();
 			const working = hub.cfg().workStatusEnabled && isWorkingState(workStatusRef.current?.state ?? null);
+			const roam = hub.cfg().animations.moves.roam === true;
 			const kind = rollKind(roll, hub.cfg().animationWeights, {
 				fixed: hub.cfg().fixedEnabled,
-				still: working
+				still: working || !roam
 			});
 			const move = kind === "move" ? hub.tryWalk() : void 0;
 			const decision = decideNextAnimation({
@@ -14357,7 +14358,35 @@ function createWalk(deps) {
 	let token = 0;
 	/** 已规划、等待视频就绪的走位。 */
 	let pending = null;
+	/** 往返原点：自主走位出发前记下，回程用完即清。 */
+	let roamHome = null;
 	const hasPending = () => pending !== null;
+	/**
+	* 回程：从移动池里挑一个和去程不同的动作走回原点。
+	* 用另一个动作而不是同一条反放，衔接上才像「走回来了」而不是「倒带」。
+	*/
+	const planReturn = (move) => {
+		const home = move.home;
+		if (!home) return;
+		const actions = deps.moves().actions;
+		const others = actions.filter((action) => action.name !== move.animName);
+		const pool = others.length > 0 ? others : actions;
+		const next = pool[Math.floor(Math.random() * pool.length)];
+		roamHome = null;
+		if (!next) return;
+		const params = Object.assign({}, deps.moves().default, next.params ?? {});
+		pending = {
+			startRatio: move.targetRatio,
+			startYRatio: move.startYRatio,
+			targetRatio: home.rx,
+			totalRatio: Math.abs(home.rx - move.targetRatio),
+			dir: home.rx >= move.targetRatio ? 1 : -1,
+			leadSec: params.leadSec ?? 0,
+			tailSec: params.tailSec ?? 0,
+			animName: next.name
+		};
+		deps.play(next.name);
+	};
 	const start = (el) => {
 		if (pending === null || frame !== null) return;
 		const move = pending;
@@ -14393,6 +14422,7 @@ function createWalk(deps) {
 					rx: move.targetRatio,
 					ry: move.startYRatio
 				});
+				if (move.roundTrip && move.home) planReturn(move);
 			}
 		};
 		frame = requestAnimationFrame(step);
@@ -14400,23 +14430,35 @@ function createWalk(deps) {
 	const tryMove = (preferredName) => {
 		if (frame !== null || pending !== null || deps.isFlying()) return true;
 		const metrics = deps.metrics();
+		const viewport = deps.viewport();
+		const center = deps.center();
 		const action = planMoveAction({
 			moves: deps.moves(),
 			preferredName,
 			facing: deps.facing(),
 			size: metrics.size,
-			center: deps.center(),
-			viewport: deps.viewport(),
+			center,
+			viewport,
 			halfW: metrics.halfW,
 			sideAllow: metrics.sideAllow
 		});
 		if (action === null) return false;
-		pending = action.pending;
+		if (roamHome === null) roamHome = {
+			rx: center.x / viewport.width,
+			ry: center.y / viewport.height
+		};
+		pending = {
+			...action.pending,
+			roundTrip: true,
+			home: roamHome,
+			animName: action.anim
+		};
 		deps.play(action.anim);
 		return action.anim;
 	};
 	const stop = () => {
 		pending = null;
+		roamHome = null;
 		token++;
 		if (frame !== null) {
 			cancelAnimationFrame(frame);

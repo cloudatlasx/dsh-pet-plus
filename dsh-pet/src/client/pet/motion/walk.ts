@@ -73,8 +73,38 @@ export function createWalk(deps: WalkDeps): Walk {
   let token = 0;
   /** 已规划、等待视频就绪的走位。 */
   let pending: PendingMove | null = null;
+  /** 往返原点：自主走位出发前记下，回程用完即清。 */
+  let roamHome: { rx: number; ry: number } | null = null;
 
   const hasPending = (): boolean => pending !== null;
+
+  /**
+   * 回程：从移动池里挑一个和去程不同的动作走回原点。
+   * 用另一个动作而不是同一条反放，衔接上才像「走回来了」而不是「倒带」。
+   */
+  const planReturn = (move: PendingMove): void => {
+    const home = move.home;
+    if (!home) return;
+    const actions = deps.moves().actions;
+    const others = actions.filter((action) => action.name !== move.animName);
+    const pool = others.length > 0 ? others : actions;
+    const next = pool[Math.floor(Math.random() * pool.length)];
+    roamHome = null;
+    if (!next) return;
+    const params = Object.assign({}, deps.moves().default, next.params ?? {});
+    pending = {
+      startRatio: move.targetRatio,
+      startYRatio: move.startYRatio,
+      targetRatio: home.rx,
+      // 浏览器半侧的走位只动 X：纵向沿用出发时那条比例，回程正好落回原位。
+      totalRatio: Math.abs(home.rx - move.targetRatio),
+      dir: home.rx >= move.targetRatio ? 1 : -1,
+      leadSec: params.leadSec ?? 0,
+      tailSec: params.tailSec ?? 0,
+      animName: next.name,
+    };
+    deps.play(next.name);
+  };
 
   const start = (el: HTMLVideoElement): void => {
     if (pending === null || frame !== null) return;
@@ -108,6 +138,8 @@ export function createWalk(deps: WalkDeps): Walk {
       else {
         frame = null;
         deps.commit({ rx: move.targetRatio, ry: move.startYRatio });
+        // 自主走位是往返：换**另一个**移动动作走回原点，别让宠物越走越远。
+        if (move.roundTrip && move.home) planReturn(move);
       }
     };
     frame = requestAnimationFrame(step);
@@ -117,25 +149,31 @@ export function createWalk(deps: WalkDeps): Walk {
     // 占用中返回 true：调用方据此知道宠物没空，不必再挑原地动作。
     if (frame !== null || pending !== null || deps.isFlying()) return true;
     const metrics = deps.metrics();
+    const viewport = deps.viewport();
+    const center = deps.center();
     const action = planMoveAction({
       moves: deps.moves(),
       preferredName,
       // 走路方向只看当前 facing；不要用 turn 动画反推方向，facingRef 已在 handleEnded 即时同步。
       facing: deps.facing(),
       size: metrics.size,
-      center: deps.center(),
-      viewport: deps.viewport(),
+      center,
+      viewport,
       halfW: metrics.halfW,
       sideAllow: metrics.sideAllow,
     });
     if (action === null) return false;
-    pending = action.pending;
+    // 出发前记下原点：只在没有未完成的往返时记，别把「半路接新行程」当成新原点。
+    if (roamHome === null) roamHome = { rx: center.x / viewport.width, ry: center.y / viewport.height };
+    pending = { ...action.pending, roundTrip: true, home: roamHome, animName: action.anim };
     deps.play(action.anim);
     return action.anim;
   };
 
   const stop = (): void => {
     pending = null;
+    // 停走一并放弃往返：被拖拽/隐藏打断后不该再自己走回去。
+    roamHome = null;
     token++;
     if (frame !== null) {
       cancelAnimationFrame(frame);

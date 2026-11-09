@@ -265,3 +265,59 @@ describe('createWalk —— 停走', () => {
     }
   });
 });
+
+describe('createWalk —— 走位往返', () => {
+  const twoActions = {
+    default: { minDist: 80, maxDist: 120, margin: 16, leadSec: 0.2, tailSec: 0.3 },
+    actions: [{ name: 'walk1' }, { name: 'walk2' }],
+  } as unknown as MovesConfig;
+
+  test('到位后换另一个动作走回原点，回程不再往返', () => {
+    const frames = withFakeFrames();
+    try {
+      const { walk, played, commits } = harness({ moves: () => twoActions });
+      walk.tryMove('walk1');
+      const outbound = fakeVideo(1);
+      walk.start(outbound);
+      outbound.currentTime = 1;
+      frames.tick();
+      // 去程播 walk1，到位后回程必须换一个动作（walk2），并留下待走的回程。
+      assert.deepEqual(played, ['walk1', 'walk2']);
+      assert.equal(walk.hasPending(), true);
+      assert.equal(commits.length, 1);
+
+      const back = fakeVideo(1);
+      walk.start(back);
+      back.currentTime = 1;
+      frames.tick();
+      // 回程落回出发点（中心 500/1000 = 0.5），且到此为止——回程自己不再往返。
+      assert.equal(commits.length, 2);
+      assert.equal(commits[1].rx, 0.5);
+      assert.equal(walk.hasPending(), false);
+      assert.deepEqual(played, ['walk1', 'walk2']);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  test('只有一条走位动作时回程复用同一条，不会卡住不回来', () => {
+    const frames = withFakeFrames();
+    try {
+      const { walk, played, commits } = harness();
+      walk.tryMove('walk1');
+      const outbound = fakeVideo(1);
+      walk.start(outbound);
+      outbound.currentTime = 1;
+      frames.tick();
+      assert.deepEqual(played, ['walk1', 'walk1']);
+      const back = fakeVideo(1);
+      walk.start(back);
+      back.currentTime = 1;
+      frames.tick();
+      assert.equal(commits[commits.length - 1]?.rx, 0.5);
+      assert.equal(walk.hasPending(), false);
+    } finally {
+      frames.restore();
+    }
+  });
+});

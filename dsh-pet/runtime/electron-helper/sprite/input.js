@@ -76,6 +76,8 @@ Object.assign(PetSprite.prototype, {
     this.stopThrow(); // 空中抓取：从当前落点开始新拖拽（this.pos 实时）
     this.stopDragFollow();
     this.stopMove();
+    // 手已经按在宠物身上：未执行的走位回程作废，别在指头底下自己往回走。
+    this.cancelRoamReturn();
     this.dragTrail = [];
     // 弹弓：按下时记时刻、按下时比对——间隔 = 两次按下之间的距离，与这次拖了多久无关，
     // 也没有「待拉」状态或超时清理。

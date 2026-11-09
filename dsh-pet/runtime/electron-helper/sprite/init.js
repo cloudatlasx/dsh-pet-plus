@@ -51,6 +51,12 @@ Object.assign(PetSprite.prototype, {
     this.returnTimer = null;
     this.returnHomeToken = 0;
     this.returnSeq = 0;
+    // 走位往返：出发前记下原点，到位后换另一个移动动作走回去（只有 tryMove 的行程带这一程）。
+    // 与上面的 returnTimer 分开——那条是「游过去催一下」的宿主归位，语义不同、不能互相作废。
+    this.roamHome = null;
+    this.roamReturnTimer = null;
+    this.roamReturnToken = 0;
+    this.roamReturnSeq = 0;
     // 出发位置（归一化并集比例）：请求气泡上「知道了/选完」就立刻按它回去，不等 returnAfter 到点。
     this.awayHome = null;
     this.space = null; // 抛掷空间（逐屏 AABB）缓存；显示器变化时由 relayout() 置空重建

@@ -65,6 +65,8 @@ Object.assign(PetSprite.prototype, {
           if (this.requestEnvelope) this.pulseBubble(this.requestEnvelope.id + ':esc');
         }
         this.armReturnHome();
+        // 走位往返：这次是「自己走开」，到位后换另一个移动动作走回原点。
+        if (pm.roundTrip) this.scheduleRoamReturn();
       }
     };
     this.moveRef = requestAnimationFrame(step);
@@ -411,6 +413,53 @@ Object.assign(PetSprite.prototype, {
   },
 
   /**
+   * 走位往返的归位一程：从「移动」池里换**另一个**动作走回出发位置。
+   *
+   * 一次走位之所以要往返：宠物自己走开两三百像素就停在别处，久了屏幕上的位置越漂越远，
+   * 用户看到的就是「一直自己乱跑」。出发前记下原点（roamHome），到位后隔一小段再换一个
+   * 动作走回去——「另一个动作衔接」，而不是原地闪回。
+   */
+  scheduleRoamReturn() {
+    const home = this.roamHome;
+    if (!home) return;
+    const moves = this.animations && this.animations.moves;
+    const actions = moves && Array.isArray(moves.actions) ? moves.actions : [];
+    if (!actions.length) {
+      this.roamHome = null;
+      return;
+    }
+    // 换一个动作回程：同一条动画正放完又反着放一遍，衔接上像是「原地倒带」。
+    const others = actions.filter((a) => a && a.name !== this.anim);
+    const pool = others.length ? others : actions;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (!pick) {
+      this.roamHome = null;
+      return;
+    }
+    const token = ++this.roamReturnSeq;
+    this.roamReturnToken = token;
+    if (this.roamReturnTimer) clearTimeout(this.roamReturnTimer);
+    this.roamReturnTimer = setTimeout(() => {
+      if (this.roamReturnToken !== token) return;
+      this.roamReturnTimer = null;
+      const target = this.roamHome;
+      this.roamHome = null;
+      // 用户正按着、或在忙着别的移动时放弃回程：手底下的宠物不该自己跑。
+      if (!target || this.dragState.active || this.moveRef !== null || this.pendingMove) return;
+      this.startActionMove(target.rx * VIEW.w, target.ry * VIEW.h, pick.name);
+    }, 1200);
+  },
+
+  /** 作废未执行的走位回程（新位置指令、拖拽、隐藏时调用）。 */
+  cancelRoamReturn() {
+    if (this.roamReturnTimer) clearTimeout(this.roamReturnTimer);
+    this.roamReturnTimer = null;
+    this.roamReturnSeq++;
+    this.roamReturnToken = 0;
+    this.roamHome = null;
+  },
+
+  /**
    * 用户已经拍板：立刻回到出发位置，不等 returnAfter 到点。
    *
    * 请求气泡一消失（选完 / 取消 / 超时）就调它——「催完还在原地杵着」比不催更怪。
@@ -435,6 +484,8 @@ Object.assign(PetSprite.prototype, {
     if (this.dragState.active) return; // 用户交互优先
     // 任何新的位置指令都作废未执行的归位：否则宠物可能先照新指令走，过一秒又自己溜回老地方
     this.cancelReturnHome();
+    // 位置指令是「明确要去某处」：走位往返的半程回程一并作废，否则到了目标点还会自己折返。
+    this.cancelRoamReturn();
     this.stopThrow(); // 先显式接管：停掉飞行与走路（stopMove 顺带停掉上一次的位置跟随）
     this.stopMove();
     // 参照系：并集外接矩形（默认）或 DSH 所在屏（anchor，未上报时退回主屏）

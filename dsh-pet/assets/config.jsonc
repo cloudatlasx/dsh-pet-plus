@@ -372,6 +372,9 @@
     //   运行时按 实际size/462 等比缩放（小宠物挪小步、大宠物挪大步，与人物大小匹配）；
     // margin=贴边安全距(px，不随缩放)、leadSec/tailSec=动画首尾各多少秒原地不动。
     "moves": {
+      // roam: 是否允许随机链让宠物自己走开（默认 false）。关掉后它不会自己溜达到别处，
+      // 只能由菜单点播、位置指令或提醒触发走动；每次走位都会用另一个动作走回原位。
+      "roam": false,
       "default": { "minDist": 60, "maxDist": 240, "margin": 20, "leadSec": 2, "tailSec": 2 },
       "actions": [
         { "name": "螃蟹走路" },

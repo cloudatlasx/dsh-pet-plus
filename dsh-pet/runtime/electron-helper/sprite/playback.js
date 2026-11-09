@@ -268,7 +268,10 @@ Object.assign(PetSprite.prototype, {
     // 干活时（thinking/working/result/waiting）再压掉「移动」一档：可以转个方向背对着电脑继续忙，
     // 但不该自己溜达到屏幕另一头——工作第一优先级。成功/出错是终态，照旧允许走动。
     const working = this.pet.workStatusEnabled && S.isWorkingState(this.workState);
-    const k = S.rollKind(roll, animationWeights, { fixed: this.pet.fixedEnabled, still: working });
+    // 自己乱跑：默认关掉（animations.moves.roam 为 true 才允许随机链掷出「移动」）。
+    // 归零只压这一档，idle / turn 的绝对概率原样不动；菜单点播与位置指令不走这里，照旧能动。
+    const roam = !!(this.animations.moves && this.animations.moves.roam === true);
+    const k = S.rollKind(roll, animationWeights, { fixed: this.pet.fixedEnabled, still: working || !roam });
     let next;
     if (k === 'idle') {
       next = S.pick(animations.idle, this.anim);
@@ -449,7 +452,10 @@ Object.assign(PetSprite.prototype, {
       areas: wanderArea ? [wanderArea] : AREAS,
     });
     if (!plan) return false;
-    this.pendingMove = { ...plan, dir, leadSec: mp.leadSec, tailSec: mp.tailSec };
+    // 往返：每次出发都以「此刻所在」为原点，到位后由 motion.scheduleRoamReturn() 换另一个动作走回去。
+    // 不能只在没有原点时记——上一趟留下的旧原点在屏幕上早已不是它的位置，会越走越偏。
+    this.roamHome = { rx: cx / W, ry: cy / H };
+    this.pendingMove = { ...plan, dir, leadSec: mp.leadSec, tailSec: mp.tailSec, roundTrip: true };
     this.anim = chosen.name;
     this.once = true;
     this.switchTo(chosen.name, true, playbackId);

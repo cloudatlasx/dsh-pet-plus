@@ -16,6 +16,12 @@ export interface PendingMove extends MovePlan {
   leadSec: number;
   /** 动作结尾多少秒前就到位（收脚）。 */
   tailSec: number;
+  /** 这一程走完要换另一个动作走回 `home`（自主走位的往返）。 */
+  roundTrip?: boolean;
+  /** 往返的出发位置（归一化）。 */
+  home?: { rx: number; ry: number };
+  /** 这一段用的动作名（回程要换一个动作，得知道刚才是谁）。 */
+  animName?: string;
 }
 
 /** 规划输入。 */
