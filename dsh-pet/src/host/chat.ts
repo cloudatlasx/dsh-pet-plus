@@ -13,7 +13,7 @@
 import { BlockAssembler, createAssistantMessage, createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { actionInstruction, extractChatAction } from './chat-action.ts';
 import { actInstruction, extractChatActs, type PetCorner } from './chat-acts.ts';
-import { extractChatReminder, reminderInstruction, type ChatReminder } from './chat-reminder.ts';
+import { extractChatReminder, reconcileReminder, reminderInstruction, type ChatReminder } from './chat-reminder.ts';
 import type { PetImageRef } from './image-attachment.ts';
 import { PET_CALL_IDENTITY, noTextReason } from './llm-call.ts';
 import { supportsReasoningOff } from './llm-reasoning.ts';
@@ -275,14 +275,16 @@ async function generateWith(ctx: { llm?: unknown }, once: GenerateOnce): Promise
   const picked: { text: string; image?: string } = wantImage
     ? extractChatImage(acted.text, pool)
     : { text: acted.text };
-  const reminded: { text: string; reminder?: ChatReminder } = extractChatReminder(picked.text);
+  const reminded: { text: string; reminder?: ChatReminder } = extractChatReminder(picked.text, nowMs);
+  // 周期说法以用户原话为准（模型算的秒数可能差几十秒）；模型漏写标记时也在这兜底补一条
+  const reminder = reconcileReminder(reminded.reminder, userText, nowMs);
   const acts = extractChatActs(reminded.text);
   return {
     ok: true,
     text: acts.text,
     ...(picked.image ? { image: picked.image } : {}),
     ...(acted.action ? { action: acted.action } : {}),
-    ...(reminded.reminder ? { reminder: reminded.reminder } : {}),
+    ...(reminder ? { reminder } : {}),
     ...(acts.rename !== undefined ? { rename: acts.rename } : {}),
     ...(acts.remember !== undefined ? { remember: acts.remember } : {}),
     ...(acts.size !== undefined ? { size: acts.size } : {}),

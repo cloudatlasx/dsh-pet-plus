@@ -82,13 +82,15 @@ export async function removeTodo(id: string, baseUrl = TODOS_PATH): Promise<Todo
   return { ok: true, value: typeof result.body.removed === 'number' ? result.body.removed : 0 };
 }
 
-/** 一条 DSH 定时任务：面板只展示、只允许完成，不在面板里新建。 */
+/** 一条 DSH 定时任务或宠物自己记着的提醒：面板只展示、只允许完成，不在面板里新建。 */
 export interface PetTask {
   id: string;
   title: string;
   kind: string;
   scheduledAt: string;
   status: string;
+  /** 周期说法（`每个工作日 11:00`）；一次性的任务没有。 */
+  repeat?: string;
 }
 
 /** 收窄一条任务；缺 id 或标题视为坏行。 */
@@ -99,7 +101,15 @@ function readTask(value: unknown): PetTask | null {
   const id = text('id');
   const title = text('title');
   if (id === '' || title === '') return null;
-  return { id, title, kind: text('kind'), scheduledAt: text('scheduledAt'), status: text('status') };
+  const repeat = text('repeat');
+  return {
+    id,
+    title,
+    kind: text('kind'),
+    scheduledAt: text('scheduledAt'),
+    status: text('status'),
+    ...(repeat === '' ? {} : { repeat }),
+  };
 }
 
 /** 读 DSH 定时任务清单。 */

@@ -15,6 +15,7 @@ import type { LockStore } from '../lock.ts';
 import type { FileLogger } from '../log-file.ts';
 import type { MenuRegistry } from '../menu.ts';
 import type { PlaybackStore } from '../playback.ts';
+import type { PetReminderStore } from '../plugin/pet-reminders.ts';
 import type { PoseStore } from '../pose.ts';
 import type { RequestHub } from '../request-hub.ts';
 import type { SleepStore } from '../sleep.ts';
@@ -164,6 +165,8 @@ export interface PetRouteDeps {
   readonly speech: HearService;
   /** 审批 / 提问气泡的中转站：回答入口与会话瀑布监听都在里面。 */
   readonly requests: RequestHub;
+  /** 宠物自己的闹钟（对话里答应的提醒，落盘在 reminders.json）。 */
+  readonly reminders: PetReminderStore;
   /** 用户数据根（设置页「存储位置」与切换指针）。 */
   readonly home: PetHomeInfo;
 }

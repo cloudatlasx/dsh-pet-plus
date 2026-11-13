@@ -4080,12 +4080,14 @@ function readTask(value) {
 	const id = text("id");
 	const title = text("title");
 	if (id === "" || title === "") return null;
+	const repeat = text("repeat");
 	return {
 		id,
 		title,
 		kind: text("kind"),
 		scheduledAt: text("scheduledAt"),
-		status: text("status")
+		status: text("status"),
+		...repeat === "" ? {} : { repeat }
 	};
 }
 async function loadTasks(baseUrl = TASKS_PATH) {
@@ -4640,7 +4642,8 @@ const TASK_KINDS = {
 	daily: "每天",
 	weekly: "每周",
 	every: "每隔一段",
-	cron: "按计划"
+	cron: "按计划",
+	chat: "她记着的提醒"
 };
 /** 两位补零。 */
 function pad2(value) {
@@ -4654,10 +4657,17 @@ function stampOf(iso) {
 	return `${date.getMonth() + 1}/${date.getDate()} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 function taskMetaLabel(task) {
+	const parts = [];
 	const kind = TASK_KINDS[task.kind] ?? task.kind;
-	const when = stampOf(task.scheduledAt);
-	const parts = [kind];
-	if (when !== "") parts.push(when);
+	if (task.repeat !== void 0 && task.repeat !== "") {
+		parts.push(task.repeat);
+		const when = stampOf(task.scheduledAt);
+		if (when !== "") parts.push("下次 " + when);
+	} else {
+		parts.push(kind);
+		const when = stampOf(task.scheduledAt);
+		if (when !== "") parts.push(when);
+	}
 	if (task.status === "inactive") parts.push("已停用");
 	return parts.join(" · ");
 }

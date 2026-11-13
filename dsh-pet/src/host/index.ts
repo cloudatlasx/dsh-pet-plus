@@ -168,7 +168,7 @@ export function apply(ctx: any): void {
     // 对话里答应的「几分钟后提醒我」：排进宠物自己的闹钟（落盘 + 到点弹气泡），
     // 不走 DSH 的 schedule（那是往会话里塞提示词，会惊动 agent）。
     scheduleReminder: (petId, reminder) => {
-      const item = petReminders.schedule(petId, reminder.title, reminder.seconds);
+      const item = petReminders.schedule(petId, reminder.title, reminder.seconds, reminder.repeat);
       return { id: item.id, dueAt: item.dueAt };
     },
     // 对话里说的「以后叫你 X」：真的写进 pets[].name（与设置页同一条写盘路径）。
@@ -280,6 +280,7 @@ export function apply(ctx: any): void {
     ctx,
     todos,
     requests,
+    reminders: petReminders,
     // 语音合成：缓存落 userRoot，失败只留日志，不打断宿主。
     // 每次合成现查引擎配置：设置页改完就生效，不必重载插件
     voice: createVoiceService({ userRoot, log, resolveEngine: () => resolveVoiceEngine(configPaths) }),

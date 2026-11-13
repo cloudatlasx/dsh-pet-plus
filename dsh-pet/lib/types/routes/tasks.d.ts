@@ -17,6 +17,10 @@ export interface TaskRow {
     kind: string;
     scheduledAt: string;
     status: string;
+    /** 周期说法（`每个工作日 11:00`）；一次性的任务没有这一项。 */
+    repeat?: string;
 }
+/** 对话提醒在任务面板里的 id 前缀：与 DSH 调度器的任务区分开，删除时才能走对分支。 */
+export declare const PET_REMINDER_PREFIX = "chat-";
 /** 任务领域：未命中返回 undefined，命中返回应答。 */
 export declare function handleTaskRoutes(deps: PetRouteDeps, input: RouteInput): Promise<RouteResult | undefined>;

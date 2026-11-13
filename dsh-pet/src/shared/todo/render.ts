@@ -185,6 +185,7 @@ const TASK_KINDS: Record<string, string> = {
   weekly: '每周',
   every: '每隔一段',
   cron: '按计划',
+  chat: '她记着的提醒',
 };
 
 /** 两位补零。 */
@@ -200,12 +201,20 @@ function stampOf(iso: string): string {
   return `${date.getMonth() + 1}/${date.getDate()} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
-/** 任务行的副标题：种类 + 下次时刻 + 停用标记。 */
+/** 任务行的副标题：种类 + 下次时刻 + 周期 + 停用标记。 */
 export function taskMetaLabel(task: PetTask): string {
+  const parts: string[] = [];
   const kind = TASK_KINDS[task.kind] ?? task.kind;
-  const when = stampOf(task.scheduledAt);
-  const parts = [kind];
-  if (when !== '') parts.push(when);
+  if (task.repeat !== undefined && task.repeat !== '') {
+    // 周期提醒：让「每个工作日 11:00」自己说明，不再叠一个笼统的种类词
+    parts.push(task.repeat);
+    const when = stampOf(task.scheduledAt);
+    if (when !== '') parts.push('下次 ' + when);
+  } else {
+    parts.push(kind);
+    const when = stampOf(task.scheduledAt);
+    if (when !== '') parts.push(when);
+  }
   if (task.status === 'inactive') parts.push('已停用');
   return parts.join(' · ');
 }

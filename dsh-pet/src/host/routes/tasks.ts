@@ -10,6 +10,7 @@
  */
 import type { PetRouteDeps, RouteInput } from './types.ts';
 import type { RouteResult } from '../http.ts';
+import { repeatLabel } from '../reminder-repeat.ts';
 import { failResult, invalidJson, methodNotAllowed, okResult } from './result.ts';
 
 /** 调度服务的最小可用面（`optionalService('schedule')` 拿到的实测形状）。 */
@@ -25,7 +26,12 @@ export interface TaskRow {
   kind: string;
   scheduledAt: string;
   status: string;
+  /** 周期说法（`每个工作日 11:00`）；一次性的任务没有这一项。 */
+  repeat?: string;
 }
+
+/** 对话提醒在任务面板里的 id 前缀：与 DSH 调度器的任务区分开，删除时才能走对分支。 */
+export const PET_REMINDER_PREFIX = 'chat-';
 
 /** 取一个修剪过的字符串；非字符串给空串。 */
 function textOf(value: unknown): string {
@@ -60,24 +66,44 @@ function scheduleOf(deps: PetRouteDeps): ScheduleService | null {
   return service;
 }
 
+/** 直接把宠物自己的闹钟折成面板行：它们的「下次时刻」不在 DSH 调度器里。 */
+function reminderRows(deps: PetRouteDeps): TaskRow[] {
+  return deps.reminders.list().map((item) => ({
+    id: PET_REMINDER_PREFIX + item.id,
+    title: item.title,
+    kind: 'chat',
+    scheduledAt: new Date(item.dueAt).toISOString(),
+    status: 'active',
+    ...(item.repeat === undefined ? {} : { repeat: repeatLabel(item.repeat) }),
+  }));
+}
+
+/** 读调度器清单；失败折成结果对象，由调用方转成可展示的失败（不 throw 以免丢日志上下文）。 */
+async function readCatalog(
+  deps: PetRouteDeps,
+  service: ScheduleService,
+): Promise<{ ok: true; rows: unknown } | { ok: false; message: string }> {
+  if (typeof service.catalog !== 'function') return { ok: true, rows: [] };
+  try {
+    return { ok: true, rows: await service.catalog() };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    deps.log.warn('dsh-pet: tasks/catalog failed: ' + message);
+    return { ok: false, message };
+  }
+}
+
 /** 任务领域：未命中返回 undefined，命中返回应答。 */
 export async function handleTaskRoutes(deps: PetRouteDeps, input: RouteInput): Promise<RouteResult | undefined> {
   // 正向判据：`scripts/check-openapi.mjs` 只收集正向的 rest 相等分支，写成反向守卫会被漏掉。
   if (input.rest === 'tasks') {
     if (input.method !== 'GET') return methodNotAllowed();
     const service = scheduleOf(deps);
-    if (!service || typeof service.catalog !== 'function') {
-      return failResult('unsupported', 'DSH 的 schedule 服务不可用');
-    }
-    let rows: unknown;
-    try {
-      rows = await service.catalog();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      deps.log.warn('dsh-pet: tasks/catalog failed: ' + message);
-      return failResult('internal-error', '读定时任务失败：' + message);
-    }
-    return okResult({ ok: true, tasks: readRows(rows) });
+    if (!service) return failResult('unsupported', 'DSH 的 schedule 服务不可用');
+    const catalog = await readCatalog(deps, service);
+    if (!catalog.ok) return failResult('internal-error', '读定时任务失败：' + catalog.message);
+    // DSH 调度器的任务 + 宠物自己的闹钟：两套存储，面板上一起列
+    return okResult({ ok: true, tasks: [...readRows(catalog.rows), ...reminderRows(deps)] });
   }
 
   if (input.rest === 'tasks/complete') {
@@ -90,6 +116,14 @@ export async function handleTaskRoutes(deps: PetRouteDeps, input: RouteInput): P
     }
     const id = textOf(parsed?.id);
     if (id === '') return failResult('bad-request', 'id 必填');
+
+    // 宠物自己的提醒：从闹钟里取消，不碰 DSH 调度器
+    if (id.startsWith(PET_REMINDER_PREFIX)) {
+      const cancelled = deps.reminders.cancel(id.slice(PET_REMINDER_PREFIX.length));
+      if (!cancelled) return failResult('bad-request', '没有这条提醒：' + id);
+      deps.log.info(`[dsh-pet] 任务面板取消提醒 ${id}`);
+      return okResult({ ok: true });
+    }
 
     const service = scheduleOf(deps);
     if (!service || typeof service.catalog !== 'function' || typeof service.delete !== 'function') {

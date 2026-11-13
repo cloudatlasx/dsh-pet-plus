@@ -13,6 +13,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { nextOccurrence, repeatLabel, type ReminderRepeat } from '../reminder-repeat.ts';
 import { publishReminder } from '../request-hub.ts';
 import type { PollStateStore } from '../state.ts';
 import type { HostSetup } from './setup.ts';
@@ -43,16 +44,18 @@ export interface PetReminder {
   readonly petId: string;
   /** 提醒事项。 */
   readonly title: string;
-  /** 到点时刻（ms）。 */
+  /** 到点时刻（ms）。周期提醒响完会推进到下一次。 */
   readonly dueAt: number;
   /** 约定时刻（ms）：排期、日志用。 */
   readonly createdAt: number;
+  /** 周期规则；一次性提醒没有这一项。 */
+  readonly repeat?: ReminderRepeat;
 }
 
 /** 闹钟存储：排一条、看全部、取消、随生命周期释放。 */
 export interface PetReminderStore {
   /** 排一条提醒；`seconds` 已由调用方校验过范围。超过上限时顶掉最早的一条。 */
-  schedule(petId: string, title: string, seconds: number): PetReminder;
+  schedule(petId: string, title: string, seconds: number, repeat?: ReminderRepeat): PetReminder;
   /** 当前待发的提醒（按到点时刻升序）。 */
   list(): PetReminder[];
   /** 取消一条；命中返回 true。 */
@@ -92,9 +95,35 @@ function sanitize(value: unknown): PetReminder[] {
     const dueAt = typeof row.dueAt === 'number' && Number.isFinite(row.dueAt) ? row.dueAt : NaN;
     const createdAt = typeof row.createdAt === 'number' && Number.isFinite(row.createdAt) ? row.createdAt : NaN;
     if (id === '' || petId === '' || title === '' || !Number.isFinite(dueAt)) continue;
-    out.push({ id, petId, title, dueAt, createdAt: Number.isFinite(createdAt) ? createdAt : dueAt });
+    const repeat = readRepeat(row.repeat);
+    out.push({
+      id,
+      petId,
+      title,
+      dueAt,
+      createdAt: Number.isFinite(createdAt) ? createdAt : dueAt,
+      ...(repeat === undefined ? {} : { repeat }),
+    });
   }
   return out.sort((a, b) => a.dueAt - b.dueAt);
+}
+
+/** 读一条周期规则；形状不对就当它是一次性（坏数据不该让整条提醒消失）。 */
+function readRepeat(value: unknown): ReminderRepeat | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+  const row = value as Record<string, unknown>;
+  const kind = row.kind;
+  if (kind !== 'daily' && kind !== 'weekday' && kind !== 'weekly') return undefined;
+  const hour = row.hour;
+  const minute = row.minute;
+  if (typeof hour !== 'number' || !Number.isInteger(hour) || hour < 0 || hour > 23) return undefined;
+  if (typeof minute !== 'number' || !Number.isInteger(minute) || minute < 0 || minute > 59) return undefined;
+  const weekday = row.weekday;
+  if (kind === 'weekly') {
+    if (typeof weekday !== 'number' || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) return undefined;
+    return { kind, hour, minute, weekday };
+  }
+  return { kind, hour, minute };
 }
 
 /**
@@ -135,7 +164,8 @@ export function createPetReminderStore(input: PetReminderStoreInput): PetReminde
     const ts = now();
     const when = new Date(item.dueAt);
     const clock = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
-    const hint = lateMs > 60 * 1000 ? `本来 ${clock} 就该提醒你的` : '到点啦';
+    const base = lateMs > 60 * 1000 ? `本来 ${clock} 就该提醒你的` : '到点啦';
+    const hint = item.repeat === undefined ? base : `${base} · ${repeatLabel(item.repeat)}`;
     publishReminder(
       input.state,
       {
@@ -149,8 +179,18 @@ export function createPetReminderStore(input: PetReminderStoreInput): PetReminde
       },
       now,
     );
-    pending = pending.filter((row) => row.id !== item.id);
-    input.log.info(`[dsh-pet] 对话提醒到点 pet=${item.petId}，迟到 ${Math.round(lateMs / 1000)}s`);
+    if (item.repeat !== undefined) {
+      // 周期提醒：响完不摘，推进到下一次；同一 id 继续留着（重复项不会越排越多）
+      const next = nextOccurrence(item.repeat, ts);
+      pending = pending.map((row) => (row.id === item.id ? { ...row, dueAt: next } : row));
+      pending = [...pending].sort((a, b) => a.dueAt - b.dueAt);
+      input.log.info(
+        `[dsh-pet] 周期提醒到点 pet=${item.petId}（${repeatLabel(item.repeat)}），下一次 ${new Date(next).toISOString()}`,
+      );
+    } else {
+      pending = pending.filter((row) => row.id !== item.id);
+      input.log.info(`[dsh-pet] 对话提醒到点 pet=${item.petId}，迟到 ${Math.round(lateMs / 1000)}s`);
+    }
     void save();
     return true;
   };
@@ -186,7 +226,7 @@ export function createPetReminderStore(input: PetReminderStoreInput): PetReminde
   };
 
   const store: PetReminderStore = {
-    schedule(petId: string, title: string, seconds: number): PetReminder {
+    schedule(petId: string, title: string, seconds: number, repeat?: ReminderRepeat): PetReminder {
       const createdAt = now();
       if (pending.length >= MAX_PENDING_REMINDERS) {
         // 顶掉最早到点的那条（不是最早答应的）：用户最可能已经忘了它
@@ -200,8 +240,10 @@ export function createPetReminderStore(input: PetReminderStoreInput): PetReminde
         id: randomUUID(),
         petId,
         title: title.slice(0, 40),
-        dueAt: createdAt + Math.round(seconds) * 1000,
+        // 周期提醒按规则对齐到整分（「11 点」不该排成 11:00:31），一次性才用秒数
+        dueAt: repeat === undefined ? createdAt + Math.round(seconds) * 1000 : nextOccurrence(repeat, createdAt),
         createdAt,
+        ...(repeat === undefined ? {} : { repeat }),
       };
       pending = [...pending, item].sort((a, b) => a.dueAt - b.dueAt);
       void save();
@@ -236,13 +278,20 @@ export function createPetReminderStore(input: PetReminderStoreInput): PetReminde
       }
       pending = sanitize(raw);
       const at = now();
+      // 周期提醒不因错过而丢：跳过太久的直接推进到下一次（否则开机就补弹昨天那条）
+      pending = pending.map((row) =>
+        row.repeat !== undefined && at - row.dueAt > MISS_GRACE_MS
+          ? { ...row, dueAt: nextOccurrence(row.repeat, at) }
+          : row,
+      );
       // 过期太久的丢掉：第二天开机补弹昨天下午的提醒，只会让人莫名其妙
-      const stale = pending.filter((row) => at - row.dueAt > MISS_GRACE_MS);
+      const stale = pending.filter((row) => row.repeat === undefined && at - row.dueAt > MISS_GRACE_MS);
       if (stale.length > 0) {
-        pending = pending.filter((row) => at - row.dueAt <= MISS_GRACE_MS);
+        pending = pending.filter((row) => row.repeat !== undefined || at - row.dueAt <= MISS_GRACE_MS);
         input.log.info(`[dsh-pet] 丢弃 ${stale.length} 条过期太久的提醒`);
         void save();
       }
+      pending = [...pending].sort((a, b) => a.dueAt - b.dueAt);
       // 刚醒 / 刚重载：到点的立刻补弹（留一点延迟，等页面把长轮询挂上）
       const dueNow = pending.filter((row) => row.dueAt <= at).length;
       if (dueNow > 0) {

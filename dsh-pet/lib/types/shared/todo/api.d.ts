@@ -23,13 +23,15 @@ export declare function patchTodo(id: string, patch: {
 }, baseUrl?: string): Promise<TodoResult<TodoItem>>;
 /** 删除一条；返回删掉的条数（0 = 本来就没有）。 */
 export declare function removeTodo(id: string, baseUrl?: string): Promise<TodoResult<number>>;
-/** 一条 DSH 定时任务：面板只展示、只允许完成，不在面板里新建。 */
+/** 一条 DSH 定时任务或宠物自己记着的提醒：面板只展示、只允许完成，不在面板里新建。 */
 export interface PetTask {
     id: string;
     title: string;
     kind: string;
     scheduledAt: string;
     status: string;
+    /** 周期说法（`每个工作日 11:00`）；一次性的任务没有。 */
+    repeat?: string;
 }
 /** 读 DSH 定时任务清单。 */
 export declare function loadTasks(baseUrl?: string): Promise<TodoResult<PetTask[]>>;

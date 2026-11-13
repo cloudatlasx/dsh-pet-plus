@@ -54,7 +54,7 @@ export interface TaskListHandlers {
     /** 完成（= 删除）这条任务。 */
     onComplete: (task: PetTask) => void;
 }
-/** 任务行的副标题：种类 + 下次时刻 + 停用标记。 */
+/** 任务行的副标题：种类 + 下次时刻 + 周期 + 停用标记。 */
 export declare function taskMetaLabel(task: PetTask): string;
 /**
  * 渲染定时任务清单：没有任务就整块隐藏，不占位置。

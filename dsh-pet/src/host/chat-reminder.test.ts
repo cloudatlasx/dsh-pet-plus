@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 
 import {
   extractChatReminder,
+  reconcileReminder,
   REMINDER_MIN_SECONDS,
   REMINDER_TITLE_MAX,
   reminderInstruction,
@@ -72,5 +73,32 @@ describe('reminderInstruction —— 给模型的指令', () => {
 
   test('时间串格式', () => {
     assert.equal(reminderNowText(new Date(2026, 0, 1, 9, 0)), '2026-01-01 09:00（周四）');
+  });
+});
+
+describe('reconcileReminder —— 用用户原话兜住模型的两种漏写', () => {
+  const FRIDAY = new Date(2026, 10, 13, 16, 51, 0, 0).getTime();
+
+  test('模型只写了一次性秒数，但原话里有「每个工作日 11 点」→ 补上周期并重算', () => {
+    const merged = reconcileReminder({ seconds: 238140, title: '点外卖' }, '每个工作日的11点提醒我点外卖', FRIDAY);
+    assert.deepEqual(merged?.repeat, { kind: 'weekday', hour: 11, minute: 0 });
+  });
+
+  test('模型干脆没写标记，但原话三件套齐全 → 兜底造一条', () => {
+    const merged = reconcileReminder(undefined, '每个工作日11点提醒我点外卖', FRIDAY);
+    assert.equal(merged?.title, '点外卖');
+    assert.deepEqual(merged?.repeat, { kind: 'weekday', hour: 11, minute: 0 });
+  });
+
+  test('普通闲聊一个字也不该造出提醒', () => {
+    assert.equal(reconcileReminder(undefined, '每个工作日11点我都点外卖', FRIDAY), undefined);
+    assert.equal(reconcileReminder(undefined, '今天天气不错', FRIDAY), undefined);
+  });
+
+  test('原话没提周期时，模型写的一次性提醒原样保留', () => {
+    assert.deepEqual(reconcileReminder({ seconds: 120, title: '开会' }, '两分钟后提醒我开会', FRIDAY), {
+      seconds: 120,
+      title: '开会',
+    });
   });
 });

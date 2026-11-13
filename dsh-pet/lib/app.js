@@ -6841,7 +6841,206 @@ async function handleSleepRoutes(deps, input) {
 }
 
 //#endregion
+//#region src/host/reminder-repeat.ts
+/** 星期汉字 → 数字（与 `Date#getDay` 同一口径）。 */
+const WEEKDAY_NUM = {
+	日: 0,
+	天: 0,
+	一: 1,
+	二: 2,
+	三: 3,
+	四: 4,
+	五: 5,
+	六: 6
+};
+/** 每周某天的说法：`每周三`、`每星期三`、`每个礼拜天`。 */
+const WEEKLY_RE = /每(?:个)?(?:周|星期|礼拜)([一二三四五六日天])/u;
+/** 每个工作日的说法。 */
+const WEEKDAY_RE = /每(?:个)?工作日|工作日每(?:天|日)|周一到周五|周一至周五/u;
+/** 每天的说法（避开「每天」只是陈述的习惯，靠调用方的提醒动词闸门把关）。 */
+const DAILY_RE = /每(?:天|日|晚|早|个晚上|个早上)/u;
+/** 单个汉字的数字。 */
+const DIGIT = {
+	零: 0,
+	一: 1,
+	二: 2,
+	两: 2,
+	三: 3,
+	四: 4,
+	五: 5,
+	六: 6,
+	七: 7,
+	八: 8,
+	九: 9
+};
+/** 把 `11` / `十一` / `两` 这种读数换成数字；认不出返回 null。 */
+function numberOf(raw) {
+	if (/^[0-9]+$/.test(raw)) return Number(raw);
+	const ten = /^([零一二两三四五六七八九])?十([一二三四五六七八九])?$/u.exec(raw);
+	if (ten !== null) {
+		const high = ten[1] === void 0 ? 1 : DIGIT[ten[1]] ?? 0;
+		const low = ten[2] === void 0 ? 0 : DIGIT[ten[2]] ?? 0;
+		return high * 10 + low;
+	}
+	if (raw.length === 1) return DIGIT[raw] ?? null;
+	return null;
+}
+/** 从一句话里取「几点几分」；取不到返回 null。 */
+function clockOf(text) {
+	const colon = /(\d{1,2})[:：](\d{1,2})/u.exec(text);
+	if (colon !== null) {
+		const hour$1 = Number(colon[1]);
+		const minute$1 = Number(colon[2]);
+		if (hour$1 >= 0 && hour$1 <= 23 && minute$1 >= 0 && minute$1 <= 59) return {
+			hour: hour$1,
+			minute: minute$1
+		};
+	}
+	const dot = /(\d{1,2}|[零一二两三四五六七八九十]{1,3})\s*点(半|\s*(?:[0-9]{1,2}|[零一二两三四五六七八九十]{1,3})\s*分?)?/u.exec(text);
+	if (dot === null) return null;
+	const hour = numberOf(dot[1]);
+	if (hour === null || hour < 0 || hour > 23) return null;
+	let minute = 0;
+	if (dot[2] !== void 0) {
+		const tail = dot[2].trim();
+		if (tail === "半") minute = 30;
+		else {
+			const parsed = numberOf(tail.replace(/分$/u, ""));
+			if (parsed !== null && parsed >= 0 && parsed <= 59) minute = parsed;
+		}
+	}
+	const period = /(下午|晚上|傍晚|夜里|凌晨|中午|上午|早上|早晨)/u.exec(text);
+	if (period !== null && hour < 12) {
+		const word = period[1] ?? "";
+		if (/下午|晚上|傍晚|夜里/u.test(word)) {
+			if (hour === 12) return {
+				hour: 12,
+				minute
+			};
+			return {
+				hour: hour + 12,
+				minute
+			};
+		}
+		if (word === "中午" && hour < 6) return {
+			hour: hour + 12,
+			minute
+		};
+	}
+	return {
+		hour,
+		minute
+	};
+}
+function repeatKindOf(text) {
+	const weekly = WEEKLY_RE.exec(text);
+	if (weekly !== null) {
+		const weekday = WEEKDAY_NUM[weekly[1] ?? ""];
+		if (weekday !== void 0) return {
+			kind: "weekly",
+			weekday
+		};
+	}
+	if (WEEKDAY_RE.test(text)) return { kind: "weekday" };
+	if (DAILY_RE.test(text)) return { kind: "daily" };
+	return null;
+}
+function repeatOf(text) {
+	const kind = repeatKindOf(text);
+	if (kind === null) return null;
+	const clock = clockOf(text);
+	if (clock === null) return null;
+	return kind.weekday === void 0 ? {
+		kind: kind.kind,
+		hour: clock.hour,
+		minute: clock.minute
+	} : {
+		kind: kind.kind,
+		hour: clock.hour,
+		minute: clock.minute,
+		weekday: kind.weekday
+	};
+}
+function nextOccurrence(repeat, nowMs) {
+	const base = new Date(nowMs);
+	for (let offset = 0; offset <= 8; offset += 1) {
+		const at = new Date(base.getFullYear(), base.getMonth(), base.getDate() + offset, repeat.hour, repeat.minute, 0, 0);
+		if (at.getTime() <= nowMs) continue;
+		const day = at.getDay();
+		if (repeat.kind === "weekday" && (day === 0 || day === 6)) continue;
+		if (repeat.kind === "weekly" && repeat.weekday !== void 0 && day !== repeat.weekday) continue;
+		return at.getTime();
+	}
+	return new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, repeat.hour, repeat.minute, 0, 0).getTime();
+}
+function repeatAt(kind, atMs) {
+	const when = new Date(atMs);
+	return kind.weekday === void 0 ? {
+		kind: kind.kind,
+		hour: when.getHours(),
+		minute: when.getMinutes()
+	} : {
+		kind: kind.kind,
+		hour: when.getHours(),
+		minute: when.getMinutes(),
+		weekday: kind.weekday
+	};
+}
+function repeatLabel(repeat) {
+	const clock = `${String(repeat.hour).padStart(2, "0")}:${String(repeat.minute).padStart(2, "0")}`;
+	if (repeat.kind === "daily") return `每天 ${clock}`;
+	if (repeat.kind === "weekday") return `每个工作日 ${clock}`;
+	const name = [
+		"周日",
+		"周一",
+		"周二",
+		"周三",
+		"周四",
+		"周五",
+		"周六"
+	][repeat.weekday ?? 1] ?? "每周";
+	return `${name} ${clock}`;
+}
+/** 用户话里像「让我提醒」的动词：没有它就不当成排提醒的请求。 */
+const ASK_RE = /(提醒|叫我|喊我|记得|别忘|记着)/u;
+/** 从原话里截事项：`每个工作日 11 点提醒我点外卖` → `点外卖`。 */
+function titleOfSentence(text) {
+	const at = text.search(ASK_RE);
+	if (at < 0) return "";
+	const tail = text.slice(at).replace(/^(?:提醒我一下|提醒我|提醒一下|提醒下|叫我|喊我|记得|别忘|记着)/u, "").replace(/^[^，,。.；;：:]*?[，,。.；;：:]/u, "").trim();
+	const cleaned = tail.replace(/[。．.！!？?，,、；;：:]+$/u, "").trim();
+	return cleaned.slice(0, 40);
+}
+function inferRepeatReminder(userText, nowMs) {
+	const repeat = repeatOf(userText);
+	if (repeat === null) return null;
+	if (!ASK_RE.test(userText)) return null;
+	const title = titleOfSentence(userText);
+	if (title === "") return null;
+	const seconds = Math.round((nextOccurrence(repeat, nowMs) - nowMs) / 1e3);
+	return {
+		seconds,
+		title,
+		repeat
+	};
+}
+function applyRepeat(title, seconds, userText, nowMs) {
+	const repeat = repeatOf(userText);
+	if (repeat === null) return {
+		seconds,
+		title
+	};
+	const next = nextOccurrence(repeat, nowMs);
+	return {
+		seconds: Math.round((next - nowMs) / 1e3),
+		title,
+		repeat
+	};
+}
+
+//#endregion
 //#region src/host/routes/tasks.ts
+const PET_REMINDER_PREFIX = "chat-";
 /** 取一个修剪过的字符串；非字符串给空串。 */
 function textOf(value) {
 	return typeof value === "string" ? value.trim() : "";
@@ -6872,22 +7071,47 @@ function scheduleOf(deps) {
 	if (!service) return null;
 	return service;
 }
+/** 直接把宠物自己的闹钟折成面板行：它们的「下次时刻」不在 DSH 调度器里。 */
+function reminderRows(deps) {
+	return deps.reminders.list().map((item) => ({
+		id: PET_REMINDER_PREFIX + item.id,
+		title: item.title,
+		kind: "chat",
+		scheduledAt: new Date(item.dueAt).toISOString(),
+		status: "active",
+		...item.repeat === void 0 ? {} : { repeat: repeatLabel(item.repeat) }
+	}));
+}
+/** 读调度器清单；失败折成结果对象，由调用方转成可展示的失败（不 throw 以免丢日志上下文）。 */
+async function readCatalog(deps, service) {
+	if (typeof service.catalog !== "function") return {
+		ok: true,
+		rows: []
+	};
+	try {
+		return {
+			ok: true,
+			rows: await service.catalog()
+		};
+	} catch (error$1) {
+		const message = error$1 instanceof Error ? error$1.message : String(error$1);
+		deps.log.warn("dsh-pet: tasks/catalog failed: " + message);
+		return {
+			ok: false,
+			message
+		};
+	}
+}
 async function handleTaskRoutes(deps, input) {
 	if (input.rest === "tasks") {
 		if (input.method !== "GET") return methodNotAllowed();
 		const service = scheduleOf(deps);
-		if (!service || typeof service.catalog !== "function") return failResult("unsupported", "DSH 的 schedule 服务不可用");
-		let rows;
-		try {
-			rows = await service.catalog();
-		} catch (error$1) {
-			const message = error$1 instanceof Error ? error$1.message : String(error$1);
-			deps.log.warn("dsh-pet: tasks/catalog failed: " + message);
-			return failResult("internal-error", "读定时任务失败：" + message);
-		}
+		if (!service) return failResult("unsupported", "DSH 的 schedule 服务不可用");
+		const catalog = await readCatalog(deps, service);
+		if (!catalog.ok) return failResult("internal-error", "读定时任务失败：" + catalog.message);
 		return okResult({
 			ok: true,
-			tasks: readRows(rows)
+			tasks: [...readRows(catalog.rows), ...reminderRows(deps)]
 		});
 	}
 	if (input.rest === "tasks/complete") {
@@ -6900,6 +7124,12 @@ async function handleTaskRoutes(deps, input) {
 		}
 		const id = textOf(parsed?.id);
 		if (id === "") return failResult("bad-request", "id 必填");
+		if (id.startsWith(PET_REMINDER_PREFIX)) {
+			const cancelled = deps.reminders.cancel(id.slice(PET_REMINDER_PREFIX.length));
+			if (!cancelled) return failResult("bad-request", "没有这条提醒：" + id);
+			deps.log.info(`[dsh-pet] 任务面板取消提醒 ${id}`);
+			return okResult({ ok: true });
+		}
 		const service = scheduleOf(deps);
 		if (!service || typeof service.catalog !== "function" || typeof service.delete !== "function") return failResult("unsupported", "DSH 的 schedule 服务不可用");
 		let rows;
@@ -9079,16 +9309,16 @@ function reminderNowText(now) {
 function reminderInstruction(now) {
 	return `
 
-[提醒] 用户让你在某个时间点提醒他做某件事时（例如「两分钟后提醒我开会」「明天 9 点叫我起床」），先算出现在到那一刻还有多少秒，然后在回复最后另起一行写 [提醒:秒数|事项]。秒数是 1 到 ${REMINDER_MAX_SECONDS} 之间的整数（最长 7 天），事项不超过 ${REMINDER_TITLE_MAX} 个字、只说做什么；正文里先用一句话确认「好，几点提醒你做什么」。只写一条；用户没让你提醒时绝对不要写这个标记。现在是 ${reminderNowText(now)}。`;
+[提醒] 用户让你在某个时间点提醒他做某件事时（例如「两分钟后提醒我开会」「明天 9 点叫我起床」），先算出现在到那一刻还有多少秒，然后在回复最后另起一行写 [提醒:秒数|事项]。秒数是 1 到 ${REMINDER_MAX_SECONDS} 之间的整数（最长 7 天），事项不超过 ${REMINDER_TITLE_MAX} 个字、只说做什么；正文里先用一句话确认「好，几点提醒你做什么」。只写一条；用户没让你提醒时绝对不要写这个标记。用户要是说「每个工作日」「每天」「每周三」这类重复，就在事项后面再加一段，例如 [提醒:238140|点外卖|每工作日]、[提醒:3600|喝水|每天]、[提醒:7200|开会|每周三]；秒数仍然算到下一次那一刻（不是重复间隔）。现在是 ${reminderNowText(now)}。`;
 }
-function extractChatReminder(text) {
+function extractChatReminder(text, nowMs = Date.now()) {
 	const tag = /\[提醒[:：]\s*([^\]\n]{1,120})\]/g;
 	let reminder;
 	let tagged = false;
 	const cleaned = text.replace(tag, (_tag, raw) => {
 		tagged = true;
 		if (reminder === void 0) {
-			const parsed = parseTagBody(raw);
+			const parsed = parseTagBody(raw, nowMs);
 			if (parsed !== null) reminder = parsed;
 		}
 		return "";
@@ -9101,16 +9331,20 @@ function extractChatReminder(text) {
 	};
 }
 /**
-* 解析标记体：`秒数[单位]|事项`。
+* 解析标记体：`秒数[单位]|事项[|周期]`。
 *
 * @param raw - 方括号里的内容（已去掉 `[提醒:` 与 `]`）。
 * @returns 合法提醒；秒数不合法、缺分隔符或事项为空时返回 null。
 */
-function parseTagBody(raw) {
+function parseTagBody(raw, nowMs) {
 	const cut = raw.search(/[|｜]/);
 	if (cut < 0) return null;
 	const delayText = raw.slice(0, cut).trim();
-	const title = raw.slice(cut + 1).trim().replace(/[。．.]+$/, "");
+	const rest = raw.slice(cut + 1);
+	const cut2 = rest.search(/[|｜]/);
+	const bodyPart = cut2 < 0 ? rest : rest.slice(0, cut2);
+	const repeatPart = cut2 < 0 ? "" : rest.slice(cut2 + 1);
+	const title = bodyPart.trim().replace(/[。．.]+$/, "");
 	if (title === "" || title.length > REMINDER_TITLE_MAX) return null;
 	const m = /^([0-9]+(?:\.[0-9]+)?)\s*(秒|分钟|分|小时|天|s|m|h|d)?$/i.exec(delayText);
 	if (m === null) return null;
@@ -9120,9 +9354,33 @@ function parseTagBody(raw) {
 	if (unit === void 0) return null;
 	const seconds = Math.round(amount * unit);
 	if (seconds < REMINDER_MIN_SECONDS || seconds > REMINDER_MAX_SECONDS) return null;
-	return {
+	const kind = repeatPart === "" ? null : repeatKindOf(repeatPart);
+	if (kind === null) return {
 		seconds,
 		title
+	};
+	const repeat = repeatAt(kind, nowMs + seconds * 1e3);
+	return {
+		seconds,
+		title,
+		repeat
+	};
+}
+function reconcileReminder(reminder, userText, nowMs) {
+	if (reminder !== void 0) {
+		const merged = applyRepeat(reminder.title, reminder.seconds, userText, nowMs);
+		return merged.repeat === void 0 ? reminder : {
+			seconds: merged.seconds,
+			title: merged.title,
+			repeat: merged.repeat
+		};
+	}
+	const inferred = inferRepeatReminder(userText, nowMs);
+	if (inferred === null) return void 0;
+	return {
+		seconds: inferred.seconds,
+		title: inferred.title,
+		repeat: inferred.repeat
 	};
 }
 
@@ -9774,14 +10032,15 @@ async function generateWith$1(ctx, once) {
 	};
 	const acted = wantAction ? extractChatAction(text, actions) : { text };
 	const picked = wantImage ? extractChatImage(acted.text, pool$1) : { text: acted.text };
-	const reminded = extractChatReminder(picked.text);
+	const reminded = extractChatReminder(picked.text, nowMs);
+	const reminder = reconcileReminder(reminded.reminder, userText, nowMs);
 	const acts = extractChatActs(reminded.text);
 	return {
 		ok: true,
 		text: acts.text,
 		...picked.image ? { image: picked.image } : {},
 		...acted.action ? { action: acted.action } : {},
-		...reminded.reminder ? { reminder: reminded.reminder } : {},
+		...reminder ? { reminder } : {},
 		...acts.rename !== void 0 ? { rename: acts.rename } : {},
 		...acts.remember !== void 0 ? { remember: acts.remember } : {},
 		...acts.size !== void 0 ? { size: acts.size } : {},
@@ -10358,7 +10617,8 @@ function createChatMemory(deps) {
 			...generated.image ? { image: generated.image } : {},
 			...remind ? { remind: {
 				...remind,
-				title: generated.reminder?.title ?? ""
+				title: generated.reminder?.title ?? "",
+				...generated.reminder?.repeat === void 0 ? {} : { repeat: repeatLabel(generated.reminder.repeat) }
 			} } : {},
 			...renamedName !== void 0 ? { renamed: renamedName } : {},
 			...rememberedText !== void 0 ? { remembered: rememberedText } : {},
@@ -10507,15 +10767,43 @@ function sanitize(value) {
 		const dueAt = typeof row.dueAt === "number" && Number.isFinite(row.dueAt) ? row.dueAt : NaN;
 		const createdAt = typeof row.createdAt === "number" && Number.isFinite(row.createdAt) ? row.createdAt : NaN;
 		if (id === "" || petId === "" || title === "" || !Number.isFinite(dueAt)) continue;
+		const repeat = readRepeat(row.repeat);
 		out.push({
 			id,
 			petId,
 			title,
 			dueAt,
-			createdAt: Number.isFinite(createdAt) ? createdAt : dueAt
+			createdAt: Number.isFinite(createdAt) ? createdAt : dueAt,
+			...repeat === void 0 ? {} : { repeat }
 		});
 	}
 	return out.sort((a, b) => a.dueAt - b.dueAt);
+}
+/** 读一条周期规则；形状不对就当它是一次性（坏数据不该让整条提醒消失）。 */
+function readRepeat(value) {
+	if (value === null || typeof value !== "object") return void 0;
+	const row = value;
+	const kind = row.kind;
+	if (kind !== "daily" && kind !== "weekday" && kind !== "weekly") return void 0;
+	const hour = row.hour;
+	const minute = row.minute;
+	if (typeof hour !== "number" || !Number.isInteger(hour) || hour < 0 || hour > 23) return void 0;
+	if (typeof minute !== "number" || !Number.isInteger(minute) || minute < 0 || minute > 59) return void 0;
+	const weekday = row.weekday;
+	if (kind === "weekly") {
+		if (typeof weekday !== "number" || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) return void 0;
+		return {
+			kind,
+			hour,
+			minute,
+			weekday
+		};
+	}
+	return {
+		kind,
+		hour,
+		minute
+	};
 }
 function createPetReminderStore(input) {
 	const now = input.now ?? Date.now;
@@ -10545,7 +10833,8 @@ function createPetReminderStore(input) {
 		const ts = now();
 		const when = new Date(item.dueAt);
 		const clock = `${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`;
-		const hint = lateMs > 60 * 1e3 ? `本来 ${clock} 就该提醒你的` : "到点啦";
+		const base = lateMs > 60 * 1e3 ? `本来 ${clock} 就该提醒你的` : "到点啦";
+		const hint = item.repeat === void 0 ? base : `${base} · ${repeatLabel(item.repeat)}`;
 		publishReminder(input.state, {
 			id: "chat-" + item.id,
 			kind: "chat",
@@ -10555,8 +10844,18 @@ function createPetReminderStore(input) {
 			scheduledAt: when.toISOString(),
 			ttlMs
 		}, now);
-		pending = pending.filter((row) => row.id !== item.id);
-		input.log.info(`[dsh-pet] 对话提醒到点 pet=${item.petId}，迟到 ${Math.round(lateMs / 1e3)}s`);
+		if (item.repeat !== void 0) {
+			const next = nextOccurrence(item.repeat, ts);
+			pending = pending.map((row) => row.id === item.id ? {
+				...row,
+				dueAt: next
+			} : row);
+			pending = [...pending].sort((a, b) => a.dueAt - b.dueAt);
+			input.log.info(`[dsh-pet] 周期提醒到点 pet=${item.petId}（${repeatLabel(item.repeat)}），下一次 ${new Date(next).toISOString()}`);
+		} else {
+			pending = pending.filter((row) => row.id !== item.id);
+			input.log.info(`[dsh-pet] 对话提醒到点 pet=${item.petId}，迟到 ${Math.round(lateMs / 1e3)}s`);
+		}
 		save();
 		return true;
 	};
@@ -10587,7 +10886,7 @@ function createPetReminderStore(input) {
 		timer.unref?.();
 	};
 	const store = {
-		schedule(petId, title, seconds) {
+		schedule(petId, title, seconds, repeat) {
 			const createdAt = now();
 			if (pending.length >= MAX_PENDING_REMINDERS) {
 				const oldest = pending[0];
@@ -10600,8 +10899,9 @@ function createPetReminderStore(input) {
 				id: randomUUID(),
 				petId,
 				title: title.slice(0, 40),
-				dueAt: createdAt + Math.round(seconds) * 1e3,
-				createdAt
+				dueAt: repeat === void 0 ? createdAt + Math.round(seconds) * 1e3 : nextOccurrence(repeat, createdAt),
+				createdAt,
+				...repeat === void 0 ? {} : { repeat }
 			};
 			pending = [...pending, item].sort((a, b) => a.dueAt - b.dueAt);
 			save();
@@ -10629,12 +10929,17 @@ function createPetReminderStore(input) {
 			}
 			pending = sanitize(raw);
 			const at = now();
-			const stale = pending.filter((row) => at - row.dueAt > MISS_GRACE_MS);
+			pending = pending.map((row) => row.repeat !== void 0 && at - row.dueAt > MISS_GRACE_MS ? {
+				...row,
+				dueAt: nextOccurrence(row.repeat, at)
+			} : row);
+			const stale = pending.filter((row) => row.repeat === void 0 && at - row.dueAt > MISS_GRACE_MS);
 			if (stale.length > 0) {
-				pending = pending.filter((row) => at - row.dueAt <= MISS_GRACE_MS);
+				pending = pending.filter((row) => row.repeat !== void 0 || at - row.dueAt <= MISS_GRACE_MS);
 				input.log.info(`[dsh-pet] 丢弃 ${stale.length} 条过期太久的提醒`);
 				save();
 			}
+			pending = [...pending].sort((a, b) => a.dueAt - b.dueAt);
 			const dueNow = pending.filter((row) => row.dueAt <= at).length;
 			if (dueNow > 0) setTimeout(() => tick(), 2e3).unref?.();
 			arm();
@@ -12320,7 +12625,7 @@ function apply(ctx) {
 		state: state$1,
 		userRoot,
 		scheduleReminder: (petId, reminder) => {
-			const item = petReminders.schedule(petId, reminder.title, reminder.seconds);
+			const item = petReminders.schedule(petId, reminder.title, reminder.seconds, reminder.repeat);
 			return {
 				id: item.id,
 				dueAt: item.dueAt
@@ -12399,6 +12704,7 @@ function apply(ctx) {
 		ctx,
 		todos,
 		requests,
+		reminders: petReminders,
 		voice: createVoiceService({
 			userRoot,
 			log: log$1,

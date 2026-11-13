@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { handleTaskRoutes } from './tasks.ts';
 import type { PetRouteDeps } from './types.ts';
 import type { RouteResult } from '../http.ts';
+import type { PetReminder } from '../plugin/pet-reminders.ts';
 
 interface Row {
   id: string;
@@ -23,11 +24,12 @@ interface Row {
   sessionId: string;
 }
 
-/** 只满足任务路由的依赖：一个可编程的假调度器。 */
+/** 只满足任务路由的依赖：一个可编程的假调度器 + 一个内存里的提醒表。 */
 function harness(options: {
   rows?: Row[];
   service?: { catalog?: () => Promise<unknown>; delete?: (request: Record<string, unknown>) => Promise<unknown> };
   noService?: boolean;
+  reminders?: PetReminder[];
 }) {
   const deleted: Record<string, unknown>[] = [];
   const rows = options.rows ?? [];
@@ -39,8 +41,17 @@ function harness(options: {
     },
   };
   const logs: string[] = [];
+  let pendingReminders = [...(options.reminders ?? [])];
   const deps = {
     optionalService: (name: string) => (options.noService ? undefined : name === 'schedule' ? service : undefined),
+    reminders: {
+      list: () => pendingReminders,
+      cancel: (id: string) => {
+        const before = pendingReminders.length;
+        pendingReminders = pendingReminders.filter((row) => row.id !== id);
+        return pendingReminders.length < before;
+      },
+    },
     log: {
       info: (line: string) => logs.push(line),
       warn: (line: string) => logs.push(line),
@@ -181,5 +192,48 @@ describe('handleTaskRoutes —— POST /tasks/complete', () => {
     assert.equal(obj.ok, false);
     assert.match(String(obj.message), /没有会话绑定/);
     assert.deepEqual(deleted, []);
+  });
+
+  test('宠物自己的提醒（chat- 前缀）→ 取消闹钟，不碰 DSH 调度器', async () => {
+    const reminder: PetReminder = {
+      id: 'r-1',
+      petId: 'main',
+      title: '点外卖',
+      dueAt: Date.now() + 60_000,
+      createdAt: Date.now(),
+      repeat: { kind: 'weekday', hour: 11, minute: 0 },
+    };
+    const { call, deleted, logs } = harness({ reminders: [reminder] });
+    const { obj } = asJson(await call('POST', 'tasks/complete', { id: 'chat-r-1' }));
+    assert.deepEqual(obj, { ok: true });
+    assert.deepEqual(deleted, []);
+    assert.match(logs.join('\n'), /任务面板取消提醒 chat-r-1/);
+  });
+
+  test('取消一条不存在的宠物提醒 → 失败', async () => {
+    const { call } = harness({});
+    const { obj } = asJson(await call('POST', 'tasks/complete', { id: 'chat-nope' }));
+    assert.equal(obj.ok, false);
+    assert.match(String(obj.message), /没有这条提醒/);
+  });
+});
+
+describe('handleTaskRoutes —— GET /tasks 里的周期提醒', () => {
+  test('宠物闹钟折成一行 chat 任务，带周期说法', async () => {
+    const reminder: PetReminder = {
+      id: 'r-1',
+      petId: 'main',
+      title: '点外卖',
+      dueAt: Date.parse('2026-11-16T03:00:00.000Z'),
+      createdAt: Date.parse('2026-11-13T08:51:00.000Z'),
+      repeat: { kind: 'weekday', hour: 11, minute: 0 },
+    };
+    const { call } = harness({ rows: [row()], reminders: [reminder] });
+    const { obj } = asJson(await call('GET', 'tasks'));
+    const tasks = obj.tasks as Array<Record<string, unknown>>;
+    const found = tasks.find((item) => item.id === 'chat-r-1');
+    assert.equal(found?.kind, 'chat');
+    assert.equal(found?.repeat, '每个工作日 11:00');
+    assert.equal(found?.scheduledAt, '2026-11-16T03:00:00.000Z');
   });
 });

@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { generateChat, type ChatMemoryMessage } from '../chat.ts';
 import { chatActionNames } from '../chat-action.ts';
 import type { ChatReminder } from '../chat-reminder.ts';
+import { repeatLabel } from '../reminder-repeat.ts';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { composeSystemPrompt, petPersona } from '../persona.ts';
 import { findPetInstance, readAllConfig, removeRoundsByTs, sliceMemoryRounds } from '../config.ts';
@@ -258,7 +259,7 @@ export function createChatMemory(deps: ChatMemoryInput) {
         ok: true;
         text: string;
         image?: string;
-        remind?: { id: string; title: string; dueAt: number };
+        remind?: { id: string; title: string; dueAt: number; repeat?: string };
         /** 这一轮真的改了名（新名字）；没要求改名则没有这个键 */
         renamed?: string;
         /** 这一轮真的记住了（那句话）；没要求记住则没有这个键 */
@@ -458,7 +459,15 @@ export function createChatMemory(deps: ChatMemoryInput) {
         ok: true as const,
         text: generated.text,
         ...(generated.image ? { image: generated.image } : {}),
-        ...(remind ? { remind: { ...remind, title: generated.reminder?.title ?? '' } } : {}),
+        ...(remind
+          ? {
+              remind: {
+                ...remind,
+                title: generated.reminder?.title ?? '',
+                ...(generated.reminder?.repeat === undefined ? {} : { repeat: repeatLabel(generated.reminder.repeat) }),
+              },
+            }
+          : {}),
         ...(renamedName !== undefined ? { renamed: renamedName } : {}),
         ...(rememberedText !== undefined ? { remembered: rememberedText } : {}),
         ...(resized !== undefined ? { resized } : {}),

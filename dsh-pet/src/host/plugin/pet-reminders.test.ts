@@ -194,3 +194,118 @@ describe('createPetReminderStore —— 到点与落盘', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 });
+
+/** 「每个工作日 11:00」——这次用户报的那条。 */
+const WEEKDAY_11 = { kind: 'weekday' as const, hour: 11, minute: 0 };
+
+describe('createPetReminderStore —— 周期提醒', () => {
+  test('排期对齐到整分：10:59:31 排「每个工作日 11:00」→ 今天 11:00:00', () => {
+    const start = new Date(2026, 10, 16, 10, 59, 31, 0).getTime();
+    const { store, dir } = harness({ start });
+    const item = store.schedule('main', '点外卖', 60, WEEKDAY_11);
+    assert.equal(item.dueAt, new Date(2026, 10, 16, 11, 0, 0, 0).getTime());
+    assert.deepEqual(item.repeat, WEEKDAY_11);
+    // 不是 createdAt + 60s，那个数字只是模型的估算
+    assert.notEqual(item.dueAt, item.createdAt + 60_000);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('周五下午排「每个工作日 11:00」→ 周一 11:00（跳过周末）', () => {
+    const start = new Date(2026, 10, 13, 16, 51, 0, 0).getTime();
+    const { store, dir } = harness({ start });
+    const item = store.schedule('main', '点外卖', 60, WEEKDAY_11);
+    const at = new Date(item.dueAt);
+    assert.equal(at.getDay(), 1);
+    assert.equal(at.getHours(), 11);
+    assert.equal(at.getMinutes(), 0);
+    assert.equal(at.getSeconds(), 0);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('响过之后不摘，推进到下一天同一时刻；提示里写明周期', () => {
+    const start = new Date(2026, 10, 16, 10, 59, 31, 0).getTime();
+    const { store, writes, time, dir } = harness({ start });
+    const item = store.schedule('main', '点外卖', 60, WEEKDAY_11);
+    time.advance(29_000); // → 11:00:00
+    store.tick();
+    const bubbles = remindersOf(writes);
+    assert.equal(bubbles.length, 1);
+    assert.equal(bubbles[0]?.id, 'chat-' + item.id);
+    assert.match(String(bubbles[0]?.hint ?? ''), /每个工作日 11:00/);
+    const left = store.list();
+    assert.equal(left.length, 1);
+    assert.equal(left[0]?.id, item.id);
+    assert.equal(left[0]?.dueAt, new Date(2026, 10, 17, 11, 0, 0, 0).getTime());
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('再响一次仍然只有一条，不会越排越多', () => {
+    const start = new Date(2026, 10, 16, 10, 59, 31, 0).getTime();
+    const { store, time, dir } = harness({ start });
+    store.schedule('main', '点外卖', 60, WEEKDAY_11);
+    time.advance(29_000);
+    store.tick();
+    time.advance(24 * 3600 * 1000); // 第二天 11:00
+    store.tick();
+    assert.equal(store.list().length, 1);
+    assert.equal(store.list()[0]?.dueAt, new Date(2026, 10, 18, 11, 0, 0, 0).getTime());
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('load：周期项错过很久也推进到下一次，而不是像一次性那样丢掉', async () => {
+    const start = new Date(2026, 10, 16, 9, 0, 0, 0).getTime();
+    const { dir, file, time } = harness({ start });
+    // 一个月前那条「每个工作日 11:00」，正常实现里早该被丢弃
+    writeFileSync(
+      file,
+      JSON.stringify([
+        {
+          id: 'old-repeat',
+          petId: 'main',
+          title: '点外卖',
+          dueAt: new Date(2026, 9, 16, 11, 0, 0, 0).getTime(),
+          createdAt: new Date(2026, 9, 16, 10, 0, 0, 0).getTime(),
+          repeat: WEEKDAY_11,
+        },
+      ]),
+      'utf8',
+    );
+    const store = createPetReminderStore({
+      state: { writeSection: () => undefined },
+      log: { info: () => undefined, warn: () => undefined, error: () => undefined },
+      userRoot: dir,
+      now: time.now,
+    });
+    await store.load();
+    const rows = store.list();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.dueAt, new Date(2026, 10, 16, 11, 0, 0, 0).getTime());
+    store.dispose();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('坏 repeat 数据当一次性：照常到点弹出并按一次性摘掉', async () => {
+    const start = new Date(2026, 10, 16, 10, 59, 0, 0).getTime();
+    const { store, writes, time, dir, file } = harness({ start });
+    writeFileSync(
+      file,
+      JSON.stringify([
+        {
+          id: 'bad',
+          petId: 'main',
+          title: '开会',
+          dueAt: start + 60_000,
+          createdAt: start,
+          repeat: { kind: 'hourly' },
+        },
+      ]),
+      'utf8',
+    );
+    await store.load();
+    time.advance(60_000);
+    store.tick();
+    assert.equal(remindersOf(writes).length, 1);
+    assert.deepEqual(store.list(), []);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});

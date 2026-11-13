@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: dsh-pet HTTP API
-  version: 0.16.4
+  version: 0.16.5
   summary: DSH 桌宠插件的宿主 HTTP 接口
   description: |
     dsh-pet 的宿主（host）半侧通过 DSH 的 `webServer` 服务注册**一条前缀路由** `/dsh-pet-7340`，
@@ -3371,6 +3371,12 @@ paths:
         `scheduledAt` / `status`（`active` | `inactive`），缺 id 或标题的行直接丢掉。
         桌面右键菜单「任务」与设置页用的都是这一份。
 
+        **两套存储、一份清单**：除了调度器里的任务，这里还会把宠物自己记着的提醒
+        （对话里答应的「每个工作日 11 点提醒我点外卖」，存在用户数据目录的
+        `reminders.json`）折成 `kind: chat` 的行并进来，周期项带 `repeat`
+        （例如 `每个工作日 11:00`）。它们在 DSH 的「自动化任务」里看不到，是因为
+        走的是宠物自己的闹钟，不是 DSH 调度器。
+
         **完成 = 删除**：DSH 的定时任务没有「已完成」状态，一次性任务跑完自然退场，
         周期任务只有删掉才算不再打扰，所以 `POST /tasks/complete` 走的就是 `schedule.delete`。
         宿主不读写 `storages/schedule.json`：调度器启动时把整张表载入内存，手改文件会被覆盖。
@@ -3405,6 +3411,9 @@ paths:
       description: |
         按 id 在目录里找到该行，用行上的 `sessionId` 调 `schedule.delete({sessionId, id})`：
         会话不能猜，行里没有绑定就明确失败。删掉之后不会再被调度，也从 /tasks 消失。
+
+        `id` 以 `chat-` 开头的是宠物自己记着的提醒：只从 `reminders.json` 里取消，
+        不碰 DSH 调度器。
       requestBody:
         required: true
         content:
@@ -4287,18 +4296,26 @@ components:
           description: |
             本轮采纳的动作名（回复里带 `[动作:名称]` 时才有）。动作已写进 `pets.<id>.anim`，
             这个字段只是让调用方不必再拉一拍。
-        reminder:
+        remind:
           type: object
           description: |
             本轮排上的提醒（回复里带 `[提醒:秒数|标题]` 时才有）。已落盘到数据根的
             `reminders.json`，到点会弹 `sections.reminder` 气泡；宿主重启后仍会响。
+
+            原话里带周期（「每个工作日 11 点」「每天八点」「每周三下午三点」）时，
+            这条提醒会变成周期项：`dueAt` 是**下一次**触发时刻（对齐整分），响过一次
+            不会消失，而是自动推进到下一次；带周期时额外给出 `repeat`。
           properties:
             title:
               type: string
               description: 提醒事项
             dueAt:
               type: integer
-              description: 到点时刻（epoch 毫秒）
+              description: 到点时刻（epoch 毫秒）；周期项是下一次触发时刻
+            repeat:
+              type: string
+              description: |
+                周期说法（例：`每个工作日 11:00`）；一次性的提醒没有这一项。
         renamed:
           type: string
           description: |
@@ -5651,8 +5668,8 @@ components:
           type: string
         kind:
           type: string
-          enum: [after, at, every, daily, weekly, cron]
-          description: 一次性（`after` / `at`）还是周期任务
+          enum: [after, at, every, daily, weekly, cron, chat]
+          description: 一次性（`after` / `at`）、周期任务，或 `chat`（宠物自己记着的提醒）
         scheduledAt:
           type: string
           description: ISO 时间；下一次（或唯一一次）被投递的时刻
@@ -5660,4 +5677,7 @@ components:
           type: string
           enum: [active, inactive]
           description: inactive = 已经结束/过期，只剩一条记录
+        repeat:
+          type: string
+          description: 周期说法（例：`每个工作日 11:00`）；一次性的任务或提醒没有这一项
 

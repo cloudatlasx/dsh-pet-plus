@@ -1,3 +1,4 @@
+import { type ReminderRepeat } from '../reminder-repeat.ts';
 import type { PollStateStore } from '../state.ts';
 import type { HostSetup } from './setup.ts';
 /** 落盘文件名。 */
@@ -18,15 +19,17 @@ export interface PetReminder {
     readonly petId: string;
     /** 提醒事项。 */
     readonly title: string;
-    /** 到点时刻（ms）。 */
+    /** 到点时刻（ms）。周期提醒响完会推进到下一次。 */
     readonly dueAt: number;
     /** 约定时刻（ms）：排期、日志用。 */
     readonly createdAt: number;
+    /** 周期规则；一次性提醒没有这一项。 */
+    readonly repeat?: ReminderRepeat;
 }
 /** 闹钟存储：排一条、看全部、取消、随生命周期释放。 */
 export interface PetReminderStore {
     /** 排一条提醒；`seconds` 已由调用方校验过范围。超过上限时顶掉最早的一条。 */
-    schedule(petId: string, title: string, seconds: number): PetReminder;
+    schedule(petId: string, title: string, seconds: number, repeat?: ReminderRepeat): PetReminder;
     /** 当前待发的提醒（按到点时刻升序）。 */
     list(): PetReminder[];
     /** 取消一条；命中返回 true。 */

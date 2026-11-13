@@ -65,6 +65,7 @@ export declare function createChatMemory(deps: ChatMemoryInput): {
             id: string;
             title: string;
             dueAt: number;
+            repeat?: string;
         };
         /** 这一轮真的改了名（新名字）；没要求改名则没有这个键 */
         renamed?: string;

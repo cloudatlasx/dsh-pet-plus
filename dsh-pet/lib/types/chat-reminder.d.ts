@@ -4,14 +4,21 @@
  * 模型本身没有定时能力，它能做的只有把「几秒后提醒什么」写成一行标记；
  * 真正挂计时器、到点弹气泡的是 ./plugin/pet-reminders。
  * 所以这里只管两件纯逻辑的事：告诉模型怎么写、把标记从正文里剥出来。
+ *
+ * 周期提醒（「每个工作日 11 点」）在标记的第三段用一句话说明，例如
+ * `[提醒:238140|点外卖|每工作日]`；解析成 {@link ReminderRepeat} 后交给闹钟，
+ * 到点响完再自动排下一天（见 ./reminder-repeat）。
  * @module dsh-pet/src/host/chat-reminder
  */
-/** 一条解析出来的提醒：几秒后、提醒什么。 */
+import { type ReminderRepeat } from './reminder-repeat.ts';
+/** 一条解析出来的提醒：几秒后、提醒什么、要不要重复。 */
 export interface ChatReminder {
     /** 相对现在多少秒后提醒（已换算成秒）。 */
     readonly seconds: number;
     /** 提醒事项（放在气泡标题里，所以要求短）。 */
     readonly title: string;
+    /** 周期规则；一次性提醒没有这一项。 */
+    readonly repeat?: ReminderRepeat;
 }
 /** 最短提醒（秒）：再短就没有「提醒」的意义了，多半是模型把秒数算错。 */
 export declare const REMINDER_MIN_SECONDS = 5;
@@ -46,7 +53,21 @@ export declare function reminderInstruction(now: Date): string;
  * @param text - 模型回复原文。
  * @returns 剥掉标记后的正文，以及第一条合法提醒（没有就是 undefined）。
  */
-export declare function extractChatReminder(text: string): {
+export declare function extractChatReminder(text: string, nowMs?: number): {
     text: string;
     reminder?: ChatReminder;
 };
+/**
+ * 把模型写的提醒与用户原话对齐，模型漏写标记时兜底补一条。
+ *
+ * 两种情况：
+ * 1. 模型写了 `[提醒:…]`：用户原话里有「每个工作日 11 点」这类周期说法就用它重算到点时刻
+ *    （模型算术可能差几十秒），并挂上周期；
+ * 2. 模型没写标记但用户明确说了「周期 + 钟点 + 提醒我」：替它排上，避免「她答应了却没记住」。
+ *
+ * @param reminder - 标记里解析出的提醒（没有就是 undefined）。
+ * @param userText - 用户这一句原话。
+ * @param nowMs - 现在（毫秒时间戳）。
+ * @returns 最终要排进闹钟的提醒；两条路都没结果时 undefined。
+ */
+export declare function reconcileReminder(reminder: ChatReminder | undefined, userText: string, nowMs: number): ChatReminder | undefined;
