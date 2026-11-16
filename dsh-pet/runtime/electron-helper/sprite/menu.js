@@ -361,6 +361,8 @@ Object.assign(PetSprite.prototype, {
     }
     const panel = S.createTodoPanel({
       baseUrl: BASE + '/todos',
+      // 定时任务同样要绝对地址：file:// 页面里的 /dsh-pet-7340/tasks 会被当成磁盘路径。
+      tasksUrl: BASE + '/tasks',
       onClose: () => this.closeTodo(),
       // 点宠物本体不收起：拖它走是常见需求，收起就没法一边看清单一边挪位置。
       keepOpenOn: (target) => typeof target?.closest === 'function' && target.closest('.pet-hit') !== null,

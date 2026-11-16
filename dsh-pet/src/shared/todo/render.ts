@@ -116,12 +116,13 @@ export function createTodoPanelParts(): TodoPanelParts {
   const lower = element('div', 'dsh-pet-todo-lower');
   lower.append(fold('is-list', [error, empty, list, hint]));
 
-  // 定时任务：DSH 调度器里的任务列在下面，只能「完成」（= 删除），不能在这里新建——
-  // 新建走对话（「每天早上八点提醒我…」）或 DSH 自己的界面。
+  // 定时任务：DSH 调度器里的任务与「对话里答应的提醒」都列在下面，只能「完成」（= 取消），
+  // 不能在这里新建——新建走对话（「每天早上八点提醒我…」）或 DSH 自己的界面。
   const tasks = element('div', 'dsh-pet-todo-tasks');
-  const tasksHead = element('div', 'dsh-pet-todo-tasksHead', '定时任务');
+  const tasksHead = element('div', 'dsh-pet-todo-tasksHead', '提醒与定时任务');
+  const tasksHint = element('div', 'dsh-pet-todo-hint', '点「完成」就不提醒了；对话里答应的也会记在这里');
   const taskList = element('ul', 'dsh-pet-todo-list dsh-pet-todo-taskList');
-  tasks.append(tasksHead, taskList);
+  tasks.append(tasksHead, tasksHint, taskList);
   tasks.hidden = true;
   root.append(head, form, lower, tasks);
   return { root, form, input, list, empty, count, closeButton, error, hint, tasks, taskList };

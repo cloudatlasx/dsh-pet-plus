@@ -460,6 +460,9 @@ Object.assign(PetSprite.prototype, {
 
   /** 悬停快捷键：按住 M 说话、L 开对话、S 截图、Z 切换睡/醒、D 开关待办、1-4 切显示位置。 */
   onHotkey(e) {
+    // 焦点在输入框里就是「用户正在打字」：这些字母属于正文，不是快捷键。
+    // 少了这一道，打字打到 d/l/s/z/m 会把面板关掉或开始录音。
+    if (S.isTypingTarget(e.target)) return;
     // 按住说话先判：它要吃掉按住期间的自动重复，晚一步就会被输入框收走
     if (this.hearHold.onKeyDown(e)) {
       e.preventDefault();

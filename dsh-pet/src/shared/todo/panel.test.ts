@@ -128,7 +128,21 @@ function withFakeEnv(): {
               done: false,
             },
           }
-        : { ok: true, todos: [] };
+        : String(url).includes('/tasks')
+          ? {
+              ok: true,
+              tasks: [
+                {
+                  id: 'chat-1',
+                  title: '点外卖',
+                  kind: 'chat',
+                  scheduledAt: '2026-11-17T03:00:00.000Z',
+                  status: 'active',
+                  repeat: '每个工作日 11:00',
+                },
+              ],
+            }
+          : { ok: true, todos: [] };
     return { ok: true, status: 200, json: async () => payload } as unknown as Response;
   }) as typeof fetch;
   return {
@@ -205,6 +219,30 @@ test('提交：没听出时间就不猜，记成不提醒的待办', async () =>
     const body = created.body as { text: string; dueAt: number | null };
     assert.equal(body.dueAt, null);
     assert.equal(body.text, '买三斤苹果');
+    panel.dispose();
+  } finally {
+    env.restore();
+  }
+});
+
+test('定时任务用调用方给的绝对基址：桌面 file:// 页面里相对路径请求不到', async () => {
+  const env = withFakeEnv();
+  try {
+    const base = 'http://127.0.0.1:8752/dsh-pet-7340';
+    const panel = createTodoPanel({ baseUrl: base + '/todos', tasksUrl: base + '/tasks' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const taskRequest = env.requests.find((request) => request.url.includes('/tasks'));
+    assert.ok(taskRequest, '应该请求定时任务清单');
+    assert.equal(taskRequest.url, base + '/tasks', '用调用方给的基址，不拼同源相对路径');
+    const tasks = childNodes(panel).find((node) => node.className.includes('dsh-pet-todo-tasks'));
+    assert.ok(tasks, '面板里应该有任务区');
+    assert.equal(tasks.hidden, false, '有任务时任务区要显示，不能整块藏起来');
+    const lists = tasks.children.filter((node) => node.className.includes('taskList'));
+    assert.equal(lists.length, 1);
+    const row = lists[0].children[0];
+    assert.ok(row, '应该渲染出一行任务');
+    assert.equal(row.children[0].children[0].textContent, '点外卖');
+    assert.match(row.children[0].children[1].textContent, /每个工作日 11:00/, '周期说法要显示出来');
     panel.dispose();
   } finally {
     env.restore();

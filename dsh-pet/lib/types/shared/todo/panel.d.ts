@@ -2,6 +2,8 @@
 export interface TodoPanelOptions {
     /** 接口基址；桌面端可传绝对地址，缺省走同源前缀。 */
     baseUrl?: string;
+    /** 定时任务接口基址：桌面端的 fetch 拿不到同源相对路径，必须给绝对地址。 */
+    tasksUrl?: string;
     /** 点面板外面时调用；显隐由槽位决定，面板不自己收。 */
     onClose?: () => void;
     /** 这次按下的落点是否该让面板留着；两端各判各的命中层，面板不认识它们的类名。 */

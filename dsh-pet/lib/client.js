@@ -3186,9 +3186,10 @@ function createTodoPanelParts() {
 		hint
 	]));
 	const tasks = element("div", "dsh-pet-todo-tasks");
-	const tasksHead = element("div", "dsh-pet-todo-tasksHead", "定时任务");
+	const tasksHead = element("div", "dsh-pet-todo-tasksHead", "提醒与定时任务");
+	const tasksHint = element("div", "dsh-pet-todo-hint", "点「完成」就不提醒了；对话里答应的也会记在这里");
 	const taskList = element("ul", "dsh-pet-todo-list dsh-pet-todo-taskList");
-	tasks.append(tasksHead, taskList);
+	tasks.append(tasksHead, tasksHint, taskList);
 	tasks.hidden = true;
 	root.append(head, form, lower, tasks);
 	return {
@@ -3408,10 +3409,27 @@ function injectTodoCss() {
 
 //#endregion
 //#region src/shared/todo/panel.ts
+/** 落在面板外的那一下与随后的失焦之间的宽限期：窗口内的按键不该跟用户抢焦点。 */
+const FOCUS_GUARD_MS = 400;
+/** 每次聚焦最多抢回几次：抢多了会跟用户抢鼠标。 */
+const FOCUS_GUARD_BUDGET = 3;
+/** 打字期间重申键盘焦点的节拍：宠物窗是 showInactive 弹出的，DOM 聚焦不等于窗口真的能收到按键。 */
+const FOCUS_ASSERT_MS = 700;
+/**
+* 桌面端补一次「窗口要键盘焦点」的请求。
+*
+* 网页端没有 petBridge，这里什么也不做；桌面端由主进程调用 win.focus()，
+* 窗口已聚焦时它会自己跳过，所以重复调用不会跟别的应用抢焦点。
+*/
+function assertKeyboardFocus() {
+	const bridge = globalThis.petBridge;
+	bridge?.requestKeyboardFocus?.();
+}
 function createTodoPanel(options = {}) {
 	injectTodoCss();
 	const parts = createTodoPanelParts();
 	const baseUrl = options.baseUrl ?? TODOS_PATH;
+	const tasksUrl = options.tasksUrl ?? TASKS_PATH;
 	let disposed = false;
 	let busy = false;
 	let todos = [];
@@ -3420,10 +3438,10 @@ function createTodoPanel(options = {}) {
 		onToggle: (todo, done) => void mutate(() => patchTodo(todo.id, { done }, baseUrl)),
 		onDelete: (todo) => void mutate(() => removeTodo(todo.id, baseUrl))
 	};
-	const taskHandlers = { onComplete: (task) => void mutate(() => completeTask(task.id, TASKS_PATH)) };
+	const taskHandlers = { onComplete: (task) => void mutate(() => completeTask(task.id, tasksUrl)) };
 	/** 重新拉整张清单：修改一律以宿主返回为准，不在本地猜结果。 */
 	async function reload() {
-		const [todoResult, taskResult] = await Promise.all([loadTodos(baseUrl), loadTasks(TASKS_PATH)]);
+		const [todoResult, taskResult] = await Promise.all([loadTodos(baseUrl), loadTasks(tasksUrl)]);
 		if (disposed) return;
 		if (!todoResult.ok) {
 			setTodoError(parts, todoResult.message);
@@ -3441,18 +3459,65 @@ function createTodoPanel(options = {}) {
 	async function mutate(task) {
 		if (disposed || busy) return;
 		busy = true;
+		const hadFocus = document.activeElement === parts.input;
 		setTodoBusy(parts, true);
 		setTodoError(parts, null);
 		const result = await task();
 		busy = false;
 		if (disposed) return;
 		setTodoBusy(parts, false);
+		if (hadFocus) restoreFocus();
 		if (!result.ok) {
 			setTodoError(parts, result.message);
 			return;
 		}
 		await reload();
 	}
+	let refocusBudget = 0;
+	let pointerDownAt = 0;
+	/** 打字期间的焦点重申计时器：失焦就停，重新聚焦再开。 */
+	let assertTimer = null;
+	const stopAssert = () => {
+		if (assertTimer === null) return;
+		window.clearInterval(assertTimer);
+		assertTimer = null;
+	};
+	const startAssert = () => {
+		assertKeyboardFocus();
+		if (assertTimer !== null) return;
+		assertTimer = window.setInterval(() => {
+			if (disposed || document.activeElement !== parts.input) {
+				stopAssert();
+				return;
+			}
+			assertKeyboardFocus();
+		}, FOCUS_ASSERT_MS);
+	};
+	const onDocPointerDown = () => {
+		pointerDownAt = Date.now();
+	};
+	/** 抢回输入框焦点：等这一拍的 DOM 变更落定再抓，太早会被随后的重排再抹掉。 */
+	function restoreFocus() {
+		if (disposed) return;
+		window.setTimeout(() => {
+			if (disposed || busy || parts.input.disabled) return;
+			parts.input.focus();
+			assertKeyboardFocus();
+		}, 80);
+	}
+	parts.input.addEventListener("focus", () => {
+		refocusBudget = FOCUS_GUARD_BUDGET;
+		startAssert();
+	});
+	parts.input.addEventListener("blur", () => {
+		stopAssert();
+		if (disposed || parts.input.value.trim() === "") return;
+		if (Date.now() - pointerDownAt < FOCUS_GUARD_MS) return;
+		if (refocusBudget <= 0) return;
+		refocusBudget -= 1;
+		restoreFocus();
+	});
+	document.addEventListener("pointerdown", onDocPointerDown, true);
 	/** 提交新增：一句话里同时读时间和正文；空正文直接回到输入框。 */
 	const submitAdd = () => {
 		const raw = parts.input.value.trim();
@@ -3497,6 +3562,8 @@ function createTodoPanel(options = {}) {
 			if (disposed) return;
 			disposed = true;
 			document.removeEventListener("mousedown", onDocMouseDown, true);
+			document.removeEventListener("pointerdown", onDocPointerDown, true);
+			stopAssert();
 			parts.root.remove();
 		}
 	};
